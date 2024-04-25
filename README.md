@@ -1,3 +1,5 @@
+inspired and code reuse from https://github.com/AllAboutAI-YT/easy-local-rag
+
 1. pip install -r requirements.txt
 2. Install Ollama (https://ollama.com/download)
 3. run gui.py
