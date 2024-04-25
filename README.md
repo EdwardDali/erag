@@ -1,6 +1,6 @@
 1. pip install -r requirements.txt
 2. Install Ollama (https://ollama.com/download)
-3. run rag.py
+3. run gui.py
 
 
 ### What is RAG?
