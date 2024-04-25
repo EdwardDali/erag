@@ -2,7 +2,8 @@ inspired and code reuse from https://github.com/AllAboutAI-YT/easy-local-rag
 
 1. pip install -r requirements.txt
 2. Install Ollama (https://ollama.com/download)
-3. run gui.py
+3. from cmd: ollama run phi3:instruct
+4. run gui.py
 
 
 ### What is RAG?
