@@ -31,7 +31,7 @@ def upload_and_chunk(file_type):
 
 def run_localragX(api_type):
     client = configure_api(api_type)
-    os.system(f"python localrag13.py {api_type}")
+    os.system(f"python localrag14.py {api_type}")
 
 def set_api(api_type):
     run_localragX(api_type)
