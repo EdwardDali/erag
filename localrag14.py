@@ -23,7 +23,7 @@ def get_relevant_context(user_input, db_embeddings, db_content, model, top_k=5):
     return relevant_context
 
 # Function to interact with the Ollama model
-def ollama_chat(user_input, system_message, db_embeddings, db_content, model, client, context=None):
+def ollama_chat(user_input, system_message, db_embeddings, db_content, model, client, conversation_history, context=None):
     # Get relevant context from the db
     relevant_context = get_relevant_context(user_input, db_embeddings, db_content, model)
     if relevant_context:
@@ -50,10 +50,22 @@ def ollama_chat(user_input, system_message, db_embeddings, db_content, model, cl
         model="phi3:instruct",
         messages=messages
     )
-    # Return the content of the response from the model and the updated context
-    return response.choices[0].message.content, user_input_with_context
+    # Return the content of the response from the model
+    return response.choices[0].message.content
 
-# How to use:
+def create_session_embeddings(conversation_history, model):
+    # Extract text content from the conversation history
+    text_content = [msg['content'] for msg in conversation_history]
+
+    # Encode the text content using the SentenceTransformer model
+    embeddings = model.encode(text_content)
+
+    return embeddings
+
+def save_embeddings(embeddings, filepath):
+    # Save the embeddings to the specified file
+    torch.save(embeddings, filepath)
+
 def main(api_type):
     client = configure_api(api_type)
     
@@ -72,14 +84,24 @@ def main(api_type):
         compute_and_save_embeddings(db_content, model, embeddings_file)
         db_embeddings = load_embeddings(embeddings_file)
 
-    # Example usage
-    context = None  # Initialize context
+    # Initialize conversation history
+    conversation_history = []
+
     while True:
         user_input = input(YELLOW + "Ask a question about your documents: " + RESET_COLOR)
-        options= {"temperature": 0.1}
         system_message = "You are a helpful assistant that is an expert at extracting the most useful information from a given text. Reply with 'I don't see any relevant info in the context' if the given text does not provide the correct answer. The chunks of information provided could be unrelated to one another or with the question"
-        response, context = ollama_chat(user_input, system_message, db_embeddings, db_content, model, client, context=context)
+        response = ollama_chat(user_input, system_message, db_embeddings, db_content, model, client, conversation_history)
         print(NEON_GREEN + "Response: \n\n" + response + RESET_COLOR)
+
+        # Update conversation history with user's question and LLM's response
+        conversation_history.append({"role": "user", "content": user_input})
+        conversation_history.append({"role": "assistant", "content": response})
+
+        # Create embeddings from the conversation history
+        session_embeddings = create_session_embeddings(conversation_history, model)
+
+        # Save embeddings to a file
+        save_embeddings(session_embeddings, "sessions.pt")
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
@@ -87,4 +109,7 @@ if __name__ == "__main__":
     else:
         print("Error: No API type provided.")
         sys.exit(1)
+
+    # Call main function
     main(api_type)
+
