@@ -6,6 +6,7 @@ from file_processing import process_file
 from localrag14 import RAGSystem
 from embeddings_utils import compute_and_save_embeddings, load_or_compute_embeddings
 from sentence_transformers import SentenceTransformer
+from kg import create_networkx_graph
 
 class ERAGGUI:
     def __init__(self, master: tk.Tk):
@@ -40,6 +41,10 @@ class ERAGGUI:
         execute_embeddings_button = tk.Button(embeddings_frame, text="Execute Embeddings", 
                                               command=self.execute_embeddings)
         execute_embeddings_button.pack(side="left", padx=5, pady=5)
+
+        create_neo4j_graph_button = tk.Button(embeddings_frame, text="Create Neo4j Graph", 
+                                              command=self.create_neo4j_graph)
+        create_neo4j_graph_button.pack(side="left", padx=5, pady=5)
 
     def create_model_frame(self):
         model_frame = tk.LabelFrame(self.master, text="Model")
@@ -79,6 +84,23 @@ class ERAGGUI:
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred while computing embeddings: {str(e)}")
 
+    def create_neo4j_graph(self):
+        try:
+            if not os.path.exists("db.txt") or not os.path.exists("db_embeddings.pt"):
+                messagebox.showerror("Error", "db.txt or db_embeddings.pt not found. Please upload documents and execute embeddings first.")
+                return
+
+            # Load data and embeddings
+            with open("db.txt", "r", encoding="utf-8") as db_file:
+                data = db_file.readlines()
+            embeddings = load_or_compute_embeddings(self.model)[0]
+
+            # Create knowledge graph in Neo4j
+            create_knowledge_graph(data, embeddings)
+            messagebox.showinfo("Success", "Knowledge graph created in Neo4j database.")
+        except Exception as e:
+            messagebox.showerror("Error", f"An error occurred while creating the Neo4j graph: {str(e)}")
+
     def run_model(self):
         try:
             api_type = self.api_type_var.get()
@@ -90,6 +112,7 @@ class ERAGGUI:
             messagebox.showinfo("Info", f"RAG system started with {api_type} API. Check the console for interaction.")
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred while starting the RAG system: {str(e)}")
+
 def main():
     root = tk.Tk()
     ERAGGUI(root)
