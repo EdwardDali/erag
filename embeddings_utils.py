@@ -3,6 +3,8 @@ from sentence_transformers import SentenceTransformer
 import os
 from typing import List, Tuple, Optional
 import logging
+import numpy as np
+from typing import List, Union
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -19,55 +21,41 @@ def compute_and_save_embeddings(
     save_path: str,
     batch_size: int = 32
 ) -> None:
-    """
-    Compute and save embeddings and their corresponding indexes.
-
-    Args:
-        db_content (List[str]): List of text content to encode.
-        model (SentenceTransformer): The sentence transformer model.
-        save_path (str): Path to save the embeddings and indexes.
-        batch_size (int): Batch size for processing large datasets.
-
-    Raises:
-        Exception: If there's an error during computation or saving.
-    """
     try:
+        logging.info(f"Computing embeddings for {len(db_content)} items")
         db_embeddings = []
         for i in range(0, len(db_content), batch_size):
             batch = db_content[i:i+batch_size]
             batch_embeddings = model.encode(batch, convert_to_tensor=True)
             db_embeddings.append(batch_embeddings)
+            logging.info(f"Processed batch {i//batch_size + 1}/{len(db_content)//batch_size + 1}")
 
         db_embeddings = torch.cat(db_embeddings, dim=0)
+        logging.info(f"Final embeddings shape: {db_embeddings.shape}")
+        
         indexes = torch.arange(len(db_content))
         data_to_save = {'embeddings': db_embeddings, 'indexes': indexes}
         
         torch.save(data_to_save, save_path)
-        torch.save(indexes, INDEXES_FILE)
+        logging.info(f"Embeddings and indexes saved to {save_path}")
         
-        logging.info(f"Embeddings and indexes saved to {save_path} and {INDEXES_FILE}")
+        # Verify saved data
+        loaded_data = torch.load(save_path)
+        logging.info(f"Verified saved embeddings shape: {loaded_data['embeddings'].shape}")
+        logging.info(f"Verified saved indexes shape: {loaded_data['indexes'].shape}")
     except Exception as e:
         logging.error(f"Error in compute_and_save_embeddings: {str(e)}")
         raise
 
-def load_embeddings_and_indexes(embeddings_file: str) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor]]:
-    """
-    Load embeddings and their corresponding indexes from file.
-
-    Args:
-        embeddings_file (str): Path to the file containing embeddings and indexes.
-
-    Returns:
-        Tuple[Optional[torch.Tensor], Optional[torch.Tensor]]: Embeddings and indexes tensors, or (None, None) if file doesn't exist.
-
-    Raises:
-        Exception: If there's an error during loading.
-    """
+def load_embeddings_and_indexes(embeddings_file: str) -> Tuple[Optional[Union[torch.Tensor, np.ndarray]], Optional[torch.Tensor]]:
     try:
         if os.path.exists(embeddings_file):
             data = torch.load(embeddings_file)
-            logging.info(f"Embeddings and indexes loaded from {embeddings_file}")
-            return data['embeddings'], data['indexes']
+            embeddings = data['embeddings']
+            indexes = data['indexes']
+            logging.info(f"Loaded embeddings shape: {embeddings.shape}")
+            logging.info(f"Loaded indexes shape: {indexes.shape}")
+            return embeddings, indexes
         else:
             logging.warning(f"Embeddings file {embeddings_file} not found")
             return None, None
