@@ -1,0 +1,17 @@
+# Core dependencies
+numpy
+torch
+sentence-transformers
+openai
+
+# File processing
+python-docx
+PyPDF2
+
+# GUI
+tkinter
+
+# Utilities
+typing
+logging
+re
