@@ -1,99 +1,98 @@
 import tkinter as tk
-from tkinter import filedialog
-from upload_x.upload_pdf import upload_pdf
-from upload_x.upload_txt import upload_txt
-from upload_x.upload_json import upload_json
-from upload_x.upload_csv import upload_csv
-from upload_x.upload_docx import upload_docx
-from upload_x.chunking import handle_text_chunking
-from api_connectivity import configure_api
+from tkinter import messagebox
+import threading
 import os
+from file_processing import process_file
+from localrag14 import RAGSystem
+from embeddings_utils import compute_and_save_embeddings, load_or_compute_embeddings
+from sentence_transformers import SentenceTransformer
 
-def upload_and_chunk(file_type):
-    if file_type == "PDF":
-        text = upload_pdf()
-    elif file_type == "Text":
-        text = upload_txt()
-    elif file_type == "JSON":
-        text = upload_json()
-    elif file_type == "CSV":
-        text = upload_csv()
-    elif file_type == "DOCX":
-        text = upload_docx()
-    if text:
-        chunks = handle_text_chunking(text)
-        with open("db.txt", "a", encoding="utf-8") as db_file:
-            for chunk in chunks:
-                db_file.write(chunk.strip() + "\n\n")  # Two newlines to separate chunks
-        print(f"{file_type} file content appended to db.txt with overlapping chunks.")
-    else:
-        print("No file selected.")
+class ERAGGUI:
+    def __init__(self, master: tk.Tk):
+        self.master = master
+        self.master.title("E-RAG")
+        self.api_type_var = tk.StringVar(master)
+        self.api_type_var.set("ollama")  # Default value
+        self.rag_system = None
+        self.model = SentenceTransformer("all-MiniLM-L6-v2")
 
-def run_localragX(api_type):
-    client = configure_api(api_type)
-    os.system(f"python localrag14.py {api_type}")
+        self.create_widgets()
 
-def set_api(api_type):
-    run_localragX(api_type)
+    def create_widgets(self):
+        self.create_upload_frame()
+        self.create_embeddings_frame()
+        self.create_model_frame()
 
-def execute_embeddings():
-    os.system("python embeddings_utils.py")
+    def create_upload_frame(self):
+        upload_frame = tk.LabelFrame(self.master, text="Upload")
+        upload_frame.pack(fill="x", padx=10, pady=5)
 
+        file_types = ["DOCX", "JSON", "PDF", "Text"]
+        for file_type in file_types:
+            button = tk.Button(upload_frame, text=f"Upload {file_type}", 
+                               command=lambda ft=file_type: self.upload_and_chunk(ft))
+            button.pack(side="left", padx=5, pady=5)
+
+    def create_embeddings_frame(self):
+        embeddings_frame = tk.LabelFrame(self.master, text="Embeddings")
+        embeddings_frame.pack(fill="x", padx=10, pady=5)
+
+        execute_embeddings_button = tk.Button(embeddings_frame, text="Execute Embeddings", 
+                                              command=self.execute_embeddings)
+        execute_embeddings_button.pack(side="left", padx=5, pady=5)
+
+    def create_model_frame(self):
+        model_frame = tk.LabelFrame(self.master, text="Model")
+        model_frame.pack(fill="x", padx=10, pady=5)
+
+        api_options = ["ollama", "llama"]
+        api_menu = tk.OptionMenu(model_frame, self.api_type_var, *api_options)
+        api_menu.pack(side="left", padx=5, pady=5)
+
+        run_model_button = tk.Button(model_frame, text="Run Model", command=self.run_model)
+        run_model_button.pack(side="left", padx=5, pady=5)
+
+    def upload_and_chunk(self, file_type: str):
+        try:
+            chunks = process_file(file_type)
+            if chunks:
+                with open("db.txt", "a", encoding="utf-8") as db_file:
+                    for chunk in chunks:
+                        db_file.write(chunk.strip() + "\n\n")  # Two newlines to separate chunks
+                messagebox.showinfo("Success", f"{file_type} file content appended to db.txt with overlapping chunks.")
+            else:
+                messagebox.showwarning("Warning", "No file selected or file was empty.")
+        except Exception as e:
+            messagebox.showerror("Error", f"An error occurred while processing the file: {str(e)}")
+
+    def execute_embeddings(self):
+        try:
+            if not os.path.exists("db.txt"):
+                messagebox.showerror("Error", "db.txt not found. Please upload some documents first.")
+                return
+
+            with open("db.txt", "r", encoding="utf-8") as db_file:
+                db_content = db_file.readlines()
+
+            compute_and_save_embeddings(db_content, self.model, "db_embeddings.pt")
+            messagebox.showinfo("Success", "Embeddings computed and saved successfully.")
+        except Exception as e:
+            messagebox.showerror("Error", f"An error occurred while computing embeddings: {str(e)}")
+
+    def run_model(self):
+        try:
+            api_type = self.api_type_var.get()
+            self.rag_system = RAGSystem(api_type)
+            
+            # Run the CLI in a separate thread to keep the GUI responsive
+            threading.Thread(target=self.rag_system.run, daemon=True).start()
+            
+            messagebox.showinfo("Info", f"RAG system started with {api_type} API. Check the console for interaction.")
+        except Exception as e:
+            messagebox.showerror("Error", f"An error occurred while starting the RAG system: {str(e)}")
 def main():
     root = tk.Tk()
-    root.title("E-RAG")
-
-    # Frame for upload buttons with a different color
-    upload_frame = tk.Frame(root)
-    upload_frame.pack(fill="x")
-
-    # Title for the row of upload buttons
-    upload_title = tk.Label(upload_frame, text="Upload")
-    upload_title.pack(side="left", padx=5, pady=10)
-
-    # Frame for upload buttons
-    upload_buttons_frame = tk.Frame(upload_frame)
-    upload_buttons_frame.pack(side="left", padx=5, pady=10)
-
-    def create_upload_and_chunk_func(file_type):
-        return lambda: upload_and_chunk(file_type)
-
-    file_types = ["PDF", "Text", "JSON", "CSV", "DOCX"]
-    for file_type in file_types:
-        button = tk.Button(upload_buttons_frame, text=f"Upload {file_type}", command=create_upload_and_chunk_func(file_type))
-        button.pack(side="left", padx=5)
-
-    # Frame for embeddings button
-    embeddings_frame = tk.Frame(root)
-    embeddings_frame.pack(fill="x")
-
-    # Title for the embeddings row
-    embeddings_title = tk.Label(embeddings_frame, text="Embeddings")
-    embeddings_title.pack(side="left", padx=5, pady=10)
-
-    # Button to execute embeddings
-    execute_embeddings_button = tk.Button(embeddings_frame, text="Execute Embeddings", command=execute_embeddings)
-    execute_embeddings_button.pack(side="left", padx=5)
-
-    # Frame for model options
-    model_frame = tk.Frame(root)
-    model_frame.pack(fill="x")
-
-    # Title for the model row
-    model_title = tk.Label(model_frame, text="Model")
-    model_title.pack(side="left", padx=5, pady=10)
-
-    # Option menu to choose between ollama and llama
-    api_type_var = tk.StringVar(root)
-    api_type_var.set("ollama")  # Default value
-    api_options = ["ollama", "llama"]
-    api_menu = tk.OptionMenu(model_frame, api_type_var, *api_options, command=set_api)
-    api_menu.pack(side="left", padx=5)
-
-    # Button to run localragX.py
-    run_model_button = tk.Button(model_frame, text="Run Model", command=lambda: run_localragX(api_type_var.get()))
-    run_model_button.pack(side="left", padx=5)
-
+    ERAGGUI(root)
     root.mainloop()
 
 if __name__ == "__main__":

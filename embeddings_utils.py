@@ -1,10 +1,9 @@
 import torch
 from sentence_transformers import SentenceTransformer
 import os
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Union
 import logging
 import numpy as np
-from typing import List, Union
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -13,11 +12,10 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 MODEL_NAME = "all-MiniLM-L6-v2"
 DB_FILE = "db.txt"
 EMBEDDINGS_FILE = "db_embeddings.pt"
-INDEXES_FILE = "indexes.pt"
 
 def compute_and_save_embeddings(
-    db_content: List[str], 
-    model: SentenceTransformer, 
+    db_content: List[str],
+    model: SentenceTransformer,
     save_path: str,
     batch_size: int = 32
 ) -> None:
@@ -64,18 +62,6 @@ def load_embeddings_and_indexes(embeddings_file: str) -> Tuple[Optional[Union[to
         raise
 
 def load_or_compute_embeddings(model: SentenceTransformer) -> Tuple[torch.Tensor, torch.Tensor]:
-    """
-    Load existing embeddings or compute new ones if they don't exist.
-
-    Args:
-        model (SentenceTransformer): The sentence transformer model.
-
-    Returns:
-        Tuple[torch.Tensor, torch.Tensor]: Embeddings and indexes tensors.
-
-    Raises:
-        Exception: If there's an error during loading or computation.
-    """
     try:
         embeddings, indexes = load_embeddings_and_indexes(EMBEDDINGS_FILE)
         if embeddings is None or indexes is None:
