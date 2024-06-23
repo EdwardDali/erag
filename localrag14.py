@@ -6,11 +6,10 @@ from sentence_transformers import SentenceTransformer, util
 from typing import List, Dict, Union, Tuple, Optional
 import logging
 import re
-from collections import Counter
+from collections import Counter, deque
 from embeddings_utils import load_or_compute_embeddings, compute_and_save_embeddings
 from enum import Enum
 from openai import OpenAI
-
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -28,36 +27,8 @@ class RAGSystem:
     DB_FILE = "db.txt"
     MODEL_NAME = "all-MiniLM-L6-v2"
     OLLAMA_MODEL = "phi3:instruct"
-    UPDATE_THRESHOLD = 10  # Number of new entries before updating embeddings
-
-    def append_to_db(self, new_messages: List[Dict[str, str]]):
-        with open(self.DB_FILE, "a", encoding='utf-8') as file:
-            for msg in new_messages:
-                entry = f"{msg['role']}: {msg['content']}"
-                file.write(entry + "\n")
-                self.new_entries.append(entry)
-                self.db_content.append(entry)  # Update db_content in memory
-        
-        if len(self.new_entries) >= self.UPDATE_THRESHOLD:
-            self.update_embeddings()
-
-    def update_embeddings(self):
-        if not self.new_entries:
-            return
-
-        logging.info(f"Updating embeddings with {len(self.new_entries)} new entries")
-        new_embeddings = self.model.encode(self.new_entries, convert_to_tensor=True)
-        
-        if isinstance(self.db_embeddings, np.ndarray):
-            self.db_embeddings = torch.from_numpy(self.db_embeddings)
-        
-        self.db_embeddings = torch.cat([self.db_embeddings, new_embeddings], dim=0)
-        
-        # Save updated embeddings
-        torch.save({'embeddings': self.db_embeddings, 'indexes': torch.arange(len(self.db_content))}, self.EMBEDDINGS_FILE)
-        
-        self.new_entries.clear()
-        logging.info("Embeddings updated successfully")
+    UPDATE_THRESHOLD = 10
+    CONVERSATION_CONTEXT_SIZE = 3  # Number of recent exchanges to prioritize
 
     def __init__(self, api_type: str):
         self.client = self.configure_api(api_type)
@@ -66,6 +37,7 @@ class RAGSystem:
         self.db_embeddings, _ = load_or_compute_embeddings(self.model)
         self.conversation_history: List[Dict[str, str]] = []
         self.new_entries: List[str] = []
+        self.conversation_context: deque = deque(maxlen=self.CONVERSATION_CONTEXT_SIZE * 2)  # Store recent Q&A pairs
 
     @staticmethod
     def configure_api(api_type: str) -> OpenAI:
@@ -118,13 +90,21 @@ class RAGSystem:
             logging.warning("DB Embeddings or DB Content is empty")
             return [], []
         
-        lexical_results = self.lexical_search(user_input, self.db_content, top_k)
-        semantic_results = self.semantic_search(user_input, top_k)
+        # Combine conversation context with user input for search
+        search_query = " ".join(list(self.conversation_context) + [user_input])
+        
+        lexical_results = self.lexical_search(search_query, self.db_content, top_k)
+        semantic_results = self.semantic_search(search_query, top_k)
+        
+        # Prioritize conversation context
+        conversation_context = list(self.conversation_context)
+        lexical_results = conversation_context + [r for r in lexical_results if r not in conversation_context]
+        semantic_results = conversation_context + [r for r in semantic_results if r not in conversation_context]
         
         logging.info(f"Number of lexical results: {len(lexical_results)}")
         logging.info(f"Number of semantic results: {len(semantic_results)}")
         
-        return lexical_results, semantic_results
+        return lexical_results[:top_k], semantic_results[:top_k]
 
     def ollama_chat(self, user_input: str, system_message: str) -> str:
         lexical_context, semantic_context = self.get_relevant_context(user_input)
@@ -132,14 +112,14 @@ class RAGSystem:
         lexical_str = "\n".join(lexical_context) if lexical_context else "No relevant lexical context found."
         semantic_str = "\n".join(semantic_context) if semantic_context else "No relevant semantic context found."
         
-        context_str = f"Lexical Search Results:\n{lexical_str}\n\nSemantic Search Results:\n{semantic_str}"
+        context_str = f"Conversation Context:\n{' '.join(self.conversation_context)}\n\nLexical Search Results:\n{lexical_str}\n\nSemantic Search Results:\n{semantic_str}"
         
         logging.info(f"Context pulled: {context_str[:200]}...")
 
         messages = [
             {"role": "system", "content": system_message},
             *self.conversation_history,
-            {"role": "user", "content": f"Context:\n{context_str}\n\nQuestion: {user_input}\n\nPlease use the most relevant information from either the lexical or semantic search results to answer the question. If neither set of results is relevant, you can say so and answer based on your general knowledge."}
+            {"role": "user", "content": f"Context:\n{context_str}\n\nQuestion: {user_input}\n\nPlease prioritize the Conversation Context when answering, followed by the most relevant information from either the lexical or semantic search results. If none of the provided context is relevant, you can answer based on your general knowledge."}
         ]
 
         try:
@@ -153,12 +133,17 @@ class RAGSystem:
             logging.error(f"Error in API call: {str(e)}")
             return "I'm sorry, but I encountered an error while processing your request."
 
+    def update_conversation_context(self, user_input: str, response: str):
+        self.conversation_context.append(user_input)
+        self.conversation_context.append(response)
+
     def append_to_db(self, new_messages: List[Dict[str, str]]):
         with open(self.DB_FILE, "a", encoding='utf-8') as file:
             for msg in new_messages:
                 entry = f"{msg['role']}: {msg['content']}"
                 file.write(entry + "\n")
                 self.new_entries.append(entry)
+                self.db_content.append(entry)  # Update db_content in memory
         
         if len(self.new_entries) >= self.UPDATE_THRESHOLD:
             self.update_embeddings()
@@ -174,7 +159,6 @@ class RAGSystem:
             self.db_embeddings = torch.from_numpy(self.db_embeddings)
         
         self.db_embeddings = torch.cat([self.db_embeddings, new_embeddings], dim=0)
-        self.db_content.extend(self.new_entries)
         
         # Save updated embeddings
         torch.save({'embeddings': self.db_embeddings, 'indexes': torch.arange(len(self.db_content))}, self.EMBEDDINGS_FILE)
@@ -183,7 +167,7 @@ class RAGSystem:
         logging.info("Embeddings updated successfully")
 
     def run(self):
-        system_message = "You are a helpful assistant that is an expert at extracting the most useful information from a given text. Not all info provided in context is useful. Reply with 'I don't see any relevant info in the context' if the given text does not provide the correct answer. Try to provide a comprehensive answer considering also what you can deduce from information provided as well as what you know already."
+        system_message = "You are a helpful assistant that is an expert at extracting the most useful information from a given text. Prioritize the most recent conversation context when answering questions, but also consider other relevant information if necessary. If the given context doesn't provide a suitable answer, rely on your general knowledge."
 
         print(f"{ANSIColor.YELLOW.value}Welcome to the RAG system. Type 'exit' to quit or 'clear' to clear conversation history.{ANSIColor.RESET.value}")
 
@@ -196,7 +180,8 @@ class RAGSystem:
                 break
             elif user_input.lower() == 'clear':
                 self.conversation_history.clear()
-                print(f"{ANSIColor.CYAN.value}Conversation history cleared.{ANSIColor.RESET.value}")
+                self.conversation_context.clear()
+                print(f"{ANSIColor.CYAN.value}Conversation history and context cleared.{ANSIColor.RESET.value}")
                 continue
 
             if not user_input:
@@ -208,6 +193,7 @@ class RAGSystem:
 
             self.conversation_history.append({"role": "user", "content": user_input})
             self.conversation_history.append({"role": "assistant", "content": response})
+            self.update_conversation_context(user_input, response)
 
             # Keep only the last MAX_HISTORY_LENGTH exchanges
             if len(self.conversation_history) > self.MAX_HISTORY_LENGTH * 2:
