@@ -1,4 +1,0 @@
-sentence-transformers
-openai
-torch
-PyPDF2
