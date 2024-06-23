@@ -3,113 +3,113 @@ import os
 import torch
 from sentence_transformers import SentenceTransformer, util
 from api_connectivity import configure_api
-from embeddings_utils import compute_and_save_embeddings, load_embeddings_and_indexes
-from colors import PINK, CYAN, YELLOW, NEON_GREEN, RESET_COLOR
+from embeddings_utils import load_or_compute_embeddings
+from colors import Colors
+import logging
+from typing import List, Dict
+import numpy as np
+import torch
+from sentence_transformers import util
+from typing import List, Union
 
-# Function to get relevant context from the db based on user input
-def get_relevant_context(user_input, db_embeddings, db_content, model, top_k=5):
-    if db_embeddings is None or len(db_embeddings) == 0:
-        return []
-    # Encode the user input
-    input_embedding = model.encode([user_input])
-    # Compute cosine similarity between the input and db embeddings
-    cos_scores = util.cos_sim(input_embedding, torch.tensor(db_embeddings))[0]
-    # Adjust top_k if it's greater than the number of available scores
-    top_k = min(top_k, len(cos_scores))
-    # Sort the scores and get the top-k indices
-    top_indices = torch.topk(cos_scores, k=top_k)[1].tolist()
-    # Get the corresponding context from the db
-    relevant_context = [db_content[idx].strip() for idx in top_indices]
-    return relevant_context
+# Set up logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Function to interact with the Ollama model
-def ollama_chat(user_input, system_message, db_embeddings, db_content, model, client, conversation_history, context=None):
-    # Get relevant context from the db
-    relevant_context = get_relevant_context(user_input, db_embeddings, db_content, model)
-    if relevant_context:
-        # Convert list to a single string with newlines between items
-        context_str = "\n".join(relevant_context)
-        print("Context Pulled from Documents: \n\n" + CYAN + context_str + RESET_COLOR)
-    else:
-        print(CYAN + "No relevant context found." + RESET_COLOR)
+# Constants
+MAX_HISTORY_LENGTH = 5
+EMBEDDINGS_FILE = "db_embeddings.pt"
+DB_FILE = "db.txt"
+MODEL_NAME = "all-MiniLM-L6-v2"
+OLLAMA_MODEL = "phi3:instruct"
+
+def get_relevant_context(user_input: str, db_embeddings: Union[np.ndarray, torch.Tensor], db_content: List[str], model: SentenceTransformer, top_k: int = 5) -> List[str]:
+    if isinstance(db_embeddings, np.ndarray):
+        db_embeddings = torch.from_numpy(db_embeddings)
     
-    # Prepare the user's input by concatenating it with the relevant context and previous context
-    user_input_with_context = user_input
-    if relevant_context:
-        user_input_with_context = context_str + "\n\n" + user_input
-    if context:
-        user_input_with_context = context + "\n\n" + user_input_with_context
+    if db_embeddings.numel() == 0 or len(db_content) == 0:
+        return []
+    
+    input_embedding = model.encode([user_input], convert_to_tensor=True)
+    cos_scores = util.cos_sim(input_embedding, db_embeddings)[0]
+    top_k = min(top_k, len(cos_scores))
+    top_indices = torch.topk(cos_scores, k=top_k)[1].tolist()
+    return [db_content[idx].strip() for idx in top_indices]
 
-    # Create a message history including the system message and the user's input with context
+def ollama_chat(user_input: str, system_message: str, db_embeddings: torch.Tensor, db_content: List[str], model: SentenceTransformer, client, conversation_history: List[Dict[str, str]]) -> str:
+    relevant_context = get_relevant_context(user_input, db_embeddings, db_content, model)
+    context_str = "\n".join(relevant_context) if relevant_context else ""
+    logging.info(f"Context pulled: {context_str[:100]}..." if context_str else "No relevant context found.")
+
     messages = [
         {"role": "system", "content": system_message},
-        {"role": "user", "content": user_input_with_context}
+        *conversation_history,
+        {"role": "user", "content": f"{context_str}\n\n{user_input}".strip()}
     ]
-    # Send the completion request to the Ollama model
-    response = client.chat.completions.create(
-        model="phi3:instruct",
-        messages=messages
-    )
-    # Return the content of the response from the model
-    return response.choices[0].message.content
 
-def create_session_embeddings(conversation_history, model):
-    # Extract text content from the conversation history
-    text_content = [msg['content'] for msg in conversation_history]
+    try:
+        response = client.chat.completions.create(
+            model=OLLAMA_MODEL,
+            messages=messages,
+            temperature=0.1
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        logging.error(f"Error in API call: {str(e)}")
+        return "I'm sorry, but I encountered an error while processing your request."
 
-    # Encode the text content using the SentenceTransformer model
-    embeddings = model.encode(text_content)
+def append_to_db(new_messages: List[Dict[str, str]], filepath: str):
+    with open(filepath, "a", encoding='utf-8') as file:
+        for msg in new_messages:
+            file.write(f"{msg['role']}: {msg['content']}\n")
 
-    return embeddings
-
-def save_embeddings(embeddings, filepath):
-    # Save the embeddings to the specified file
-    torch.save(embeddings, filepath)
-
-def main(api_type):
+def main(api_type: str):
     client = configure_api(api_type)
-    
-    # Load the model
-    model = SentenceTransformer("all-MiniLM-L6-v2")
+    model = SentenceTransformer(MODEL_NAME)
 
-    # Load or compute and save embeddings
     db_content = []
-    embeddings_file = "db_embeddings.pt"
-    if os.path.exists("db.txt"):
-        with open("db.txt", "r", encoding='utf-8') as db_file:
+    if os.path.exists(DB_FILE):
+        with open(DB_FILE, "r", encoding='utf-8') as db_file:
             db_content = db_file.readlines()
 
-    db_embeddings, db_indexes = load_embeddings_and_indexes("db_embeddings.pt")
-    if db_embeddings is None:
-        compute_and_save_embeddings(db_content, model, embeddings_file)
-        db_embeddings = load_embeddings(embeddings_file)
+    db_embeddings, _ = load_or_compute_embeddings(model)
 
-    # Initialize conversation history
-    conversation_history = []
+    conversation_history: List[Dict[str, str]] = []
+
+    system_message = "You are a helpful assistant that is an expert at extracting the most useful information from a given text. Not all info provided in context is useful. Reply with 'I don't see any relevant info in the context' if the given text does not provide the correct answer. Try to provide a comprehensive answer considering also what you can deduce from information provided as well as what you know already."
+
+    print(f"{Colors.YELLOW.value}Welcome to the RAG system. Type 'exit' to quit or 'clear' to clear conversation history.{Colors.RESET.value}")
 
     while True:
-        user_input = input(YELLOW + "Ask a question about your documents: " + RESET_COLOR)
-        system_message = "You are a helpful assistant that is an expert at extracting the most useful information from a given text. Reply with 'I don't see any relevant info in the context' if the given text does not provide the correct answer. The chunks of information provided could be unrelated to one another or with the question"
-        response = ollama_chat(user_input, system_message, db_embeddings, db_content, model, client, conversation_history)
-        print(NEON_GREEN + "Response: \n\n" + response + RESET_COLOR)
+        user_input = input(f"{Colors.YELLOW.value}Ask a question about your documents: {Colors.RESET.value}").strip()
+        
+        if user_input.lower() == 'exit':
+            print(f"{Colors.NEON_GREEN.value}Thank you for using the RAG system. Goodbye!{Colors.RESET.value}")
+            break
+        elif user_input.lower() == 'clear':
+            conversation_history.clear()
+            print(f"{Colors.CYAN.value}Conversation history cleared.{Colors.RESET.value}")
+            continue
 
-        # Update conversation history with user's question and LLM's response
+        if not user_input:
+            print(f"{Colors.PINK.value}Please enter a valid question.{Colors.RESET.value}")
+            continue
+
+        response = ollama_chat(user_input, system_message, db_embeddings, db_content, model, client, conversation_history)
+        print(f"{Colors.NEON_GREEN.value}Response: \n\n{response}{Colors.RESET.value}")
+
         conversation_history.append({"role": "user", "content": user_input})
         conversation_history.append({"role": "assistant", "content": response})
 
-        # Create embeddings from the conversation history
-        session_embeddings = create_session_embeddings(conversation_history, model)
+        # Keep only the last MAX_HISTORY_LENGTH exchanges
+        if len(conversation_history) > MAX_HISTORY_LENGTH * 2:
+            conversation_history = conversation_history[-MAX_HISTORY_LENGTH * 2:]
 
-        # Save embeddings to a file
-        save_embeddings(session_embeddings, "sessions.pt")
+        append_to_db(conversation_history[-2:], DB_FILE)
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
         api_type = sys.argv[1]
+        main(api_type)
     else:
         print("Error: No API type provided.")
         sys.exit(1)
-
-    # Call main function
-    main(api_type)
-
