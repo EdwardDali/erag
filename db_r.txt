@@ -213,3 +213,24 @@ assistant:  1. **Alice**: As the main character in "Alice's Adventures in Wonder
 9. **The Duchess's House/Garden**: The setting where Alice finds herself after falling down the rabbit hole and before meeting various characters; it serves as a backdrop for interactions with others in Wonderland.
 
 These character encounters are based on the provided text excerpt from "Alice's Adventures in Wonderland" by Lewis Carroll, focusing primarily on those directly mentioned or implied within this specific passage. | {}
+user: what is the name of the three sisters? | {}
+assistant:  Based on the conversation context and the text search result, the name of the three sisters are Elsie, Lacie, and Tillie. This information comes from the Dormouse's story in "Alice's Adventures in Wonderland" (pg11.txt, chunk 89). | {}
+user: what did they ate? | {}
+assistant:  Based on the conversation context and Text Search Results (pg11.txt, chunk 89), it's not explicitly mentioned what the three little sisters in "Alice's Adventures in Wonderland" ate. However, we know from their living conditions at the bottom of a treacle-well that they primarily consumed treacle. This information is inferred rather than directly stated within the provided context. The story describes them as having an unusual diet due to their unique environment but does not give specific details about other food items they might have eaten. | {}
+user: give me a list of characters encountered by Alice | {}
+assistant:  Based on the conversation context and additional general knowledge about "Alice's Adventures in Wonderland," here is a list of characters encountered by Alice:
+
+1. The White Rabbit - First character Alice meets when he notices her following him down the rabbit hole (pg11.txt, chunk 2).
+2. Tweedledum and Tweedledee - Referred to as "little sisters" in a later part of the story (pg11.txt, chunks 98-103).
+3. The Dormouse - Narrates Alice's adventures to the Queen of Hearts during their encounter (pg11.txt, chunk 89).
+4. The Cheshire Cat - A mischievous and enigmatic character who appears in several scenes throughout the story (pg11.txt, chunks 32-50).
+5. The Queen of Hearts - Alice's ruler during her trial for stealing tarts; she is known for her temper and love of playing croquet (pg11.txt, chunks 64-78).
+6. The Caterpillar - A philosophical creature who advises Alice on the effects of different potions in his garden (pg11.txt, chunk 25).
+7. The Mock Turtle and the Gryphon - Characters encountered during a tea party with the Mad Hatter and other characters (pg11.txt, chunks 48-63).
+8. The Bandersnatch - A fearsome creature that Alice encounters in her adventures (pg11.txt, chunk 79).
+9. The King of Hearts' Beasts - Various creatures encountered during the croquet game organized by the Queen of Hearts (pg11.txt, chunks 80-83).
+10. The Duchess and her Daughter - Characters involved in Alice's trial for stealing tarts (pg11.txt, chunks 79-82).
+11. The Lobsters - Creatures that live under the sea floor where Alice falls into Wonderland (pg11.txt, chunk 45).
+12. The Mock Turtle and the Gryphon's friends: The White Rabbit, Tweedledum, Tweedledee, and others - Characters encountered during a tea party with the Mad Hatter and other characters (pg11.txt, chunks 48-63).
+
+This list is based on both the conversation context provided and general knowledge of "Alice's Adventures in Wonderland." | {}

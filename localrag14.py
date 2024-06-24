@@ -177,11 +177,68 @@ class RAGSystem:
                 results.append((content, ref))
         return sorted(results, key=lambda x: sum(term in x[0].lower() for term in query_terms), reverse=True)[:top_k]
 
+    def extract_entities(self, text: str) -> List[str]:
+        doc = self.nlp(text)
+        return [ent.text for ent in doc.ents]
+
+    def compute_similarity(self, text1: str, text2: str) -> float:
+        with torch.no_grad():
+            embedding1 = self.model.encode([text1], convert_to_tensor=True, show_progress_bar=False)
+            embedding2 = self.model.encode([text2], convert_to_tensor=True, show_progress_bar=False)
+        return util.pytorch_cos_sim(embedding1, embedding2).item()
+
+   
+
+    def ollama_chat(self, user_input: str, system_message: str) -> str:
+        lexical_context, semantic_context, graph_context, text_context = self.get_relevant_context(user_input)
+        
+        lexical_str = "\n".join([f"{content} [Ref: {json.dumps(ref)}]" for content, ref in lexical_context])
+        semantic_str = "\n".join([f"{content} [Ref: {json.dumps(ref)}]" for content, ref in semantic_context])
+        graph_str = "\n".join([f"{text} [Ref: {json.dumps(ref)}]" for text, ref in graph_context])
+        text_str = "\n".join([f"{content} [Ref: {json.dumps(ref)}]" for content, ref in text_context])
+
+        combined_context = f"""Conversation Context:\n{' '.join(self.conversation_context)}
+
+Lexical Search Results:
+{lexical_str}
+
+Semantic Search Results:
+{semantic_str}
+
+Knowledge Graph Context:
+{graph_str}
+
+Text Search Results:
+{text_str}"""
+
+        logging.info(f"Combined context pulled: {combined_context[:200]}...")
+
+        messages = [
+            {"role": "system", "content": system_message},
+            *self.conversation_history,
+            {"role": "user", "content": f"Context:\n{combined_context}\n\nQuestion: {user_input}\n\nPlease prioritize the Conversation Context when answering, followed by the most relevant information from either the lexical, semantic, knowledge graph, or text search results. If none of the provided context is relevant, you can answer based on your general knowledge."}
+        ]
+
+        try:
+            response = self.client.chat.completions.create(
+                model=self.OLLAMA_MODEL,
+                messages=messages,
+                temperature=0.1
+            ).choices[0].message.content
+
+            # Save debug results
+            self.save_debug_results(user_input, lexical_context, semantic_context, graph_context, text_context, response)
+
+            return response
+        except Exception as e:
+            logging.error(f"Error in API call: {str(e)}")
+            return "I'm sorry, but I encountered an error while processing your request."
+
     def save_debug_results(self, user_input: str, lexical_context: List[Tuple[str, Dict[str, str]]], 
                            semantic_context: List[Tuple[str, Dict[str, str]]], 
                            graph_context: List[Tuple[str, Dict[str, str]]], 
                            text_context: List[Tuple[str, Dict[str, str]]],
-                           standard_response: str, graph_response: str):
+                           response: str):
         with open(self.RESULTS_FILE, "a", encoding="utf-8") as f:
             f.write(f"User Input: {user_input}\n\n")
             f.write("Lexical Search Results:\n")
@@ -196,67 +253,9 @@ class RAGSystem:
             f.write("\nText Search Results:\n")
             for i, (content, ref) in enumerate(text_context, 1):
                 f.write(f"{i}. {content} [Ref: {json.dumps(ref)}]\n")
-            f.write("\nStandard Response:\n")
-            f.write(f"{standard_response}\n")
-            f.write("\nGraph-based Response:\n")
-            f.write(f"{graph_response}\n")
+            f.write("\nCombined Response:\n")
+            f.write(f"{response}\n")
             f.write("\n" + "="*50 + "\n\n")
-
-    def ollama_chat(self, user_input: str, system_message: str) -> Tuple[str, str]:
-        lexical_context, semantic_context, graph_context, text_context = self.get_relevant_context(user_input)
-        
-        lexical_str = "\n".join([f"{content} [Ref: {json.dumps(ref)}]" for content, ref in lexical_context])
-        semantic_str = "\n".join([f"{content} [Ref: {json.dumps(ref)}]" for content, ref in semantic_context])
-        graph_str = "\n".join([f"{text} [Ref: {json.dumps(ref)}]" for text, ref in graph_context])
-        text_str = "\n".join([f"{content} [Ref: {json.dumps(ref)}]" for content, ref in text_context])
-
-        standard_context = f"Conversation Context:\n{' '.join(self.conversation_context)}\n\nLexical Search Results:\n{lexical_str}\n\nSemantic Search Results:\n{semantic_str}\n\nText Search Results:\n{text_str}"
-        graph_context_str = f"Knowledge Graph Context:\n{graph_str}"
-
-        logging.info(f"Standard context pulled: {standard_context[:200]}...")
-        logging.info(f"Graph context pulled: {graph_context_str[:200]}...")
-
-        standard_messages = [
-            {"role": "system", "content": system_message},
-            *self.conversation_history,
-            {"role": "user", "content": f"Context:\n{standard_context}\n\nQuestion: {user_input}\n\nPlease prioritize the Conversation Context when answering, followed by the most relevant information from either the lexical, semantic, or text search results. If none of the provided context is relevant, you can answer based on your general knowledge."}
-        ]
-
-        graph_messages = [
-            {"role": "system", "content": system_message},
-            {"role": "user", "content": f"Context:\n{graph_context_str}\n\nQuestion: {user_input}\n\nPlease provide an answer based on the information from the Knowledge Graph Context. If the context doesn't provide relevant information, state that and provide a general answer."}
-        ]
-
-        try:
-            standard_response = self.client.chat.completions.create(
-                model=self.OLLAMA_MODEL,
-                messages=standard_messages,
-                temperature=0.1
-            ).choices[0].message.content
-
-            graph_response = self.client.chat.completions.create(
-                model=self.OLLAMA_MODEL,
-                messages=graph_messages,
-                temperature=0.1
-            ).choices[0].message.content
-
-            # Save debug results
-            self.save_debug_results(user_input, lexical_context, semantic_context, graph_context, text_context, standard_response, graph_response)
-
-            return standard_response, graph_response
-        except Exception as e:
-            logging.error(f"Error in API call: {str(e)}")
-            return "I'm sorry, but I encountered an error while processing your request.", "Error in processing graph-based response."
-
-    def extract_entities(self, text: str) -> List[str]:
-        doc = self.nlp(text)
-        return [ent.text for ent in doc.ents]
-
-    def compute_similarity(self, text1: str, text2: str) -> float:
-        with torch.no_grad():
-            embedding1 = self.model.encode([text1], convert_to_tensor=True, show_progress_bar=False)
-            embedding2 = self.model.encode([text2], convert_to_tensor=True, show_progress_bar=False)
-        return util.pytorch_cos_sim(embedding1, embedding2).item()
 
     def run(self):
         system_message = "You are a helpful assistant that is an expert at extracting the most useful information from a given text. Prioritize the most recent conversation context when answering questions, but also consider other relevant information if necessary. If the given context doesn't provide a suitable answer, rely on your general knowledge. Always include references to the sources of information in your responses using the format [Source: filename, Chunk: number]."
@@ -280,13 +279,12 @@ class RAGSystem:
                 print(f"{ANSIColor.PINK.value}Please enter a valid question.{ANSIColor.RESET.value}")
                 continue
 
-            standard_response, graph_response = self.ollama_chat(user_input, system_message)
-            print(f"{ANSIColor.NEON_GREEN.value}Standard Response: \n\n{standard_response}{ANSIColor.RESET.value}")
-            print(f"\n{ANSIColor.CYAN.value}Graph-based Response: \n\n{graph_response}{ANSIColor.RESET.value}")
+            response = self.ollama_chat(user_input, system_message)
+            print(f"{ANSIColor.NEON_GREEN.value}Response: \n\n{response}{ANSIColor.RESET.value}")
 
             self.conversation_history.append({"role": "user", "content": user_input})
-            self.conversation_history.append({"role": "assistant", "content": standard_response})
-            self.update_conversation_context(user_input, standard_response)
+            self.conversation_history.append({"role": "assistant", "content": response})
+            self.update_conversation_context(user_input, response)
 
             if len(self.conversation_history) > self.MAX_HISTORY_LENGTH * 2:
                 self.conversation_history = self.conversation_history[-self.MAX_HISTORY_LENGTH * 2:]
