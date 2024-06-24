@@ -2,11 +2,11 @@ import tkinter as tk
 from tkinter import messagebox
 import threading
 import os
-from file_processing import process_file
+from file_processing import process_file, append_to_db
 from localrag14 import RAGSystem
 from embeddings_utils import compute_and_save_embeddings, load_or_compute_embeddings
 from sentence_transformers import SentenceTransformer
-from kg import create_networkx_graph, save_graph_json
+from kg import create_knowledge_graph
 
 class ERAGGUI:
     def __init__(self, master: tk.Tk):
@@ -61,10 +61,8 @@ class ERAGGUI:
         try:
             chunks = process_file(file_type)
             if chunks:
-                with open("db.txt", "a", encoding="utf-8") as db_file:
-                    for chunk in chunks:
-                        db_file.write(chunk.strip() + "\n\n")  # Two newlines to separate chunks
-                messagebox.showinfo("Success", f"{file_type} file content appended to db.txt with overlapping chunks.")
+                append_to_db(chunks)
+                messagebox.showinfo("Success", f"{file_type} file content processed and appended to db.txt with overlapping chunks.")
             else:
                 messagebox.showwarning("Warning", "No file selected or file was empty.")
         except Exception as e:
@@ -76,11 +74,17 @@ class ERAGGUI:
                 messagebox.showerror("Error", "db.txt not found. Please upload some documents first.")
                 return
 
-            with open("db.txt", "r", encoding="utf-8") as db_file:
-                db_content = db_file.readlines()
+            # Process db.txt
+            embeddings, _, _, _ = load_or_compute_embeddings(self.model, "db.txt", "db_embeddings.pt")
+            messagebox.showinfo("Success", f"Embeddings for db.txt computed and saved successfully. Shape: {embeddings.shape}")
 
-            compute_and_save_embeddings(db_content, self.model, "db_embeddings.pt")
-            messagebox.showinfo("Success", "Embeddings computed and saved successfully.")
+            # Process db_r.txt if it exists
+            if os.path.exists("db_r.txt"):
+                embeddings_r, _, _, _ = load_or_compute_embeddings(self.model, "db_r.txt", "db_embeddings_r.pt")
+                messagebox.showinfo("Success", f"Embeddings for db_r.txt computed and saved successfully. Shape: {embeddings_r.shape}")
+            else:
+                messagebox.showwarning("Warning", "db_r.txt not found. Only db.txt was processed.")
+
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred while computing embeddings: {str(e)}")
 
@@ -90,15 +94,8 @@ class ERAGGUI:
                 messagebox.showerror("Error", "db.txt or db_embeddings.pt not found. Please upload documents and execute embeddings first.")
                 return
 
-            # Load data and embeddings
-            with open("db.txt", "r", encoding="utf-8") as db_file:
-                data = db_file.readlines()
-            embeddings, _ = load_or_compute_embeddings(self.model)
-
-            # Create knowledge graph
-            G = create_networkx_graph(data, embeddings)
-            save_graph_json(G, "knowledge_graph.json")
-            messagebox.showinfo("Success", "Knowledge graph created and saved as knowledge_graph.json.")
+            G = create_knowledge_graph()  # Call the imported function
+            messagebox.showinfo("Success", f"Knowledge graph created with {G.number_of_nodes()} nodes and {G.number_of_edges()} edges, and saved as knowledge_graph.json.")
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred while creating the knowledge graph: {str(e)}")
 

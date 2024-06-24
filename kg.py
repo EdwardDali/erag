@@ -8,6 +8,7 @@ import logging
 from typing import List, Tuple, Dict
 from nltk.tokenize import sent_tokenize
 import nltk
+from embeddings_utils import load_embeddings_and_data
 
 # Download necessary NLTK data
 nltk.download('punkt', quiet=True)
@@ -20,10 +21,6 @@ nlp = spacy.load("en_core_web_sm")
 
 # Load sentence transformer model
 model = SentenceTransformer("all-MiniLM-L6-v2")
-
-def load_data(file_path: str) -> List[str]:
-    with open(file_path, 'r', encoding='utf-8') as file:
-        return file.readlines()
 
 def preprocess_text(text: str) -> str:
     # Remove extra whitespace and newline characters
@@ -46,10 +43,10 @@ def extract_entities_and_relations(text: str) -> List[Tuple[str, str, str]]:
     
     return triples
 
-def create_networkx_graph(data: List[str], embeddings: torch.Tensor) -> nx.Graph:
+def create_networkx_graph(data: List[str], references: List[Dict[str, str]], embeddings: torch.Tensor) -> nx.Graph:
     G = nx.Graph()
     
-    for i, chunk in enumerate(data):
+    for i, (chunk, ref) in enumerate(zip(data, references)):
         chunk = preprocess_text(chunk)
         sentences = sent_tokenize(chunk)
         
@@ -64,7 +61,7 @@ def create_networkx_graph(data: List[str], embeddings: torch.Tensor) -> nx.Graph
         
         # Add document node and connect to entities
         doc_node = f"doc_{i}"
-        G.add_node(doc_node, type='document', text=chunk)
+        G.add_node(doc_node, type='document', text=chunk, reference=ref)
         entities = set([ent for triple in triples for ent in [triple[0], triple[2]]])
         for entity in entities:
             G.add_edge(doc_node, entity, relation='contains')
@@ -94,23 +91,21 @@ def save_graph_json(G: nx.Graph, file_path: str):
     with open(file_path, 'w', encoding='utf-8') as file:
         json.dump(graph_data, file, indent=2)
 
-def main():
-    # Load data
-    data = load_data("db.txt")
+def create_knowledge_graph():
+    # Load data from db_embeddings_r.pt
+    embeddings, _, content, references = load_embeddings_and_data("db_embeddings_r.pt")
     
-    # Load or compute embeddings
-    if os.path.exists("db_embeddings.pt"):
-        embeddings = torch.load("db_embeddings.pt")['embeddings']
-    else:
-        embeddings = model.encode(data, convert_to_tensor=True)
-        torch.save({'embeddings': embeddings}, "db_embeddings.pt")
-    
+    if embeddings is None or content is None or references is None:
+        logging.error("Failed to load data from db_embeddings_r.pt. Make sure the file exists and is properly formatted.")
+        return None
+
     # Create and save NetworkX graph
-    G = create_networkx_graph(data, embeddings)
+    G = create_networkx_graph(content, references, embeddings)
     G = prune_graph(G)
-    save_graph_json(G, "knowledge_graph.json")
-    print(f"NetworkX graph created with {G.number_of_nodes()} nodes and {G.number_of_edges()} edges.")
-    print("Graph saved as knowledge_graph.json")
+    save_graph_json(G, "knowledge_graph_r.json")
+    logging.info(f"NetworkX graph created with {G.number_of_nodes()} nodes and {G.number_of_edges()} edges.")
+    logging.info("Graph saved as knowledge_graph_r.json")
+    return G
 
 if __name__ == "__main__":
-    main()
+    create_knowledge_graph()
