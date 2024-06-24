@@ -10,7 +10,6 @@ from collections import Counter, deque
 from embeddings_utils import load_or_compute_embeddings, compute_and_save_embeddings
 from enum import Enum
 from openai import OpenAI
-from neo4j import GraphDatabase
 import json
 import networkx as nx
 
@@ -32,8 +31,6 @@ class RAGSystem:
     OLLAMA_MODEL = "phi3:instruct"
     UPDATE_THRESHOLD = 10
     CONVERSATION_CONTEXT_SIZE = 3
-    NEO4J_URI = "bolt://localhost:7687"
-    NEO4J_AUTH = ("neo4j", "password")  # Replace with your Neo4j password
     KNOWLEDGE_GRAPH_FILE = "knowledge_graph.json"
 
     def __init__(self, api_type: str):
@@ -45,16 +42,6 @@ class RAGSystem:
         self.new_entries: List[str] = []
         self.conversation_context: deque = deque(maxlen=self.CONVERSATION_CONTEXT_SIZE * 2)
         self.knowledge_graph = self.load_knowledge_graph()
-
-        try:
-            self.neo4j_driver = GraphDatabase.driver(self.NEO4J_URI, auth=self.NEO4J_AUTH)
-            with self.neo4j_driver.session() as session:
-                session.run("MATCH () RETURN 1 LIMIT 1")
-            logging.info("Successfully connected to Neo4j database")
-        except Exception as e:
-            logging.error(f"Failed to connect to Neo4j: {str(e)}")
-            print(f"{ANSIColor.PINK.value}Failed to connect to Neo4j. Graph-based responses will not be available.{ANSIColor.RESET.value}")
-            self.neo4j_driver = None
 
     def load_knowledge_graph(self) -> nx.Graph:
         try:
@@ -200,8 +187,6 @@ class RAGSystem:
             if user_input.lower() == 'exit':
                 print(f"{ANSIColor.NEON_GREEN.value}Thank you for using the RAG system. Goodbye!{ANSIColor.RESET.value}")
                 self.update_embeddings()
-                if self.neo4j_driver:
-                    self.neo4j_driver.close()
                 break
             elif user_input.lower() == 'clear':
                 self.conversation_history.clear()
@@ -256,3 +241,4 @@ if __name__ == "__main__":
     else:
         print("Error: No API type provided.")
         sys.exit(1)
+        
