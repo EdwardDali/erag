@@ -12,6 +12,7 @@ from enum import Enum
 from openai import OpenAI
 import json
 import networkx as nx
+import spacy
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -42,7 +43,8 @@ class RAGSystem:
         self.new_entries: List[str] = []
         self.conversation_context: deque = deque(maxlen=self.CONVERSATION_CONTEXT_SIZE * 2)
         self.knowledge_graph = self.load_knowledge_graph()
-
+        self.nlp = spacy.load("en_core_web_sm")
+        
     def load_knowledge_graph(self) -> nx.Graph:
         try:
             with open(self.KNOWLEDGE_GRAPH_FILE, 'r') as file:
@@ -95,17 +97,53 @@ class RAGSystem:
         if not self.knowledge_graph:
             return ["Knowledge graph is not available"]
 
-        query_words = set(re.findall(r'\w+', query.lower()))
+        query_entities = set(self.extract_entities(query))
         node_scores = []
 
         for node, data in self.knowledge_graph.nodes(data=True):
-            node_text = data.get('text', '')
-            node_words = set(re.findall(r'\w+', node_text.lower()))
-            score = len(query_words.intersection(node_words))
-            node_scores.append((node, score))
+            if data.get('type') == 'document':
+                contained_entities = set(self.knowledge_graph.neighbors(node))
+                entity_overlap = len(query_entities.intersection(contained_entities))
+                text_similarity = self.compute_similarity(query, data.get('text', ''))
+                score = entity_overlap + text_similarity
+                node_scores.append((node, score))
 
         top_nodes = sorted(node_scores, key=lambda x: x[1], reverse=True)[:top_k]
-        return [self.knowledge_graph.nodes[node]['text'] for node, _ in top_nodes]
+        
+        context = []
+        for node, _ in top_nodes:
+            doc_text = self.knowledge_graph.nodes[node].get('text', '')
+            related_entities = list(self.knowledge_graph.neighbors(node))
+            entity_info = []
+            for entity in related_entities:
+                relations = self.knowledge_graph[node][entity].get('relation', '')
+                entity_info.append(f"{entity} ({relations})")
+            context.append(f"Document: {doc_text}\nRelated Entities: {', '.join(entity_info)}")
+
+        return context
+
+    def extract_entities(self, text: str) -> List[str]:
+        doc = self.nlp(text)
+        return [ent.text for ent in doc.ents]
+
+    def compute_similarity(self, text1: str, text2: str) -> float:
+        # Disable progress bar for encoding
+        with torch.no_grad():
+            embedding1 = self.model.encode([text1], convert_to_tensor=True, show_progress_bar=False)
+            embedding2 = self.model.encode([text2], convert_to_tensor=True, show_progress_bar=False)
+        return util.pytorch_cos_sim(embedding1, embedding2).item()
+
+    def semantic_search(self, query: str, top_k: int = 5) -> List[str]:
+        if isinstance(self.db_embeddings, np.ndarray):
+            self.db_embeddings = torch.from_numpy(self.db_embeddings)
+
+        # Disable progress bar for encoding
+        with torch.no_grad():
+            input_embedding = self.model.encode([query], convert_to_tensor=True, show_progress_bar=False)
+        cos_scores = util.cos_sim(input_embedding, self.db_embeddings)[0]
+        top_indices = torch.topk(cos_scores, k=min(top_k, len(cos_scores)))[1].tolist()
+
+        return [self.db_content[idx].strip() for idx in top_indices]
 
     def get_relevant_context(self, user_input: str, top_k: int = 5) -> Tuple[List[str], List[str], List[str]]:
         logging.info(f"DB Embeddings shape: {self.db_embeddings.shape if hasattr(self.db_embeddings, 'shape') else 'No shape attribute'}")
