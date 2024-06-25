@@ -1,23 +1,20 @@
 import docx
-import json
 import PyPDF2
 import re
 from tkinter import filedialog
-from typing import Optional, List, Dict, Tuple
+from typing import Optional, List, Tuple
 import logging
 import os
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-CHUNK_SIZE = 1000
-OVERLAP_SIZE = 100
+CHUNK_SIZE = 500
+OVERLAP_SIZE = 200
 
-def format_db_entry(content: str, reference: Dict[str, str]) -> Tuple[str, str]:
-    """Format a single database entry for both content-only and full versions."""
-    content_only = f"{content.strip()}\n"
-    full_entry = f"{content.strip()} | {json.dumps(reference)}\n"
-    return content_only, full_entry
+def format_db_entry(content: str) -> str:
+    """Format a single database entry."""
+    return f"{content.strip()}\n"
 
 def upload_docx() -> Optional[Tuple[str, str]]:
     file_path = filedialog.askopenfilename(filetypes=[("DOCX Files", "*.docx")])
@@ -53,13 +50,12 @@ def upload_txt() -> Optional[Tuple[str, str]]:
             logging.error(f"Error processing TXT file: {str(e)}")
     return None, None
 
-def handle_text_chunking(text: str, source: str) -> List[Dict[str, str]]:
+def handle_text_chunking(text: str) -> List[str]:
     # Normalize whitespace and clean up text
     text = re.sub(r'\s+', ' ', text).strip()
     
     chunks = []
     start = 0
-    chunk_num = 1
 
     while start < len(text):
         end = start + CHUNK_SIZE
@@ -72,21 +68,14 @@ def handle_text_chunking(text: str, source: str) -> List[Dict[str, str]]:
                 end = start + last_space
                 chunk_text = text[start:end]
 
-        chunks.append({
-            "text": chunk_text.strip(),
-            "reference": {
-                "source": source,
-                "chunk": chunk_num
-            }
-        })
+        chunks.append(chunk_text.strip())
 
         # Move start for next chunk, ensuring overlap
         start = end - OVERLAP_SIZE
-        chunk_num += 1
 
     return chunks
 
-def process_file(file_type: str) -> Optional[List[Dict[str, str]]]:
+def process_file(file_type: str) -> Optional[List[str]]:
     upload_functions = {
         "DOCX": upload_docx,
         "PDF": upload_pdf,
@@ -96,18 +85,16 @@ def process_file(file_type: str) -> Optional[List[Dict[str, str]]]:
     if file_type not in upload_functions:
         raise ValueError(f"Unsupported file type: {file_type}")
     
-    text, source = upload_functions[file_type]()
-    if text and source:
-        return handle_text_chunking(text, source)
+    text, _ = upload_functions[file_type]()
+    if text:
+        return handle_text_chunking(text)
     return None
 
-def append_to_db(chunks: List[Dict[str, str]], db_file: str = "db.txt", db_r_file: str = "db_r.txt"):
-    with open(db_file, "a", encoding="utf-8") as f, open(db_r_file, "a", encoding="utf-8") as f_r:
+def append_to_db(chunks: List[str], db_file: str = "db.txt"):
+    with open(db_file, "a", encoding="utf-8") as f:
         for chunk in chunks:
-            content_only, full_entry = format_db_entry(chunk['text'], chunk['reference'])
-            f.write(content_only)
-            f_r.write(full_entry)
-    logging.info(f"Appended {len(chunks)} chunks to {db_file} (content-only) and {db_r_file} (full entries)")
+            f.write(format_db_entry(chunk))
+    logging.info(f"Appended {len(chunks)} chunks to {db_file}")
 
 if __name__ == "__main__":
     file_types = ["DOCX", "PDF", "Text"]

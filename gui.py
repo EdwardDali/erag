@@ -75,15 +75,8 @@ class ERAGGUI:
                 return
 
             # Process db.txt
-            embeddings, _, _, _ = load_or_compute_embeddings(self.model, "db.txt", "db_embeddings.pt")
+            embeddings, _, _ = load_or_compute_embeddings(self.model, "db.txt", "db_embeddings.pt")
             messagebox.showinfo("Success", f"Embeddings for db.txt computed and saved successfully. Shape: {embeddings.shape}")
-
-            # Process db_r.txt if it exists
-            if os.path.exists("db_r.txt"):
-                embeddings_r, _, _, _ = load_or_compute_embeddings(self.model, "db_r.txt", "db_embeddings_r.pt")
-                messagebox.showinfo("Success", f"Embeddings for db_r.txt computed and saved successfully. Shape: {embeddings_r.shape}")
-            else:
-                messagebox.showwarning("Warning", "db_r.txt not found. Only db.txt was processed.")
 
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred while computing embeddings: {str(e)}")

@@ -10,9 +10,9 @@ from collections import Counter, deque
 from embeddings_utils import load_embeddings_and_data
 from enum import Enum
 from openai import OpenAI
-import json
 import networkx as nx
 import spacy
+import json
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -24,22 +24,30 @@ class ANSIColor(Enum):
     NEON_GREEN = '\033[92m'
     RESET = '\033[0m'
 
+FAMILY_RELATIONS = [
+    "sister", "sisters", "brother", "brothers", "father", "mother", "parent", "parents",
+    "son", "sons", "daughter", "daughters", "husband", "wife", "spouse",
+    "grandfather", "grandmother", "grandparent", "grandparents",
+    "grandson", "granddaughter", "grandchild", "grandchildren",
+    "uncle", "aunt", "cousin", "cousins", "niece", "nephew"
+]
+
 class RAGSystem:
     MAX_HISTORY_LENGTH = 5
     EMBEDDINGS_FILE = "db_embeddings.pt"
-    DB_R_FILE = "db_r.txt"
+    DB_FILE = "db.txt"
     MODEL_NAME = "all-MiniLM-L6-v2"
     OLLAMA_MODEL = "phi3:instruct"
     UPDATE_THRESHOLD = 10
     CONVERSATION_CONTEXT_SIZE = 3
-    KNOWLEDGE_GRAPH_FILE = "knowledge_graph_r.json"
+    KNOWLEDGE_GRAPH_FILE = "knowledge_graph.json"
     RESULTS_FILE = "results.txt"
 
     def __init__(self, api_type: str):
         self.client = self.configure_api(api_type)
         self.model = SentenceTransformer(self.MODEL_NAME)
-        self.db_embeddings, _, self.db_content, _ = self.load_embeddings()
-        self.db_r_content, self.db_r_references = self.load_db_r()
+        self.db_embeddings, _, _ = self.load_embeddings()
+        self.db_content = self.load_db_content()
         self.conversation_history: List[Dict[str, str]] = []
         self.new_entries: List[str] = []
         self.conversation_context: deque = deque(maxlen=self.CONVERSATION_CONTEXT_SIZE * 2)
@@ -55,39 +63,37 @@ class RAGSystem:
         else:
             raise ValueError("Invalid API type")
 
-    def load_embeddings(self) -> Tuple[torch.Tensor, torch.Tensor, List[str], None]:
-        embeddings, indexes, content, _ = load_embeddings_and_data(self.EMBEDDINGS_FILE)
+    def load_embeddings(self) -> Tuple[torch.Tensor, torch.Tensor, List[str]]:
+        embeddings, indexes, content = load_embeddings_and_data(self.EMBEDDINGS_FILE)
         if embeddings is None or indexes is None or content is None:
             logging.error(f"Failed to load data from {self.EMBEDDINGS_FILE}. Make sure the file exists and is properly formatted.")
-            return torch.tensor([]), torch.tensor([]), [], None
-        return embeddings, indexes, content, None
-
-    def load_db_r(self) -> Tuple[List[str], List[Dict[str, str]]]:
-        content = []
-        references = []
-        try:
-            with open(self.DB_R_FILE, "r", encoding="utf-8") as file:
-                for line in file:
-                    parts = line.strip().split(" | ")
-                    if len(parts) >= 2:
-                        content.append(parts[0])
-                        references.append(json.loads(parts[1]))
-                    else:
-                        content.append(line.strip())
-                        references.append({})
-        except Exception as e:
-            logging.error(f"Failed to load {self.DB_R_FILE}: {str(e)}")
-            return [], []
-        return content, references
+            return torch.tensor([]), torch.tensor([]), []
+        return embeddings, indexes, content
+    
+    def load_db_content(self) -> List[str]:
+        if os.path.exists(self.DB_FILE):
+          with open(self.DB_FILE, "r", encoding='utf-8') as db_file:
+            return db_file.readlines()
+        return []
 
     def load_knowledge_graph(self) -> nx.Graph:
         try:
+            if not os.path.exists(self.KNOWLEDGE_GRAPH_FILE):
+                logging.warning(f"Knowledge graph file {self.KNOWLEDGE_GRAPH_FILE} not found.")
+                return nx.Graph()
+
             with open(self.KNOWLEDGE_GRAPH_FILE, 'r') as file:
                 graph_data = json.load(file)
-            return nx.node_link_graph(graph_data)
+            
+            G = nx.node_link_graph(graph_data)
+            logging.info(f"Successfully loaded knowledge graph with {G.number_of_nodes()} nodes and {G.number_of_edges()} edges.")
+            return G
+        except json.JSONDecodeError as e:
+            logging.error(f"Failed to parse knowledge graph JSON: {str(e)}")
         except Exception as e:
             logging.error(f"Failed to load knowledge graph: {str(e)}")
-            return nx.Graph()
+        
+        return nx.Graph()
 
     def lexical_search(self, query: str, top_k: int = 5) -> List[int]:
         query_words = set(re.findall(r'\w+', query.lower()))
@@ -98,69 +104,86 @@ class RAGSystem:
             overlap_scores.append(overlap)
         return sorted(range(len(overlap_scores)), key=lambda i: overlap_scores[i], reverse=True)[:top_k]
 
-    def semantic_search(self, query: str, top_k: int = 5) -> List[int]:
+    def semantic_search(self, query: str, top_k: int = 5) -> List[str]:
         if isinstance(self.db_embeddings, np.ndarray):
-            self.db_embeddings = torch.from_numpy(self.db_embeddings)
+           self.db_embeddings = torch.from_numpy(self.db_embeddings)
         with torch.no_grad():
-            input_embedding = self.model.encode([query], convert_to_tensor=True, show_progress_bar=False)
+           input_embedding = self.model.encode([query], convert_to_tensor=True, show_progress_bar=False)
         cos_scores = util.cos_sim(input_embedding, self.db_embeddings)[0]
-        return torch.topk(cos_scores, k=min(top_k, len(cos_scores)))[1].tolist()
+        top_indices = torch.topk(cos_scores, k=min(top_k, len(cos_scores)))[1].tolist()
+        return [self.db_content[idx].strip() for idx in top_indices]
 
-    def get_graph_context(self, query: str, top_k: int = 5) -> List[Tuple[str, Dict[str, str]]]:
-        if not self.knowledge_graph:
-            return [("Knowledge graph is not available", {})]
+    def get_graph_context(self, query: str, top_k: int = 5) -> List[str]:
+        if not self.knowledge_graph.nodes():
+            logging.warning("Knowledge graph is empty or not available.")
+            return ["Knowledge graph is not available or empty."]
 
         query_entities = set(self.extract_entities(query))
         node_scores = []
 
         for node, data in self.knowledge_graph.nodes(data=True):
-            if 'text' in data:
-                contained_entities = set(self.knowledge_graph.neighbors(node))
-                entity_overlap = len(query_entities.intersection(contained_entities))
-                text_similarity = self.compute_similarity(query, data['text'])
-                score = entity_overlap + text_similarity
-                node_scores.append((node, score))
+            if data.get('type') == 'entity':
+                entity_name = node
+                entity_type = data.get('entity_type', 'Unknown')
+                connected_docs = [n for n in self.knowledge_graph.neighbors(node) if n.startswith('doc_')]
+                family_relations = [
+                    (node, edge_data['relation'], neighbor) 
+                    for neighbor, edge_data in self.knowledge_graph[node].items() 
+                    if 'relation' in edge_data and edge_data['relation'] in FAMILY_RELATIONS
+                ]
+                
+                relevance_score = 1 if entity_name.lower() in query.lower() else 0
+                relevance_score += len(connected_docs) * 0.1  # More connected docs = more relevant
+                relevance_score += len(family_relations) * 0.2  # Family relations are more relevant
+                
+                node_scores.append((node, entity_type, connected_docs, family_relations, relevance_score))
 
-        top_nodes = sorted(node_scores, key=lambda x: x[1], reverse=True)[:top_k]
+        top_entities = sorted(node_scores, key=lambda x: x[4], reverse=True)[:top_k]
         
+        if not top_entities:
+            return ["No relevant information found in the knowledge graph."]
+
         context = []
-        for node, _ in top_nodes:
-            doc_text = self.knowledge_graph.nodes[node].get('text', '')
-            doc_ref = self.knowledge_graph.nodes[node].get('reference', {})
-            related_entities = list(self.knowledge_graph.neighbors(node))
-            entity_info = []
-            for entity in related_entities:
-                relations = self.knowledge_graph[node][entity].get('relation', '')
-                entity_info.append(f"{entity} ({relations})")
-            context_text = f"Document: {doc_text}\nRelated Entities: {', '.join(entity_info)}"
-            context.append((context_text, doc_ref))
+        for entity, entity_type, connected_docs, family_relations, _ in top_entities:
+            entity_info = f"Entity: {entity} (Type: {entity_type})"
+            doc_contexts = []
+            for doc in connected_docs[:3]:  # Limit to top 3 connected documents per entity
+                doc_text = self.knowledge_graph.nodes[doc].get('text', '')
+                doc_contexts.append(doc_text)
+            
+            related_entities = [n for n in self.knowledge_graph.neighbors(entity) if self.knowledge_graph.nodes[n]['type'] == 'entity']
+            related_info = f"Related Entities: {', '.join(related_entities[:5])}"  # Limit to top 5 related entities
+            
+            family_info = "Family Relations:\n" + "\n".join([f"{rel[0]} is {rel[1]} of {rel[2]}" for rel in family_relations])
+            
+            context_text = f"{entity_info}\n{related_info}\n{family_info}\nRelevant Documents:\n" + "\n".join(doc_contexts)
+            context.append(context_text)
 
         return context
 
-    def get_relevant_context(self, user_input: str, top_k: int = 5) -> Tuple[List[Tuple[str, Dict[str, str]]], List[Tuple[str, Dict[str, str]]], List[Tuple[str, Dict[str, str]]], List[Tuple[str, Dict[str, str]]]]:
+    def get_relevant_context(self, user_input: str, top_k: int = 5) -> Tuple[List[str], List[str], List[str], List[str]]:
         logging.info(f"DB Embeddings shape: {self.db_embeddings.shape if hasattr(self.db_embeddings, 'shape') else 'No shape attribute'}")
         logging.info(f"DB Content length: {len(self.db_content)}")
 
         if isinstance(self.db_embeddings, np.ndarray):
-            self.db_embeddings = torch.from_numpy(self.db_embeddings)
+          self.db_embeddings = torch.from_numpy(self.db_embeddings)
 
         if self.db_embeddings.numel() == 0 or len(self.db_content) == 0:
-            logging.warning("DB Embeddings or DB Content is empty")
-            return [], [], [], []
+          logging.warning("DB Embeddings or DB Content is empty")
+          return [], [], [], []
 
         search_query = " ".join(list(self.conversation_context) + [user_input])
 
         lexical_indices = self.lexical_search(search_query, top_k)
-        semantic_indices = self.semantic_search(search_query, top_k)
+        semantic_results = self.semantic_search(search_query, top_k)
         graph_results = self.get_graph_context(search_query, top_k)
         text_results = self.text_search(search_query, top_k)
 
-        lexical_results = [(self.db_content[i], {}) for i in lexical_indices]
-        semantic_results = [(self.db_content[i], {}) for i in semantic_indices]
+        lexical_results = [self.db_content[i].strip() for i in lexical_indices]
 
         conversation_context = list(self.conversation_context)
-        lexical_results = [(c, {}) for c in conversation_context] + [r for r in lexical_results if r[0] not in conversation_context]
-        semantic_results = [(c, {}) for c in conversation_context] + [r for r in semantic_results if r[0] not in conversation_context]
+        lexical_results = conversation_context + [r for r in lexical_results if r not in conversation_context]
+        semantic_results = conversation_context + [r for r in semantic_results if r not in conversation_context]
 
         logging.info(f"Number of lexical results: {len(lexical_results)}")
         logging.info(f"Number of semantic results: {len(semantic_results)}")
@@ -169,13 +192,13 @@ class RAGSystem:
 
         return lexical_results[:top_k], semantic_results[:top_k], graph_results[:top_k], text_results[:top_k]
 
-    def text_search(self, query: str, top_k: int = 5) -> List[Tuple[str, Dict[str, str]]]:
+    def text_search(self, query: str, top_k: int = 5) -> List[str]:
         query_terms = query.lower().split()
         results = []
-        for content, ref in zip(self.db_r_content, self.db_r_references):
+        for content in self.db_content:
             if any(term in content.lower() for term in query_terms):
-                results.append((content, ref))
-        return sorted(results, key=lambda x: sum(term in x[0].lower() for term in query_terms), reverse=True)[:top_k]
+                results.append(content.strip())
+        return sorted(results, key=lambda x: sum(term in x.lower() for term in query_terms), reverse=True)[:top_k]
 
     def extract_entities(self, text: str) -> List[str]:
         doc = self.nlp(text)
@@ -187,15 +210,13 @@ class RAGSystem:
             embedding2 = self.model.encode([text2], convert_to_tensor=True, show_progress_bar=False)
         return util.pytorch_cos_sim(embedding1, embedding2).item()
 
-   
-
     def ollama_chat(self, user_input: str, system_message: str) -> str:
         lexical_context, semantic_context, graph_context, text_context = self.get_relevant_context(user_input)
         
-        lexical_str = "\n".join([f"{content} [Ref: {json.dumps(ref)}]" for content, ref in lexical_context])
-        semantic_str = "\n".join([f"{content} [Ref: {json.dumps(ref)}]" for content, ref in semantic_context])
-        graph_str = "\n".join([f"{text} [Ref: {json.dumps(ref)}]" for text, ref in graph_context])
-        text_str = "\n".join([f"{content} [Ref: {json.dumps(ref)}]" for content, ref in text_context])
+        lexical_str = "\n".join(lexical_context)
+        semantic_str = "\n".join(semantic_context)
+        graph_str = "\n".join(graph_context)
+        text_str = "\n".join(text_context)
 
         combined_context = f"""Conversation Context:\n{' '.join(self.conversation_context)}
 
@@ -234,31 +255,31 @@ Text Search Results:
             logging.error(f"Error in API call: {str(e)}")
             return "I'm sorry, but I encountered an error while processing your request."
 
-    def save_debug_results(self, user_input: str, lexical_context: List[Tuple[str, Dict[str, str]]], 
-                           semantic_context: List[Tuple[str, Dict[str, str]]], 
-                           graph_context: List[Tuple[str, Dict[str, str]]], 
-                           text_context: List[Tuple[str, Dict[str, str]]],
+    def save_debug_results(self, user_input: str, lexical_context: List[str], 
+                           semantic_context: List[str], 
+                           graph_context: List[str], 
+                           text_context: List[str],
                            response: str):
         with open(self.RESULTS_FILE, "a", encoding="utf-8") as f:
             f.write(f"User Input: {user_input}\n\n")
             f.write("Lexical Search Results:\n")
-            for i, (content, ref) in enumerate(lexical_context, 1):
-                f.write(f"{i}. {content} [Ref: {json.dumps(ref)}]\n")
+            for i, content in enumerate(lexical_context, 1):
+                f.write(f"{i}. {content}\n")
             f.write("\nSemantic Search Results:\n")
-            for i, (content, ref) in enumerate(semantic_context, 1):
-                f.write(f"{i}. {content} [Ref: {json.dumps(ref)}]\n")
+            for i, content in enumerate(semantic_context, 1):
+                f.write(f"{i}. {content}\n")
             f.write("\nGraph Context Results:\n")
-            for i, (text, ref) in enumerate(graph_context, 1):
-                f.write(f"{i}. {text} [Ref: {json.dumps(ref)}]\n")
+            for i, content in enumerate(graph_context, 1):
+                f.write(f"{i}. {content}\n")
             f.write("\nText Search Results:\n")
-            for i, (content, ref) in enumerate(text_context, 1):
-                f.write(f"{i}. {content} [Ref: {json.dumps(ref)}]\n")
+            for i, content in enumerate(text_context, 1):
+                f.write(f"{i}. {content}\n")
             f.write("\nCombined Response:\n")
             f.write(f"{response}\n")
             f.write("\n" + "="*50 + "\n\n")
 
     def run(self):
-        system_message = "You are a helpful assistant that is an expert at extracting the most useful information from a given text. Prioritize the most recent conversation context when answering questions, but also consider other relevant information if necessary. If the given context doesn't provide a suitable answer, rely on your general knowledge. Always include references to the sources of information in your responses using the format [Source: filename, Chunk: number]."
+        system_message = "You are a helpful assistant that is an expert at extracting the most useful information from a given text. Prioritize the most recent conversation context when answering questions, but also consider other relevant information if necessary. If the given context doesn't provide a suitable answer, rely on your general knowledge."
 
         print(f"{ANSIColor.YELLOW.value}Welcome to the RAG system. Type 'exit' to quit or 'clear' to clear conversation history.{ANSIColor.RESET.value}")
 
@@ -296,36 +317,30 @@ Text Search Results:
         self.conversation_context.append(assistant_response)
 
     def append_to_db(self, new_entries: List[Dict[str, str]]):
-        with open(self.DB_R_FILE, "a", encoding="utf-8") as db_file:
+        with open(self.DB_FILE, "a", encoding="utf-8") as db_file:
             for entry in new_entries:
-                db_file.write(f"{entry['role']}: {entry['content']} | {{}}\n")
+                db_file.write(f"{entry['role']}: {entry['content']}\n")
         self.new_entries.extend([entry['content'] for entry in new_entries])
         
-        # Also update db_r_content and db_r_references
-        for entry in new_entries:
-            self.db_r_content.append(f"{entry['role']}: {entry['content']}")
-            self.db_r_references.append({})
+        # Also update db_content
+        self.db_content.extend([f"{entry['role']}: {entry['content']}" for entry in new_entries])
 
     def update_embeddings(self):
         if len(self.new_entries) >= self.UPDATE_THRESHOLD:
             logging.info("Updating embeddings...")
             new_embeddings = self.model.encode(self.new_entries, convert_to_tensor=True, show_progress_bar=False)
             self.db_embeddings = torch.cat([self.db_embeddings, new_embeddings], dim=0)
-            self.db_content.extend(self.new_entries)
             
             # Save updated embeddings
             data_to_save = {
                 'embeddings': self.db_embeddings,
                 'indexes': torch.arange(len(self.db_content)),
-                'content': self.db_content,
-                'references': [{}] * len(self.db_content)  # Empty references for db_embeddings.pt
+                'content': self.db_content
             }
             torch.save(data_to_save, self.EMBEDDINGS_FILE)
             
-            # db_r.txt is already updated in append_to_db method
-            
             self.new_entries.clear()
-            logging.info("Embeddings and db_r.txt updated successfully.")
+            logging.info("Embeddings updated successfully.")
 
 def main(api_type: str):
     rag_system = RAGSystem(api_type)
