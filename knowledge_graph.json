@@ -3739,26 +3739,6 @@
       "target": "doc_486"
     },
     {
-      "relation": "of in",
-      "source": "Project Gutenberg eBook",
-      "target": "Alice"
-    },
-    {
-      "relation": "of in",
-      "source": "Project Gutenberg eBook",
-      "target": "Wonderland"
-    },
-    {
-      "relation": "of in of",
-      "source": "Project Gutenberg eBook",
-      "target": "the United States"
-    },
-    {
-      "relation": "of",
-      "source": "Alice",
-      "target": "the United States"
-    },
-    {
       "relation": "contains",
       "source": "Alice",
       "target": "doc_1"
@@ -3817,21 +3797,6 @@
       "relation": "contains",
       "source": "Alice",
       "target": "doc_14"
-    },
-    {
-      "relation": "sister",
-      "source": "Alice",
-      "target": "Alice"
-    },
-    {
-      "relation": "son",
-      "source": "Alice",
-      "target": "Latitude"
-    },
-    {
-      "relation": "son",
-      "source": "Alice",
-      "target": "Longitude"
     },
     {
       "relation": "contains",
@@ -3967,11 +3932,6 @@
       "relation": "contains",
       "source": "Alice",
       "target": "doc_42"
-    },
-    {
-      "relation": "of",
-      "source": "Alice",
-      "target": "The Pool of Tears"
     },
     {
       "relation": "contains",
@@ -4134,11 +4094,6 @@
       "target": "doc_81"
     },
     {
-      "relation": "at turn",
-      "source": "Alice",
-      "target": "Lory"
-    },
-    {
       "relation": "contains",
       "source": "Alice",
       "target": "doc_86"
@@ -4192,11 +4147,6 @@
       "relation": "contains",
       "source": "Alice",
       "target": "doc_101"
-    },
-    {
-      "relation": "alice",
-      "source": "Alice",
-      "target": "Mouse"
     },
     {
       "relation": "contains",
@@ -4407,11 +4357,6 @@
       "relation": "contains",
       "source": "Alice",
       "target": "doc_156"
-    },
-    {
-      "relation": "from",
-      "source": "Alice",
-      "target": "CHAPTER V. Advice"
     },
     {
       "relation": "contains",
@@ -4922,26 +4867,6 @@
       "relation": "contains",
       "source": "Alice",
       "target": "doc_269"
-    },
-    {
-      "relation": "sister",
-      "source": "Alice",
-      "target": "Dormouse"
-    },
-    {
-      "relation": "sisters",
-      "source": "Alice",
-      "target": "Elsie"
-    },
-    {
-      "relation": "sister",
-      "source": "Alice",
-      "target": "Lacie"
-    },
-    {
-      "relation": "sister",
-      "source": "Alice",
-      "target": "Tillie"
     },
     {
       "relation": "contains",
@@ -5539,11 +5464,6 @@
       "target": "doc_407"
     },
     {
-      "relation": "son",
-      "source": "Alice",
-      "target": "Gryphon"
-    },
-    {
       "relation": "contains",
       "source": "Alice",
       "target": "doc_410"
@@ -5764,11 +5684,6 @@
       "target": "doc_478"
     },
     {
-      "relation": "of",
-      "source": "Wonderland",
-      "target": "the United States"
-    },
-    {
       "relation": "contains",
       "source": "Wonderland",
       "target": "doc_2"
@@ -5792,11 +5707,6 @@
       "relation": "contains",
       "source": "Wonderland",
       "target": "doc_485"
-    },
-    {
-      "relation": "of",
-      "source": "the United States",
-      "target": "the United States"
     },
     {
       "relation": "contains",
@@ -5847,16 +5757,6 @@
       "relation": "contains",
       "source": "the United States",
       "target": "doc_503"
-    },
-    {
-      "relation": "of",
-      "source": "the United States",
-      "target": "Project Gutenberg"
-    },
-    {
-      "relation": "of",
-      "source": "the United States",
-      "target": "eBook"
     },
     {
       "relation": "contains",
@@ -5933,11 +5833,6 @@
       "relation": "contains",
       "source": "License",
       "target": "doc_491"
-    },
-    {
-      "relation": "specify in",
-      "source": "License",
-      "target": "Project Gutenberg"
     },
     {
       "relation": "contains",
@@ -6056,11 +5951,6 @@
       "target": "doc_156"
     },
     {
-      "relation": "from",
-      "source": "Caterpillar",
-      "target": "CHAPTER V. Advice"
-    },
-    {
       "relation": "contains",
       "source": "Caterpillar",
       "target": "doc_157"
@@ -6106,19 +5996,9 @@
       "target": "doc_165"
     },
     {
-      "relation": "remember",
-      "source": "Caterpillar",
-      "target": "Can\u2019t remember"
-    },
-    {
       "relation": "contains",
       "source": "Caterpillar",
       "target": "doc_166"
-    },
-    {
-      "relation": "father",
-      "source": "Caterpillar",
-      "target": "William"
     },
     {
       "relation": "contains",
@@ -6164,11 +6044,6 @@
       "relation": "contains",
       "source": "Caterpillar",
       "target": "doc_397"
-    },
-    {
-      "relation": "father",
-      "source": "Caterpillar",
-      "target": "the Mock Turtle"
     },
     {
       "relation": "contains",
@@ -6301,11 +6176,6 @@
       "target": "doc_305"
     },
     {
-      "relation": "peep into",
-      "source": "Rabbit",
-      "target": "the White Rabbit"
-    },
-    {
       "relation": "contains",
       "source": "Rabbit",
       "target": "doc_306"
@@ -6378,11 +6248,6 @@
       "weight": 0.7763134241104126,
       "source": "doc_14",
       "target": "doc_15"
-    },
-    {
-      "relation": "son",
-      "source": "Latitude",
-      "target": "Longitude"
     },
     {
       "relation": "contains",
@@ -6990,11 +6855,6 @@
       "target": "doc_82"
     },
     {
-      "relation": "son",
-      "source": "Mouse",
-      "target": "Mouse"
-    },
-    {
       "relation": "contains",
       "source": "Mouse",
       "target": "doc_83"
@@ -7013,11 +6873,6 @@
       "relation": "contains",
       "source": "Mouse",
       "target": "doc_86"
-    },
-    {
-      "relation": "athele meet offer",
-      "source": "Mouse",
-      "target": "Edgar Atheling"
     },
     {
       "relation": "contains",
@@ -7095,11 +6950,6 @@
       "target": "doc_86"
     },
     {
-      "relation": "athele meet offer",
-      "source": "William",
-      "target": "Edgar Atheling"
-    },
-    {
       "relation": "contains",
       "source": "William",
       "target": "doc_87"
@@ -7115,11 +6965,6 @@
       "target": "doc_166"
     },
     {
-      "relation": "father",
-      "source": "William",
-      "target": "William"
-    },
-    {
       "relation": "contains",
       "source": "William",
       "target": "doc_167"
@@ -7133,11 +6978,6 @@
       "relation": "contains",
       "source": "William",
       "target": "doc_397"
-    },
-    {
-      "relation": "father",
-      "source": "William",
-      "target": "the Mock Turtle"
     },
     {
       "relation": "similar",
@@ -7273,34 +7113,9 @@
       "target": "doc_81"
     },
     {
-      "relation": "with",
-      "source": "Lory",
-      "target": "Lory"
-    },
-    {
       "relation": "contains",
       "source": "Lory",
       "target": "doc_83"
-    },
-    {
-      "relation": "of with",
-      "source": "Lory",
-      "target": "Edwin"
-    },
-    {
-      "relation": "with",
-      "source": "Lory",
-      "target": "Morcar"
-    },
-    {
-      "relation": "with",
-      "source": "Lory",
-      "target": "Mercia"
-    },
-    {
-      "relation": "with",
-      "source": "Lory",
-      "target": "Northumbria"
     },
     {
       "relation": "contains",
@@ -7316,11 +7131,6 @@
       "relation": "contains",
       "source": "Lory",
       "target": "doc_104"
-    },
-    {
-      "relation": "daughter",
-      "source": "Lory",
-      "target": "Crab"
     },
     {
       "relation": "contains",
@@ -7391,49 +7201,14 @@
       "target": "Northumbria"
     },
     {
-      "relation": "of",
-      "source": "Edwin",
-      "target": "Morcar"
-    },
-    {
-      "relation": "of",
-      "source": "Edwin",
-      "target": "Mercia"
-    },
-    {
-      "relation": "of",
-      "source": "Edwin",
-      "target": "Northumbria"
-    },
-    {
       "relation": "contains",
       "source": "Edwin",
       "target": "doc_84"
     },
     {
-      "relation": "of",
-      "source": "Edwin",
-      "target": "Edwin"
-    },
-    {
       "relation": "contains",
       "source": "Edwin",
       "target": "doc_85"
-    },
-    {
-      "relation": "of of",
-      "source": "Edwin",
-      "target": "Stigand"
-    },
-    {
-      "relation": "of",
-      "source": "Edwin",
-      "target": "Canterbury"
-    },
-    {
-      "relation": "of find _",
-      "source": "Edwin",
-      "target": "Found"
     },
     {
       "relation": "contains",
@@ -7446,16 +7221,6 @@
       "target": "doc_85"
     },
     {
-      "relation": "of",
-      "source": "Morcar",
-      "target": "Stigand"
-    },
-    {
-      "relation": "find _",
-      "source": "Morcar",
-      "target": "Found"
-    },
-    {
       "relation": "contains",
       "source": "Mercia",
       "target": "doc_84"
@@ -7466,16 +7231,6 @@
       "target": "doc_85"
     },
     {
-      "relation": "of",
-      "source": "Mercia",
-      "target": "Stigand"
-    },
-    {
-      "relation": "find _",
-      "source": "Mercia",
-      "target": "Found"
-    },
-    {
       "relation": "contains",
       "source": "Northumbria",
       "target": "doc_84"
@@ -7484,16 +7239,6 @@
       "relation": "contains",
       "source": "Northumbria",
       "target": "doc_85"
-    },
-    {
-      "relation": "of",
-      "source": "Northumbria",
-      "target": "Stigand"
-    },
-    {
-      "relation": "find _",
-      "source": "Northumbria",
-      "target": "Found"
     },
     {
       "relation": "contains",
@@ -7506,29 +7251,14 @@
       "target": "Canterbury"
     },
     {
-      "relation": "of",
-      "source": "Stigand",
-      "target": "Canterbury"
-    },
-    {
       "relation": "contains",
       "source": "Stigand",
       "target": "doc_85"
     },
     {
-      "relation": "of find _",
-      "source": "Stigand",
-      "target": "Found"
-    },
-    {
       "relation": "contains",
       "source": "Canterbury",
       "target": "doc_85"
-    },
-    {
-      "relation": "find _",
-      "source": "Canterbury",
-      "target": "Found"
     },
     {
       "relation": "contains",
@@ -7554,16 +7284,6 @@
       "relation": "contains",
       "source": "Dodo",
       "target": "doc_89"
-    },
-    {
-      "relation": "in",
-      "source": "Dodo",
-      "target": "Caucus"
-    },
-    {
-      "relation": "in",
-      "source": "Dodo",
-      "target": "Dodo"
     },
     {
       "relation": "contains",
@@ -7679,11 +7399,6 @@
       "weight": 0.7954229116439819,
       "source": "doc_100",
       "target": "doc_101"
-    },
-    {
-      "relation": "say to with waste",
-      "source": "Said",
-      "target": "Said"
     },
     {
       "relation": "contains",
@@ -8054,11 +7769,6 @@
       "target": "Bill"
     },
     {
-      "relation": "\u2019",
-      "source": "Where\u2019s the other ladder?\u2014Why",
-      "target": "Bill"
-    },
-    {
       "relation": "contains",
       "source": "Where\u2019s the other ladder?\u2014Why",
       "target": "doc_135"
@@ -8145,11 +7855,6 @@
       "relation": "contains",
       "source": "voices\u2014\u201cHold",
       "target": "doc_139"
-    },
-    {
-      "relation": "up",
-      "source": "voices\u2014\u201cHold",
-      "target": "Brandy"
     },
     {
       "relation": "contains",
@@ -8288,11 +7993,6 @@
       "weight": 0.7225170731544495,
       "source": "doc_156",
       "target": "doc_175"
-    },
-    {
-      "relation": "from",
-      "source": "CHAPTER V. Advice",
-      "target": "Caterpillar The Caterpillar"
     },
     {
       "relation": "contains",
@@ -8585,11 +8285,6 @@
       "target": "doc_189"
     },
     {
-      "relation": "in of",
-      "source": "Pigeon",
-      "target": "Pigeon"
-    },
-    {
       "relation": "contains",
       "source": "Pigeon",
       "target": "doc_190"
@@ -8800,11 +8495,6 @@
       "target": "doc_199"
     },
     {
-      "relation": "for",
-      "source": "Fish-Footman",
-      "target": "For the Duchess"
-    },
-    {
       "relation": "contains",
       "source": "Fish-Footman",
       "target": "doc_199"
@@ -8855,11 +8545,6 @@
       "target": "doc_264"
     },
     {
-      "relation": "with at read of",
-      "source": "Queen",
-      "target": "Hatter"
-    },
-    {
       "relation": "contains",
       "source": "Queen",
       "target": "doc_289"
@@ -8888,11 +8573,6 @@
       "relation": "contains",
       "source": "Queen",
       "target": "doc_298"
-    },
-    {
-      "relation": "read of",
-      "source": "Queen",
-      "target": "Queen"
     },
     {
       "relation": "contains",
@@ -8973,11 +8653,6 @@
       "relation": "contains",
       "source": "Queen",
       "target": "doc_326"
-    },
-    {
-      "relation": "talk at",
-      "source": "Queen",
-      "target": "the Cheshire Cat"
     },
     {
       "relation": "contains",
@@ -9148,11 +8823,6 @@
       "relation": "contains",
       "source": "Queen",
       "target": "doc_482"
-    },
-    {
-      "relation": "from",
-      "source": "The Frog-Footman",
-      "target": "From the Queen"
     },
     {
       "relation": "contains",
@@ -9680,11 +9350,6 @@
       "target": "doc_264"
     },
     {
-      "relation": "with at read of",
-      "source": "Hatter",
-      "target": "Hatter"
-    },
-    {
       "relation": "contains",
       "source": "Hatter",
       "target": "doc_265"
@@ -10037,26 +9702,6 @@
       "relation": "contains",
       "source": "Dormouse",
       "target": "doc_269"
-    },
-    {
-      "relation": "sister",
-      "source": "Dormouse",
-      "target": "Elsie"
-    },
-    {
-      "relation": "sister",
-      "source": "Dormouse",
-      "target": "Lacie"
-    },
-    {
-      "relation": "sister",
-      "source": "Dormouse",
-      "target": "Tillie"
-    },
-    {
-      "relation": "son",
-      "source": "Dormouse",
-      "target": "Dormouse"
     },
     {
       "relation": "contains",
@@ -10473,24 +10118,9 @@
       "target": "doc_275"
     },
     {
-      "relation": "sister",
-      "source": "Elsie",
-      "target": "Lacie"
-    },
-    {
-      "relation": "sister",
-      "source": "Elsie",
-      "target": "Tillie"
-    },
-    {
       "relation": "contains",
       "source": "Elsie",
       "target": "doc_269"
-    },
-    {
-      "relation": "sister",
-      "source": "Lacie",
-      "target": "Tillie"
     },
     {
       "relation": "contains",
@@ -11369,11 +10999,6 @@
       "target": "doc_388"
     },
     {
-      "relation": "_ go with to",
-      "source": "Gryphon",
-      "target": "Gryphon"
-    },
-    {
       "relation": "contains",
       "source": "Gryphon",
       "target": "doc_389"
@@ -11556,11 +11181,6 @@
       "target": "doc_358"
     },
     {
-      "relation": "son",
-      "source": "the Mock Turtle",
-      "target": "the Mock Turtle"
-    },
-    {
       "relation": "contains",
       "source": "the Mock Turtle",
       "target": "doc_359"
@@ -11609,11 +11229,6 @@
       "relation": "contains",
       "source": "the Mock Turtle",
       "target": "doc_369"
-    },
-    {
-      "relation": "in",
-      "source": "the Mock Turtle",
-      "target": "Stretching"
     },
     {
       "relation": "contains",
@@ -12421,11 +12036,6 @@
       "target": "doc_369"
     },
     {
-      "relation": "in",
-      "source": "Seaography",
-      "target": "Stretching"
-    },
-    {
       "relation": "contains",
       "source": "doc_369",
       "target": "Stretching"
@@ -12446,11 +12056,6 @@
       "weight": 0.7589410543441772,
       "source": "doc_369",
       "target": "doc_371"
-    },
-    {
-      "relation": "in",
-      "source": "Stretching",
-      "target": "Coils"
     },
     {
       "relation": "contains",
@@ -13708,19 +13313,9 @@
       "target": "doc_519"
     },
     {
-      "relation": "of",
-      "source": "Foundation",
-      "target": "Project Gutenberg"
-    },
-    {
       "relation": "contains",
       "source": "Foundation",
       "target": "doc_529"
-    },
-    {
-      "relation": "of",
-      "source": "Foundation",
-      "target": "Foundation"
     },
     {
       "relation": "contains",
@@ -13766,11 +13361,6 @@
       "relation": "contains",
       "source": "the General Terms of Use",
       "target": "doc_487"
-    },
-    {
-      "relation": "of",
-      "source": "the General Terms of Use",
-      "target": "Project Gutenberg"
     },
     {
       "relation": "contains",
@@ -14012,16 +13602,6 @@
       "target": "doc_506"
     },
     {
-      "relation": "associate with appear on",
-      "source": "Project Gutenberg",
-      "target": "1.E.8"
-    },
-    {
-      "relation": "with of",
-      "source": "Project Gutenberg",
-      "target": "Project Gutenberg"
-    },
-    {
       "relation": "contains",
       "source": "Project Gutenberg",
       "target": "doc_507"
@@ -14045,11 +13625,6 @@
       "relation": "contains",
       "source": "Project Gutenberg",
       "target": "doc_511"
-    },
-    {
-      "relation": "use in post on",
-      "source": "Project Gutenberg",
-      "target": "Plain Vanilla ASCII"
     },
     {
       "relation": "contains",
@@ -14095,16 +13670,6 @@
       "relation": "contains",
       "source": "Project Gutenberg",
       "target": "doc_522"
-    },
-    {
-      "relation": "of for of describe in of distribute under",
-      "source": "Project Gutenberg",
-      "target": "LIMITED WARRANTY"
-    },
-    {
-      "relation": "of",
-      "source": "Project Gutenberg",
-      "target": "DISCLAIMER OF DAMAGES - Except"
     },
     {
       "relation": "contains",
@@ -14160,11 +13725,6 @@
       "relation": "contains",
       "source": "Project Gutenberg",
       "target": "doc_545"
-    },
-    {
-      "relation": "with of",
-      "source": "Project Gutenberg",
-      "target": "eBooks"
     },
     {
       "relation": "contains",
@@ -14228,11 +13788,6 @@
       "target": "doc_544"
     },
     {
-      "relation": "with of",
-      "source": "eBooks",
-      "target": "eBooks"
-    },
-    {
       "relation": "contains",
       "source": "eBooks",
       "target": "doc_545"
@@ -14246,11 +13801,6 @@
       "relation": "contains",
       "source": "eBooks",
       "target": "doc_547"
-    },
-    {
-      "relation": "help produce subscribe to hear about",
-      "source": "eBooks",
-      "target": "Literary Archive Foundation"
     },
     {
       "relation": "similar",
@@ -15150,11 +14700,6 @@
       "target": "doc_511"
     },
     {
-      "relation": "use in post on",
-      "source": "Plain Vanilla ASCII",
-      "target": "Plain Vanilla ASCII"
-    },
-    {
       "relation": "contains",
       "source": "Plain Vanilla ASCII",
       "target": "doc_512"
@@ -15342,11 +14887,6 @@
       "weight": 0.7031475305557251,
       "source": "doc_521",
       "target": "doc_522"
-    },
-    {
-      "relation": "of for of describe in of distribute under",
-      "source": "LIMITED WARRANTY",
-      "target": "DISCLAIMER OF DAMAGES - Except"
     },
     {
       "relation": "contains",

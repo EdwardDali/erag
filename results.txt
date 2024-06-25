@@ -16,57 +16,43 @@ Semantic Search Results:
 
 Graph Context Results:
 1. Entity: Alice (Type: PERSON)
-Related Entities: Project Gutenberg eBook, the United States, Alice, Latitude, Longitude
+Related Entities: Latin Grammar, William, Adventures
 Family Relations:
-Alice is sister of Alice
-Alice is son of Latitude
-Alice is son of Longitude
-Alice is brother of Latin Grammar
-Alice is father of William
-Alice is sister of Dormouse
-Alice is sisters of Elsie
-Alice is sister of Lacie
-Alice is sister of Tillie
-Alice is son of Gryphon
-Alice is sister of Adventures
+Alice is the brother of Latin Grammar
+Alice is the father of William
+Alice is the sister of Adventures
 Relevant Documents:
 ﻿The Project Gutenberg eBook of Alice's Adventures in Wonderland This ebook is for the use of anyone anywhere in the United States and most other parts of the world at no cost and with almost no restrictions whatsoever. You may copy it, give it away or re-use it under the terms of the Project Gutenberg License included with this ebook or online at www.gutenberg.org. If you are not located in the United States, you will have to check the laws of the country where you are located before using
 utenberg License included with this ebook or online at www.gutenberg.org. If you are not located in the United States, you will have to check the laws of the country where you are located before using this eBook. Title: Alice's Adventures in Wonderland Author: Lewis Carroll Release date: June 27, 2008 [eBook #11] Most recently updated: February 4, 2024 Language: English Credits: Arthur DiBianca and David Widger *** START OF THE PROJECT GUTENBERG EBOOK ALICE'S ADVENTURES IN WONDERLAND ***
 3.0 Contents CHAPTER I. Down the Rabbit-Hole CHAPTER II. The Pool of Tears CHAPTER III. A Caucus-Race and a Long Tale CHAPTER IV. The Rabbit Sends in a Little Bill CHAPTER V. Advice from a Caterpillar CHAPTER VI. Pig and Pepper CHAPTER VII. A Mad Tea-Party CHAPTER VIII. The Queen’s Croquet-Ground CHAPTER IX. The Mock Turtle’s Story CHAPTER X. The Lobster Quadrille CHAPTER XI. Who Stole the Tarts? CHAPTER XII. Alice’s Evidence CHAPTER I. Down the Rabbit-Hole Alice was beginning to get very tired
 2. Entity: Queen (Type: PERSON)
-Related Entities: Hatter, Queen, the Cheshire Cat
+Related Entities: 
 Family Relations:
-
 Relevant Documents:
 wood to listen. The Fish-Footman began by producing from under his arm a great letter, nearly as large as himself, and this he handed over to the other, saying, in a solemn tone, “For the Duchess. An invitation from the Queen to play croquet.” The Frog-Footman repeated, in the same solemn tone, only changing the order of the words a little, “From the Queen. An invitation for the Duchess to play croquet.” Then they both bowed low, and their curls got entangled together. Alice laughed so much at
 nd down, and the poor little thing howled so, that Alice could hardly hear the words:— “I speak severely to my boy, I beat him when he sneezes; For he can thoroughly enjoy The pepper when he pleases!” CHORUS. “Wow! wow! wow!” “Here! you may nurse it a bit, if you like!” the Duchess said to Alice, flinging the baby at her as she spoke. “I must go and get ready to play croquet with the Queen,” and she hurried out of the room. The cook threw a frying-pan after her as she went out, but it just
 ce, flinging the baby at her as she spoke. “I must go and get ready to play croquet with the Queen,” and she hurried out of the room. The cook threw a frying-pan after her as she went out, but it just missed her. Alice caught the baby with some difficulty, as it was a queer-shaped little creature, and held out its arms and legs in all directions, “just like a star-fish,” thought Alice. The poor little thing was snorting like a steam-engine when she caught it, and kept doubling itself up and
-3. Entity: Gryphon (Type: GPE)
-Related Entities: Alice, Gryphon
+3. Entity: Hatter (Type: PERSON)
+Related Entities: 
 Family Relations:
-Gryphon is son of Alice
-Relevant Documents:
-made from,” said the Queen. “I never saw one, or heard of one,” said Alice. “Come on, then,” said the Queen, “and he shall tell you his history,” As they walked off together, Alice heard the King say in a low voice, to the company generally, “You are all pardoned.” “Come, _that’s_ a good thing!” she said to herself, for she had felt quite unhappy at the number of executions the Queen had ordered. They very soon came upon a Gryphon, lying fast asleep in the sun. (If you don’t know what a
-ing!” she said to herself, for she had felt quite unhappy at the number of executions the Queen had ordered. They very soon came upon a Gryphon, lying fast asleep in the sun. (If you don’t know what a Gryphon is, look at the picture.) “Up, lazy thing!” said the Queen, “and take this young lady to see the Mock Turtle, and to hear his history. I must go back and see after some executions I have ordered;” and she walked off, leaving Alice alone with the Gryphon. Alice did not quite like the look
-see the Mock Turtle, and to hear his history. I must go back and see after some executions I have ordered;” and she walked off, leaving Alice alone with the Gryphon. Alice did not quite like the look of the creature, but on the whole she thought it would be quite as safe to stay with it as to go after that savage Queen: so she waited. The Gryphon sat up and rubbed its eyes: then it watched the Queen till she was out of sight: then it chuckled. “What fun!” said the Gryphon, half to itself, half
-4. Entity: Hatter (Type: PERSON)
-Related Entities: Queen, Hatter
-Family Relations:
-
 Relevant Documents:
 nt to get to,” said the Cat. “I don’t much care where—” said Alice. “Then it doesn’t matter which way you go,” said the Cat. “—so long as I get _somewhere_,” Alice added as an explanation. “Oh, you’re sure to do that,” said the Cat, “if you only walk long enough.” Alice felt that this could not be denied, so she tried another question. “What sort of people live about here?” “In _that_ direction,” the Cat said, waving its right paw round, “lives a Hatter: and in _that_ direction,” waving the
 be denied, so she tried another question. “What sort of people live about here?” “In _that_ direction,” the Cat said, waving its right paw round, “lives a Hatter: and in _that_ direction,” waving the other paw, “lives a March Hare. Visit either you like: they’re both mad.” “But I don’t want to go among mad people,” Alice remarked. “Oh, you can’t help that,” said the Cat: “we’re all mad here. I’m mad. You’re mad.” “How do you know I’m mad?” said Alice. “You must be,” said the Cat, “or you
 e shaped like ears and the roof was thatched with fur. It was so large a house, that she did not like to go nearer till she had nibbled some more of the lefthand bit of mushroom, and raised herself to about two feet high: even then she walked up towards it rather timidly, saying to herself “Suppose it should be raving mad after all! I almost wish I’d gone to see the Hatter instead!” CHAPTER VII. A Mad Tea-Party There was a table set out under a tree in front of the house, and the March Hare and
-5. Entity: the Mock Turtle (Type: ORG)
-Related Entities: Caterpillar, William, the Mock Turtle, Stretching
+4. Entity: Gryphon (Type: GPE)
+Related Entities: 
 Family Relations:
-the Mock Turtle is father of Caterpillar
-the Mock Turtle is father of William
-the Mock Turtle is son of the Mock Turtle
 Relevant Documents:
+made from,” said the Queen. “I never saw one, or heard of one,” said Alice. “Come on, then,” said the Queen, “and he shall tell you his history,” As they walked off together, Alice heard the King say in a low voice, to the company generally, “You are all pardoned.” “Come, _that’s_ a good thing!” she said to herself, for she had felt quite unhappy at the number of executions the Queen had ordered. They very soon came upon a Gryphon, lying fast asleep in the sun. (If you don’t know what a
 ing!” she said to herself, for she had felt quite unhappy at the number of executions the Queen had ordered. They very soon came upon a Gryphon, lying fast asleep in the sun. (If you don’t know what a Gryphon is, look at the picture.) “Up, lazy thing!” said the Queen, “and take this young lady to see the Mock Turtle, and to hear his history. I must go back and see after some executions I have ordered;” and she walked off, leaving Alice alone with the Gryphon. Alice did not quite like the look
 see the Mock Turtle, and to hear his history. I must go back and see after some executions I have ordered;” and she walked off, leaving Alice alone with the Gryphon. Alice did not quite like the look of the creature, but on the whole she thought it would be quite as safe to stay with it as to go after that savage Queen: so she waited. The Gryphon sat up and rubbed its eyes: then it watched the Queen till she was out of sight: then it chuckled. “What fun!” said the Gryphon, half to itself, half
-, that: they never executes nobody, you know. Come on!” “Everybody says ‘come on!’ here,” thought Alice, as she went slowly after it: “I never was so ordered about in all my life, never!” They had not gone far before they saw the Mock Turtle in the distance, sitting sad and lonely on a little ledge of rock, and, as they came nearer, Alice could hear him sighing as if his heart would break. She pitied him deeply. “What is his sorrow?” she asked the Gryphon, and the Gryphon answered, very nearly
+5. Entity: Project Gutenberg (Type: PERSON)
+Related Entities: 
+Family Relations:
+Relevant Documents:
+n copy and distribute it in the United States without permission and without paying copyright royalties. Special rules, set forth in the General Terms of Use part of this license, apply to copying and distributing Project Gutenberg™ electronic works to protect the PROJECT GUTENBERG™ concept and trademark. Project Gutenberg is a registered trademark, and may not be used if you charge for an eBook, except by following the terms of the trademark license, including paying royalties for use of the
+rademark. Project Gutenberg is a registered trademark, and may not be used if you charge for an eBook, except by following the terms of the trademark license, including paying royalties for use of the Project Gutenberg trademark. If you do not charge anything for copies of this eBook, complying with the trademark license is very easy. You may use this eBook for nearly any purpose such as creation of derivative works, reports, performances and research. Project Gutenberg eBooks may be modified
+rotected by U.S. copyright law. Redistribution is subject to the trademark license, especially commercial redistribution. START: FULL LICENSE THE FULL PROJECT GUTENBERG LICENSE PLEASE READ THIS BEFORE YOU DISTRIBUTE OR USE THIS WORK To protect the Project Gutenberg™ mission of promoting the free distribution of electronic works, by using or distributing this work (or any other work associated in any way with the phrase “Project Gutenberg”), you agree to comply with all the terms of the Full
 
 Text Search Results:
 1. added the Hatter, “or you’ll be asleep again before it’s done.” “Once upon a time there were three little sisters,” the Dormouse began in a great hurry; “and their names were Elsie, Lacie, and Tillie; and they lived at the bottom of a well—” “What did they live on?” said Alice, who always took a great interest in questions of eating and drinking. “They lived on treacle,” said the Dormouse, after thinking a minute or two. “They couldn’t have done that, you know,” Alice gently remarked; “they’d
@@ -76,7 +62,85 @@ Text Search Results:
 5. ngth, which it gave to my jaw, Has lasted the rest of my life.” “You are old,” said the youth, “one would hardly suppose That your eye was as steady as ever; Yet you balanced an eel on the end of your nose— What made you so awfully clever?” “I have answered three questions, and that is enough,” Said his father; “don’t give yourself airs! Do you think I can listen all day to such stuff? Be off, or I’ll kick you down stairs!” “That is not said right,” said the Caterpillar. “Not _quite_ right, I’m
 
 Combined Response:
- The name of the three sisters are Elsie, Lacie, and Tillie. This information is found in the Text Search Results section: "added the Hatter, “or you’ll be asleep again before it’s done.” “Once upon a time there were three little sisters,” the Dormouse began in a great hurry; “and their names were Elsie, Lacie, and Tillie; and they lived at the bottom of a well—"
+ The name of the three sisters are Elsie, Lacie, and Tillie. This information is found in the conversation where Alice asks about what they lived on at the bottom of a well: "And what were their names?" said Alice. "Their names were Elsie, Lacie, and Tillie; and they lived at the bottom of a well—"
+
+This context is relevant as it directly answers the question asked by Alice in the conversation between her and the Dormouse from Lewis Carroll's "Alice's Adventures in Wonderland."
+
+==================================================
+
+User Input: what did thet ate?
+
+Lexical Search Results:
+1. what is the name of the three sisters?
+2.  The name of the three sisters are Elsie, Lacie, and Tillie. This information is found in the conversation where Alice asks about what they lived on at the bottom of a well: "And what were their names?" said Alice. "Their names were Elsie, Lacie, and Tillie; and they lived at the bottom of a well—"
+
+This context is relevant as it directly answers the question asked by Alice in the conversation between her and the Dormouse from Lewis Carroll's "Alice's Adventures in Wonderland."
+3. assistant:  The name of the three sisters are Elsie, Lacie, and Tillie. This information is found in the conversation where Alice asks about what they lived on at the bottom of a well: "And what were their names?" said Alice. "Their names were Elsie, Lacie, and Tillie; and they lived at the bottom of a well—"
+
+This context is relevant as it directly answers the question asked by Alice in the conversation between her and the Dormouse from Lewis Carroll's "Alice's Adventures in Wonderland."
+4. added the Hatter, “or you’ll be asleep again before it’s done.” “Once upon a time there were three little sisters,” the Dormouse began in a great hurry; “and their names were Elsie, Lacie, and Tillie; and they lived at the bottom of a well—” “What did they live on?” said Alice, who always took a great interest in questions of eating and drinking. “They lived on treacle,” said the Dormouse, after thinking a minute or two. “They couldn’t have done that, you know,” Alice gently remarked; “they’d
+5. “Wake up, Dormouse!” And they pinched it on both sides at once. The Dormouse slowly opened his eyes. “I wasn’t asleep,” he said in a hoarse, feeble voice: “I heard every word you fellows were saying.” “Tell us a story!” said the March Hare. “Yes, please do!” pleaded Alice. “And be quick about it,” added the Hatter, “or you’ll be asleep again before it’s done.” “Once upon a time there were three little sisters,” the Dormouse began in a great hurry; “and their names were Elsie, Lacie, and Tillie;
+
+Semantic Search Results:
+1. what is the name of the three sisters?
+2.  The name of the three sisters are Elsie, Lacie, and Tillie. This information is found in the conversation where Alice asks about what they lived on at the bottom of a well: "And what were their names?" said Alice. "Their names were Elsie, Lacie, and Tillie; and they lived at the bottom of a well—"
+
+This context is relevant as it directly answers the question asked by Alice in the conversation between her and the Dormouse from Lewis Carroll's "Alice's Adventures in Wonderland."
+3. added the Hatter, “or you’ll be asleep again before it’s done.” “Once upon a time there were three little sisters,” the Dormouse began in a great hurry; “and their names were Elsie, Lacie, and Tillie; and they lived at the bottom of a well—” “What did they live on?” said Alice, who always took a great interest in questions of eating and drinking. “They lived on treacle,” said the Dormouse, after thinking a minute or two. “They couldn’t have done that, you know,” Alice gently remarked; “they’d
+4. “Wake up, Dormouse!” And they pinched it on both sides at once. The Dormouse slowly opened his eyes. “I wasn’t asleep,” he said in a hoarse, feeble voice: “I heard every word you fellows were saying.” “Tell us a story!” said the March Hare. “Yes, please do!” pleaded Alice. “And be quick about it,” added the Hatter, “or you’ll be asleep again before it’s done.” “Once upon a time there were three little sisters,” the Dormouse began in a great hurry; “and their names were Elsie, Lacie, and Tillie;
+5. d herself lying on the bank, with her head in the lap of her sister, who was gently brushing away some dead leaves that had fluttered down from the trees upon her face. “Wake up, Alice dear!” said her sister; “Why, what a long sleep you’ve had!” “Oh, I’ve had such a curious dream!” said Alice, and she told her sister, as well as she could remember them, all these strange Adventures of hers that you have just been reading about; and when she had finished, her sister kissed her, and said, “It
+
+Graph Context Results:
+1. Entity: Alice (Type: PERSON)
+Related Entities: Latin Grammar, William, Adventures
+Family Relations:
+Alice is the brother of Latin Grammar
+Alice is the father of William
+Alice is the sister of Adventures
+Relevant Documents:
+﻿The Project Gutenberg eBook of Alice's Adventures in Wonderland This ebook is for the use of anyone anywhere in the United States and most other parts of the world at no cost and with almost no restrictions whatsoever. You may copy it, give it away or re-use it under the terms of the Project Gutenberg License included with this ebook or online at www.gutenberg.org. If you are not located in the United States, you will have to check the laws of the country where you are located before using
+utenberg License included with this ebook or online at www.gutenberg.org. If you are not located in the United States, you will have to check the laws of the country where you are located before using this eBook. Title: Alice's Adventures in Wonderland Author: Lewis Carroll Release date: June 27, 2008 [eBook #11] Most recently updated: February 4, 2024 Language: English Credits: Arthur DiBianca and David Widger *** START OF THE PROJECT GUTENBERG EBOOK ALICE'S ADVENTURES IN WONDERLAND ***
+3.0 Contents CHAPTER I. Down the Rabbit-Hole CHAPTER II. The Pool of Tears CHAPTER III. A Caucus-Race and a Long Tale CHAPTER IV. The Rabbit Sends in a Little Bill CHAPTER V. Advice from a Caterpillar CHAPTER VI. Pig and Pepper CHAPTER VII. A Mad Tea-Party CHAPTER VIII. The Queen’s Croquet-Ground CHAPTER IX. The Mock Turtle’s Story CHAPTER X. The Lobster Quadrille CHAPTER XI. Who Stole the Tarts? CHAPTER XII. Alice’s Evidence CHAPTER I. Down the Rabbit-Hole Alice was beginning to get very tired
+2. Entity: Queen (Type: PERSON)
+Related Entities: 
+Family Relations:
+Relevant Documents:
+wood to listen. The Fish-Footman began by producing from under his arm a great letter, nearly as large as himself, and this he handed over to the other, saying, in a solemn tone, “For the Duchess. An invitation from the Queen to play croquet.” The Frog-Footman repeated, in the same solemn tone, only changing the order of the words a little, “From the Queen. An invitation for the Duchess to play croquet.” Then they both bowed low, and their curls got entangled together. Alice laughed so much at
+nd down, and the poor little thing howled so, that Alice could hardly hear the words:— “I speak severely to my boy, I beat him when he sneezes; For he can thoroughly enjoy The pepper when he pleases!” CHORUS. “Wow! wow! wow!” “Here! you may nurse it a bit, if you like!” the Duchess said to Alice, flinging the baby at her as she spoke. “I must go and get ready to play croquet with the Queen,” and she hurried out of the room. The cook threw a frying-pan after her as she went out, but it just
+ce, flinging the baby at her as she spoke. “I must go and get ready to play croquet with the Queen,” and she hurried out of the room. The cook threw a frying-pan after her as she went out, but it just missed her. Alice caught the baby with some difficulty, as it was a queer-shaped little creature, and held out its arms and legs in all directions, “just like a star-fish,” thought Alice. The poor little thing was snorting like a steam-engine when she caught it, and kept doubling itself up and
+3. Entity: Hatter (Type: PERSON)
+Related Entities: 
+Family Relations:
+Relevant Documents:
+nt to get to,” said the Cat. “I don’t much care where—” said Alice. “Then it doesn’t matter which way you go,” said the Cat. “—so long as I get _somewhere_,” Alice added as an explanation. “Oh, you’re sure to do that,” said the Cat, “if you only walk long enough.” Alice felt that this could not be denied, so she tried another question. “What sort of people live about here?” “In _that_ direction,” the Cat said, waving its right paw round, “lives a Hatter: and in _that_ direction,” waving the
+be denied, so she tried another question. “What sort of people live about here?” “In _that_ direction,” the Cat said, waving its right paw round, “lives a Hatter: and in _that_ direction,” waving the other paw, “lives a March Hare. Visit either you like: they’re both mad.” “But I don’t want to go among mad people,” Alice remarked. “Oh, you can’t help that,” said the Cat: “we’re all mad here. I’m mad. You’re mad.” “How do you know I’m mad?” said Alice. “You must be,” said the Cat, “or you
+e shaped like ears and the roof was thatched with fur. It was so large a house, that she did not like to go nearer till she had nibbled some more of the lefthand bit of mushroom, and raised herself to about two feet high: even then she walked up towards it rather timidly, saying to herself “Suppose it should be raving mad after all! I almost wish I’d gone to see the Hatter instead!” CHAPTER VII. A Mad Tea-Party There was a table set out under a tree in front of the house, and the March Hare and
+4. Entity: Gryphon (Type: GPE)
+Related Entities: 
+Family Relations:
+Relevant Documents:
+made from,” said the Queen. “I never saw one, or heard of one,” said Alice. “Come on, then,” said the Queen, “and he shall tell you his history,” As they walked off together, Alice heard the King say in a low voice, to the company generally, “You are all pardoned.” “Come, _that’s_ a good thing!” she said to herself, for she had felt quite unhappy at the number of executions the Queen had ordered. They very soon came upon a Gryphon, lying fast asleep in the sun. (If you don’t know what a
+ing!” she said to herself, for she had felt quite unhappy at the number of executions the Queen had ordered. They very soon came upon a Gryphon, lying fast asleep in the sun. (If you don’t know what a Gryphon is, look at the picture.) “Up, lazy thing!” said the Queen, “and take this young lady to see the Mock Turtle, and to hear his history. I must go back and see after some executions I have ordered;” and she walked off, leaving Alice alone with the Gryphon. Alice did not quite like the look
+see the Mock Turtle, and to hear his history. I must go back and see after some executions I have ordered;” and she walked off, leaving Alice alone with the Gryphon. Alice did not quite like the look of the creature, but on the whole she thought it would be quite as safe to stay with it as to go after that savage Queen: so she waited. The Gryphon sat up and rubbed its eyes: then it watched the Queen till she was out of sight: then it chuckled. “What fun!” said the Gryphon, half to itself, half
+5. Entity: Project Gutenberg (Type: PERSON)
+Related Entities: 
+Family Relations:
+Relevant Documents:
+n copy and distribute it in the United States without permission and without paying copyright royalties. Special rules, set forth in the General Terms of Use part of this license, apply to copying and distributing Project Gutenberg™ electronic works to protect the PROJECT GUTENBERG™ concept and trademark. Project Gutenberg is a registered trademark, and may not be used if you charge for an eBook, except by following the terms of the trademark license, including paying royalties for use of the
+rademark. Project Gutenberg is a registered trademark, and may not be used if you charge for an eBook, except by following the terms of the trademark license, including paying royalties for use of the Project Gutenberg trademark. If you do not charge anything for copies of this eBook, complying with the trademark license is very easy. You may use this eBook for nearly any purpose such as creation of derivative works, reports, performances and research. Project Gutenberg eBooks may be modified
+rotected by U.S. copyright law. Redistribution is subject to the trademark license, especially commercial redistribution. START: FULL LICENSE THE FULL PROJECT GUTENBERG LICENSE PLEASE READ THIS BEFORE YOU DISTRIBUTE OR USE THIS WORK To protect the Project Gutenberg™ mission of promoting the free distribution of electronic works, by using or distributing this work (or any other work associated in any way with the phrase “Project Gutenberg”), you agree to comply with all the terms of the Full
+
+Text Search Results:
+1. assistant:  The name of the three sisters are Elsie, Lacie, and Tillie. This information is found in the conversation where Alice asks about what they lived on at the bottom of a well: "And what were their names?" said Alice. "Their names were Elsie, Lacie, and Tillie; and they lived at the bottom of a well—"
+
+This context is relevant as it directly answers the question asked by Alice in the conversation between her and the Dormouse from Lewis Carroll's "Alice's Adventures in Wonderland."
+2. added the Hatter, “or you’ll be asleep again before it’s done.” “Once upon a time there were three little sisters,” the Dormouse began in a great hurry; “and their names were Elsie, Lacie, and Tillie; and they lived at the bottom of a well—” “What did they live on?” said Alice, who always took a great interest in questions of eating and drinking. “They lived on treacle,” said the Dormouse, after thinking a minute or two. “They couldn’t have done that, you know,” Alice gently remarked; “they’d
+3. “Wake up, Dormouse!” And they pinched it on both sides at once. The Dormouse slowly opened his eyes. “I wasn’t asleep,” he said in a hoarse, feeble voice: “I heard every word you fellows were saying.” “Tell us a story!” said the March Hare. “Yes, please do!” pleaded Alice. “And be quick about it,” added the Hatter, “or you’ll be asleep again before it’s done.” “Once upon a time there were three little sisters,” the Dormouse began in a great hurry; “and their names were Elsie, Lacie, and Tillie;
+4. take more.” “You mean you can’t take _less_,” said the Hatter: “it’s very easy to take _more_ than nothing.” “Nobody asked _your_ opinion,” said Alice. “Who’s making personal remarks now?” the Hatter asked triumphantly. Alice did not quite know what to say to this: so she helped herself to some tea and bread-and-butter, and then turned to the Dormouse, and repeated her question. “Why did they live at the bottom of a well?” The Dormouse again took a minute or two to think about it, and then
+5. However, he consented to go on. “And so these three little sisters—they were learning to draw, you know—” “What did they draw?” said Alice, quite forgetting her promise. “Treacle,” said the Dormouse, without considering at all this time. “I want a clean cup,” interrupted the Hatter: “let’s all move one place on.” He moved on as he spoke, and the Dormouse followed him: the March Hare moved into the Dormouse’s place, and Alice rather unwillingly took the place of the March Hare. The Hatter was
+
+Combined Response:
+ Based on the conversation context in Lewis Carroll's "Alice's Adventures in Wonderland," the three little sisters, Elsie, Lacie, and Tillie, lived at the bottom of a well and survived by eating treacle. This information is provided when Alice asks about their diet: "What did they live on?" The Dormouse responds with "They lived on treacle."
 
 ==================================================
 

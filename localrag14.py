@@ -154,7 +154,12 @@ class RAGSystem:
             related_entities = [n for n in self.knowledge_graph.neighbors(entity) if self.knowledge_graph.nodes[n]['type'] == 'entity']
             related_info = f"Related Entities: {', '.join(related_entities[:5])}"  # Limit to top 5 related entities
             
-            family_info = "Family Relations:\n" + "\n".join([f"{rel[0]} is {rel[1]} of {rel[2]}" for rel in family_relations])
+            family_info = "Family Relations:"
+            for rel in family_relations:
+                if rel[0] == entity:
+                    family_info += f"\n{entity} is the {rel[1]} of {rel[2]}"
+                else:
+                    family_info += f"\n{rel[0]} is the {rel[1]} of {entity}"
             
             context_text = f"{entity_info}\n{related_info}\n{family_info}\nRelevant Documents:\n" + "\n".join(doc_contexts)
             context.append(context_text)

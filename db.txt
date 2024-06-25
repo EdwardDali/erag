@@ -547,4 +547,8 @@ For forty years, he produced and distributed Project Gutenberg™ eBooks with on
 cluded. Thus, we do not necessarily keep eBooks in compliance with any particular paper edition. Most people start at our website which has the main PG search facility: www.gutenberg.org. This website includes information about Project Gutenberg™, including how to make donations to the Project Gutenberg Literary Archive Foundation, how to help produce our new eBooks, and how to subscribe to our email newsletter to hear about new eBooks.
 berg Literary Archive Foundation, how to help produce our new eBooks, and how to subscribe to our email newsletter to hear about new eBooks.
 user: what is the name of the three sisters?
-assistant:  The name of the three sisters are Elsie, Lacie, and Tillie. This information is found in the Text Search Results section: "added the Hatter, “or you’ll be asleep again before it’s done.” “Once upon a time there were three little sisters,” the Dormouse began in a great hurry; “and their names were Elsie, Lacie, and Tillie; and they lived at the bottom of a well—"
+assistant:  The name of the three sisters are Elsie, Lacie, and Tillie. This information is found in the conversation where Alice asks about what they lived on at the bottom of a well: "And what were their names?" said Alice. "Their names were Elsie, Lacie, and Tillie; and they lived at the bottom of a well—"
+
+This context is relevant as it directly answers the question asked by Alice in the conversation between her and the Dormouse from Lewis Carroll's "Alice's Adventures in Wonderland."
+user: what did thet ate?
+assistant:  Based on the conversation context in Lewis Carroll's "Alice's Adventures in Wonderland," the three little sisters, Elsie, Lacie, and Tillie, lived at the bottom of a well and survived by eating treacle. This information is provided when Alice asks about their diet: "What did they live on?" The Dormouse responds with "They lived on treacle."
