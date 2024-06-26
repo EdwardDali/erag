@@ -24,17 +24,6 @@ class ANSIColor(Enum):
     RESET = '\033[0m'
 
 class RAGSystem:
-    def __init__(self, api_type: str):
-        self.client = self.configure_api(api_type)
-        self.model = SentenceTransformer(self.MODEL_NAME)
-        self.db_embeddings, _, _ = self.load_embeddings()
-        self.db_content = self.load_db_content()
-        self.conversation_history: List[Dict[str, str]] = []
-        self.new_entries: List[str] = []
-        self.conversation_context: deque = deque(maxlen=self.CONVERSATION_CONTEXT_SIZE * 2)
-        self.knowledge_graph = self.load_knowledge_graph()
-        self.search_utils = SearchUtils(self.model, self.db_embeddings, self.db_content, self.knowledge_graph)
-
     # Class variables (settings)
     MAX_HISTORY_LENGTH = 5
     EMBEDDINGS_FILE = "db_embeddings.pt"
@@ -46,6 +35,17 @@ class RAGSystem:
     KNOWLEDGE_GRAPH_FILE = "knowledge_graph.json"
     RESULTS_FILE = "results.txt"
     TEMPERATURE = 0.1
+
+    def __init__(self, api_type: str):
+        self.client = self.configure_api(api_type)
+        self.model = SentenceTransformer(self.MODEL_NAME)
+        self.db_embeddings, _, _ = self.load_embeddings()
+        self.db_content = self.load_db_content()
+        self.conversation_history = []
+        self.new_entries = []
+        self.conversation_context = deque(maxlen=self.CONVERSATION_CONTEXT_SIZE * 2)
+        self.knowledge_graph = self.load_knowledge_graph()
+        self.search_utils = SearchUtils(self.model, self.db_embeddings, self.db_content, self.knowledge_graph)
 
     @staticmethod
     def configure_api(api_type: str) -> OpenAI:

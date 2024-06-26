@@ -21,6 +21,9 @@ class ERAGGUI:
 
         self.create_widgets()
 
+        # Set up the window close event
+        self.master.protocol("WM_DELETE_WINDOW", self.on_closing)
+
     def create_widgets(self):
         self.notebook = ttk.Notebook(self.master)
         self.notebook.pack(expand=True, fill="both", padx=10, pady=10)
@@ -159,6 +162,11 @@ class ERAGGUI:
             self.settings_manager.enable_graph_search_var.get(),
             self.settings_manager.enable_text_search_var.get()
         )
+
+    def on_closing(self):
+        if self.settings_manager:
+            self.settings_manager.save_current_config()
+        self.master.destroy()
 
 def main():
     root = tk.Tk()

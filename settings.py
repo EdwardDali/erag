@@ -52,6 +52,9 @@ class SettingsManager:
         self.enable_graph_search_var = tk.BooleanVar(value=True)
         self.enable_text_search_var = tk.BooleanVar(value=True)
 
+        self.config_file = "current_config.json"
+        self.load_current_config()
+
         self.create_settings_tab()
 
     def create_settings_tab(self):
@@ -213,36 +216,7 @@ class SettingsManager:
         messagebox.showinfo("Default Settings", "Default settings have been restored.")
 
     def save_settings_template(self):
-        settings = {
-            "chunk_size": self.chunk_size_var.get(),
-            "overlap_size": self.overlap_size_var.get(),
-            "batch_size": self.batch_size_var.get(),
-            "results_file_path": self.results_file_path_var.get(),
-            "max_history_length": self.max_history_length_var.get(),
-            "conversation_context_size": self.conversation_context_size_var.get(),
-            "update_threshold": self.update_threshold_var.get(),
-            "ollama_model": self.ollama_model_var.get(),
-            "temperature": self.temperature_var.get(),
-            "similarity_threshold": self.similarity_threshold_var.get(),
-            "enable_family_extraction": self.enable_family_extraction_var.get(),
-            "min_entity_occurrence": self.min_entity_occurrence_var.get(),
-            "model_name": self.model_name_var.get(),
-            "nlp_model": self.nlp_model_var.get(),
-            "db_file_path": self.db_file_path_var.get(),
-            "embeddings_file_path": self.embeddings_file_path_var.get(),
-            "knowledge_graph_file_path": self.knowledge_graph_file_path_var.get(),
-            "enable_semantic_edges": self.enable_semantic_edges_var.get(),
-            "top_k": self.top_k_var.get(),
-            "entity_relevance_threshold": self.entity_relevance_threshold_var.get(),
-            "lexical_weight": self.lexical_weight_var.get(),
-            "semantic_weight": self.semantic_weight_var.get(),
-            "graph_weight": self.graph_weight_var.get(),
-            "text_weight": self.text_weight_var.get(),
-            "enable_lexical_search": self.enable_lexical_search_var.get(),
-            "enable_semantic_search": self.enable_semantic_search_var.get(),
-            "enable_graph_search": self.enable_graph_search_var.get(),
-            "enable_text_search": self.enable_text_search_var.get()
-        }
+        settings = self.get_current_settings()
         file_path = filedialog.asksaveasfilename(defaultextension=".json", filetypes=[("JSON files", "*.json")])
         if file_path:
             with open(file_path, 'w') as f:
@@ -256,36 +230,7 @@ class SettingsManager:
                 with open(file_path, 'r') as f:
                     settings = json.load(f)
                 
-                # Load all settings
-                self.chunk_size_var.set(settings.get("chunk_size", 500))
-                self.overlap_size_var.set(settings.get("overlap_size", 200))
-                self.batch_size_var.set(settings.get("batch_size", 32))
-                self.results_file_path_var.set(settings.get("results_file_path", "results.txt"))
-                self.max_history_length_var.set(settings.get("max_history_length", 5))
-                self.conversation_context_size_var.set(settings.get("conversation_context_size", 3))
-                self.update_threshold_var.set(settings.get("update_threshold", 10))
-                self.ollama_model_var.set(settings.get("ollama_model", "phi3:instruct"))
-                self.temperature_var.set(settings.get("temperature", 0.1))
-                self.similarity_threshold_var.set(settings.get("similarity_threshold", 0.7))
-                self.enable_family_extraction_var.set(settings.get("enable_family_extraction", True))
-                self.min_entity_occurrence_var.set(settings.get("min_entity_occurrence", 1))
-                self.model_name_var.set(settings.get("model_name", "all-MiniLM-L6-v2"))
-                self.nlp_model_var.set(settings.get("nlp_model", "en_core_web_sm"))
-                self.db_file_path_var.set(settings.get("db_file_path", "db.txt"))
-                self.embeddings_file_path_var.set(settings.get("embeddings_file_path", "db_embeddings.pt"))
-                self.knowledge_graph_file_path_var.set(settings.get("knowledge_graph_file_path", "knowledge_graph.json"))
-                self.enable_semantic_edges_var.set(settings.get("enable_semantic_edges", True))
-                self.top_k_var.set(settings.get("top_k", 5))
-                self.entity_relevance_threshold_var.set(settings.get("entity_relevance_threshold", 0.5))
-                self.lexical_weight_var.set(settings.get("lexical_weight", 1.0))
-                self.semantic_weight_var.set(settings.get("semantic_weight", 1.0))
-                self.graph_weight_var.set(settings.get("graph_weight", 1.0))
-                self.text_weight_var.set(settings.get("text_weight", 1.0))
-                self.enable_lexical_search_var.set(settings.get("enable_lexical_search", True))
-                self.enable_semantic_search_var.set(settings.get("enable_semantic_search", True))
-                self.enable_graph_search_var.set(settings.get("enable_graph_search", True))
-                self.enable_text_search_var.set(settings.get("enable_text_search", True))
-
+                self.apply_loaded_settings(settings)
                 messagebox.showinfo("Load Successful", f"Settings loaded from {file_path}")
             except json.JSONDecodeError:
                 messagebox.showerror("Error", "Invalid JSON file. Could not load settings.")
@@ -341,51 +286,92 @@ class SettingsManager:
             with open("config.json", "w") as f:
                 json.dump({"results_file_path": self.results_file_path_var.get()}, f)
 
-            messagebox.showinfo("Settings Applied", "All settings have been successfully applied.")
+            self.save_current_config()  # Save the current configuration
+            messagebox.showinfo("Settings Applied", "All settings have been successfully applied and saved.")
         except ValueError as e:
             messagebox.showerror("Invalid Settings", str(e))
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred while applying settings: {str(e)}")
 
+    def get_current_settings(self):
+        return {
+            "chunk_size": self.chunk_size_var.get(),
+            "overlap_size": self.overlap_size_var.get(),
+            "batch_size": self.batch_size_var.get(),
+            "results_file_path": self.results_file_path_var.get(),
+            "max_history_length": self.max_history_length_var.get(),
+            "conversation_context_size": self.conversation_context_size_var.get(),
+            "update_threshold": self.update_threshold_var.get(),
+            "ollama_model": self.ollama_model_var.get(),
+            "temperature": self.temperature_var.get(),
+            "similarity_threshold": self.similarity_threshold_var.get(),
+            "enable_family_extraction": self.enable_family_extraction_var.get(),
+            "min_entity_occurrence": self.min_entity_occurrence_var.get(),
+            "model_name": self.model_name_var.get(),
+            "nlp_model": self.nlp_model_var.get(),
+            "db_file_path": self.db_file_path_var.get(),
+            "embeddings_file_path": self.embeddings_file_path_var.get(),
+            "knowledge_graph_file_path": self.knowledge_graph_file_path_var.get(),
+            "enable_semantic_edges": self.enable_semantic_edges_var.get(),
+            "top_k": self.top_k_var.get(),
+            "entity_relevance_threshold": self.entity_relevance_threshold_var.get(),
+            "lexical_weight": self.lexical_weight_var.get(),
+            "semantic_weight": self.semantic_weight_var.get(),
+            "graph_weight": self.graph_weight_var.get(),
+            "text_weight": self.text_weight_var.get(),
+            "enable_lexical_search": self.enable_lexical_search_var.get(),
+            "enable_semantic_search": self.enable_semantic_search_var.get(),
+            "enable_graph_search": self.enable_graph_search_var.get(),
+            "enable_text_search": self.enable_text_search_var.get()
+        }
+
+    def save_current_config(self):
+        settings = self.get_current_settings()
+        with open(self.config_file, 'w') as f:
+            json.dump(settings, f, indent=4)
+
+    def load_current_config(self):
+        if os.path.exists(self.config_file):
+            try:
+                with open(self.config_file, 'r') as f:
+                    settings = json.load(f)
+                
+                self.apply_loaded_settings(settings)
+            except Exception as e:
+                messagebox.showerror("Error", f"An error occurred while loading settings: {str(e)}")
+
+    def apply_loaded_settings(self, settings):
+        self.chunk_size_var.set(settings.get("chunk_size", 500))
+        self.overlap_size_var.set(settings.get("overlap_size", 200))
+        self.batch_size_var.set(settings.get("batch_size", 32))
+        self.results_file_path_var.set(settings.get("results_file_path", "results.txt"))
+        self.max_history_length_var.set(settings.get("max_history_length", 5))
+        self.conversation_context_size_var.set(settings.get("conversation_context_size", 3))
+        self.update_threshold_var.set(settings.get("update_threshold", 10))
+        self.ollama_model_var.set(settings.get("ollama_model", "phi3:instruct"))
+        self.temperature_var.set(settings.get("temperature", 0.1))
+        self.similarity_threshold_var.set(settings.get("similarity_threshold", 0.7))
+        self.enable_family_extraction_var.set(settings.get("enable_family_extraction", True))
+        self.min_entity_occurrence_var.set(settings.get("min_entity_occurrence", 1))
+        self.model_name_var.set(settings.get("model_name", "all-MiniLM-L6-v2"))
+        self.nlp_model_var.set(settings.get("nlp_model", "en_core_web_sm"))
+        self.db_file_path_var.set(settings.get("db_file_path", "db.txt"))
+        self.embeddings_file_path_var.set(settings.get("embeddings_file_path", "db_embeddings.pt"))
+        self.knowledge_graph_file_path_var.set(settings.get("knowledge_graph_file_path", "knowledge_graph.json"))
+        self.enable_semantic_edges_var.set(settings.get("enable_semantic_edges", True))
+        self.top_k_var.set(settings.get("top_k", 5))
+        self.entity_relevance_threshold_var.set(settings.get("entity_relevance_threshold", 0.5))
+        self.lexical_weight_var.set(settings.get("lexical_weight", 1.0))
+        self.semantic_weight_var.set(settings.get("semantic_weight", 1.0))
+        self.graph_weight_var.set(settings.get("graph_weight", 1.0))
+        self.text_weight_var.set(settings.get("text_weight", 1.0))
+        self.enable_lexical_search_var.set(settings.get("enable_lexical_search", True))
+        self.enable_semantic_search_var.set(settings.get("enable_semantic_search", True))
+        self.enable_graph_search_var.set(settings.get("enable_graph_search", True))
+        self.enable_text_search_var.set(settings.get("enable_text_search", True))
+
     def get_settings_tab(self):
         return self.settings_tab
-
-# Functions to be implemented in other files
-def set_max_history_length(value):
-    # Implement this in run_model.py
-    pass
-
-def set_conversation_context_size(value):
-    # Implement this in run_model.py
-    pass
-
-def set_update_threshold(value):
-    # Implement this in run_model.py
-    pass
-
-def set_ollama_model(value):
-    # Implement this in run_model.py
-    pass
-
-def set_temperature(value):
-    # Implement this in run_model.py
-    pass
-
-def set_top_k(value):
-    # Implement this in search_utils.py
-    pass
-
-def set_entity_relevance_threshold(value):
-    # Implement this in search_utils.py
-    pass
-
-def set_search_weights(lexical_weight, semantic_weight, graph_weight, text_weight):
-    # Implement this in search_utils.py
-    pass
-
-def set_search_toggles(enable_lexical, enable_semantic, enable_graph, enable_text):
-    # Implement this in search_utils.py
-    pass
 
 # You might want to add a main function if you want to test the SettingsManager independently
 def main():
