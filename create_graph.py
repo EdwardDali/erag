@@ -23,6 +23,20 @@ FAMILY_RELATIONS = [
     "uncle", "aunt", "cousin", "cousins", "niece", "nephew"
 ]
 
+# New global variables for settings
+SIMILARITY_THRESHOLD = 0.7
+ENABLE_FAMILY_EXTRACTION = True
+MIN_ENTITY_OCCURRENCE = 1
+
+def set_graph_settings(similarity_threshold: float, enable_family_extraction: bool, min_entity_occurrence: int):
+    global SIMILARITY_THRESHOLD, ENABLE_FAMILY_EXTRACTION, MIN_ENTITY_OCCURRENCE
+    SIMILARITY_THRESHOLD = similarity_threshold
+    ENABLE_FAMILY_EXTRACTION = enable_family_extraction
+    MIN_ENTITY_OCCURRENCE = min_entity_occurrence
+    logging.info(f"Graph settings updated: Similarity Threshold={SIMILARITY_THRESHOLD}, "
+                 f"Enable Family Extraction={ENABLE_FAMILY_EXTRACTION}, "
+                 f"Min Entity Occurrence={MIN_ENTITY_OCCURRENCE}")
+    
 def preprocess_text(text: str) -> str:
     return ' '.join(text.split())
 
@@ -56,22 +70,26 @@ def extract_family_relations(text: str) -> List[Tuple[str, str, str]]:
 
 def create_networkx_graph(data: List[str], embeddings: torch.Tensor) -> nx.Graph:
     G = nx.Graph()
+    entity_count = {}
     
     for i, chunk in enumerate(data):
         chunk = preprocess_text(chunk)
         key_entities = extract_key_entities(chunk)
-        family_triples = extract_family_relations(chunk)
+        family_triples = extract_family_relations(chunk) if ENABLE_FAMILY_EXTRACTION else []
         
         doc_node = f"doc_{i}"
         G.add_node(doc_node, type='document', text=chunk)
         
         for entity, entity_type in key_entities:
-            if not G.has_node(entity):
-                G.add_node(entity, type='entity', entity_type=entity_type)
-            G.add_edge(doc_node, entity, relation='contains')
+            entity_count[entity] = entity_count.get(entity, 0) + 1
+            if entity_count[entity] >= MIN_ENTITY_OCCURRENCE:
+                if not G.has_node(entity):
+                    G.add_node(entity, type='entity', entity_type=entity_type)
+                G.add_edge(doc_node, entity, relation='contains')
         
         for subj, rel, obj in family_triples:
-            G.add_edge(subj, obj, relation=rel)
+            if entity_count.get(subj, 0) >= MIN_ENTITY_OCCURRENCE and entity_count.get(obj, 0) >= MIN_ENTITY_OCCURRENCE:
+                G.add_edge(subj, obj, relation=rel)
     
     # Add semantic similarity edges between document nodes
     doc_nodes = [n for n, d in G.nodes(data=True) if d['type'] == 'document']
@@ -79,7 +97,7 @@ def create_networkx_graph(data: List[str], embeddings: torch.Tensor) -> nx.Graph
         for j in range(i+1, len(doc_nodes)):
             node2 = doc_nodes[j]
             similarity = util.pytorch_cos_sim(embeddings[i], embeddings[j]).item()
-            if similarity > 0.7:  # Increased threshold for stronger connections
+            if similarity > SIMILARITY_THRESHOLD:
                 G.add_edge(node1, node2, relation='similar', weight=similarity)
     
     return G

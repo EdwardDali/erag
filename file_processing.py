@@ -12,6 +12,13 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 CHUNK_SIZE = 500
 OVERLAP_SIZE = 200
 
+def set_chunk_sizes(chunk_size: int, overlap_size: int):
+    global CHUNK_SIZE, OVERLAP_SIZE
+    CHUNK_SIZE = chunk_size
+    OVERLAP_SIZE = overlap_size
+    logging.info(f"Chunk size set to {CHUNK_SIZE} and overlap size set to {OVERLAP_SIZE}")
+
+
 def format_db_entry(content: str) -> str:
     """Format a single database entry."""
     return f"{content.strip()}\n"

@@ -11,6 +11,12 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 MODEL_NAME = "all-MiniLM-L6-v2"
 DB_FILE = "db.txt"
 EMBEDDINGS_FILE = "db_embeddings.pt"
+BATCH_SIZE = 32
+
+def set_batch_size(new_batch_size: int):
+    global BATCH_SIZE
+    BATCH_SIZE = new_batch_size
+    logging.info(f"Batch size set to {BATCH_SIZE}")
 
 def load_db_content(file_path: str) -> List[str]:
     content = []
@@ -22,17 +28,16 @@ def load_db_content(file_path: str) -> List[str]:
 def compute_and_save_embeddings(
     model: SentenceTransformer,
     save_path: str,
-    content: List[str],
-    batch_size: int = 32
+    content: List[str]
 ) -> None:
     try:
         logging.info(f"Computing embeddings for {len(content)} items")
         db_embeddings = []
-        for i in range(0, len(content), batch_size):
-            batch = content[i:i+batch_size]
+        for i in range(0, len(content), BATCH_SIZE):
+            batch = content[i:i+BATCH_SIZE]
             batch_embeddings = model.encode(batch, convert_to_tensor=True)
             db_embeddings.append(batch_embeddings)
-            logging.info(f"Processed batch {i//batch_size + 1}/{(len(content)-1)//batch_size + 1}")
+            logging.info(f"Processed batch {i//BATCH_SIZE + 1}/{(len(content)-1)//BATCH_SIZE + 1}")
 
         db_embeddings = torch.cat(db_embeddings, dim=0)
         logging.info(f"Final embeddings shape: {db_embeddings.shape}")
