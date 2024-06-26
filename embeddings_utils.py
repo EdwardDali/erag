@@ -7,11 +7,31 @@ import logging
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Constants
+# Variables for settings (previously constants)
 MODEL_NAME = "all-MiniLM-L6-v2"
 DB_FILE = "db.txt"
 EMBEDDINGS_FILE = "db_embeddings.pt"
 BATCH_SIZE = 32
+
+def set_model_name(new_model_name: str):
+    global MODEL_NAME
+    MODEL_NAME = new_model_name
+    logging.info(f"Model name set to {MODEL_NAME}")
+
+def set_db_file(new_db_file: str):
+    global DB_FILE
+    DB_FILE = new_db_file
+    logging.info(f"Database file set to {DB_FILE}")
+
+def set_embeddings_file(new_embeddings_file: str):
+    global EMBEDDINGS_FILE
+    EMBEDDINGS_FILE = new_embeddings_file
+    logging.info(f"Embeddings file set to {EMBEDDINGS_FILE}")
+
+def set_batch_size(new_batch_size: int):
+    global BATCH_SIZE
+    BATCH_SIZE = new_batch_size
+    logging.info(f"Batch size set to {BATCH_SIZE}")
 
 def set_batch_size(new_batch_size: int):
     global BATCH_SIZE

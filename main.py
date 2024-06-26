@@ -83,28 +83,32 @@ class ERAGGUI:
             messagebox.showerror("Error", f"An error occurred while processing the file: {str(e)}")
 
     def execute_embeddings(self):
-        try:
-            if not os.path.exists("db.txt"):
-                messagebox.showerror("Error", "db.txt not found. Please upload some documents first.")
-                return
+      try:
+        if not os.path.exists(self.settings_manager.db_file_path_var.get()):
+            messagebox.showerror("Error", f"{self.settings_manager.db_file_path_var.get()} not found. Please upload some documents first.")
+            return
 
-            # Process db.txt
-            embeddings, _, _ = load_or_compute_embeddings(self.model, "db.txt", "db_embeddings.pt")
-            messagebox.showinfo("Success", f"Embeddings for db.txt computed and saved successfully. Shape: {embeddings.shape}")
+        # Process db.txt
+        embeddings, _, _ = load_or_compute_embeddings(
+            self.model, 
+            self.settings_manager.db_file_path_var.get(), 
+            self.settings_manager.embeddings_file_path_var.get()
+        )
+        messagebox.showinfo("Success", f"Embeddings computed and saved successfully. Shape: {embeddings.shape}")
 
-        except Exception as e:
-            messagebox.showerror("Error", f"An error occurred while computing embeddings: {str(e)}")
+      except Exception as e:
+        messagebox.showerror("Error", f"An error occurred while computing embeddings: {str(e)}")
 
     def create_knowledge_graph(self):
-        try:
-            if not os.path.exists("db.txt") or not os.path.exists("db_embeddings.pt"):
-                messagebox.showerror("Error", "db.txt or db_embeddings.pt not found. Please upload documents and execute embeddings first.")
-                return
+      try:
+        if not os.path.exists(self.settings_manager.db_file_path_var.get()) or not os.path.exists(self.settings_manager.embeddings_file_path_var.get()):
+            messagebox.showerror("Error", f"{self.settings_manager.db_file_path_var.get()} or {self.settings_manager.embeddings_file_path_var.get()} not found. Please upload documents and execute embeddings first.")
+            return
 
-            G = create_knowledge_graph()  # Call the imported function
-            messagebox.showinfo("Success", f"Knowledge graph created with {G.number_of_nodes()} nodes and {G.number_of_edges()} edges, and saved as knowledge_graph.json.")
-        except Exception as e:
-            messagebox.showerror("Error", f"An error occurred while creating the knowledge graph: {str(e)}")
+        G = create_knowledge_graph()  # Call the imported function
+        messagebox.showinfo("Success", f"Knowledge graph created with {G.number_of_nodes()} nodes and {G.number_of_edges()} edges, and saved as {self.settings_manager.knowledge_graph_file_path_var.get()}.")
+      except Exception as e:
+        messagebox.showerror("Error", f"An error occurred while creating the knowledge graph: {str(e)}")
 
     def run_model(self):
         try:
@@ -117,6 +121,8 @@ class ERAGGUI:
             messagebox.showinfo("Info", f"RAG system started with {api_type} API. Check the console for interaction.")
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred while starting the RAG system: {str(e)}")
+
+
 
 def main():
     root = tk.Tk()
