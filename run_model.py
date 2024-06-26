@@ -24,16 +24,6 @@ class ANSIColor(Enum):
     RESET = '\033[0m'
 
 class RAGSystem:
-    MAX_HISTORY_LENGTH = 5
-    EMBEDDINGS_FILE = "db_embeddings.pt"
-    DB_FILE = "db.txt"
-    MODEL_NAME = "all-MiniLM-L6-v2"
-    OLLAMA_MODEL = "phi3:instruct"
-    UPDATE_THRESHOLD = 10
-    CONVERSATION_CONTEXT_SIZE = 3
-    KNOWLEDGE_GRAPH_FILE = "knowledge_graph.json"
-    RESULTS_FILE = "results.txt"
-
     def __init__(self, api_type: str):
         self.client = self.configure_api(api_type)
         self.model = SentenceTransformer(self.MODEL_NAME)
@@ -44,6 +34,18 @@ class RAGSystem:
         self.conversation_context: deque = deque(maxlen=self.CONVERSATION_CONTEXT_SIZE * 2)
         self.knowledge_graph = self.load_knowledge_graph()
         self.search_utils = SearchUtils(self.model, self.db_embeddings, self.db_content, self.knowledge_graph)
+
+    # Class variables (settings)
+    MAX_HISTORY_LENGTH = 5
+    EMBEDDINGS_FILE = "db_embeddings.pt"
+    DB_FILE = "db.txt"
+    MODEL_NAME = "all-MiniLM-L6-v2"
+    OLLAMA_MODEL = "phi3:instruct"
+    UPDATE_THRESHOLD = 10
+    CONVERSATION_CONTEXT_SIZE = 3
+    KNOWLEDGE_GRAPH_FILE = "knowledge_graph.json"
+    RESULTS_FILE = "results.txt"
+    TEMPERATURE = 0.1
 
     @staticmethod
     def configure_api(api_type: str) -> OpenAI:
@@ -120,7 +122,7 @@ Text Search Results:
             response = self.client.chat.completions.create(
                 model=self.OLLAMA_MODEL,
                 messages=messages,
-                temperature=0.1
+                temperature=self.TEMPERATURE
             ).choices[0].message.content
 
             # Save debug results
@@ -217,6 +219,37 @@ Text Search Results:
             
             self.new_entries.clear()
             logging.info("Embeddings updated successfully.")
+
+# Setter functions for updating settings
+def set_max_history_length(value: int):
+    RAGSystem.MAX_HISTORY_LENGTH = value
+
+def set_conversation_context_size(value: int):
+    RAGSystem.CONVERSATION_CONTEXT_SIZE = value
+
+def set_update_threshold(value: int):
+    RAGSystem.UPDATE_THRESHOLD = value
+
+def set_ollama_model(value: str):
+    RAGSystem.OLLAMA_MODEL = value
+
+def set_temperature(value: float):
+    RAGSystem.TEMPERATURE = value
+
+def set_embeddings_file(value: str):
+    RAGSystem.EMBEDDINGS_FILE = value
+
+def set_db_file(value: str):
+    RAGSystem.DB_FILE = value
+
+def set_model_name(value: str):
+    RAGSystem.MODEL_NAME = value
+
+def set_knowledge_graph_file(value: str):
+    RAGSystem.KNOWLEDGE_GRAPH_FILE = value
+
+def set_results_file(value: str):
+    RAGSystem.RESULTS_FILE = value
 
 def main(api_type: str):
     rag_system = RAGSystem(api_type)

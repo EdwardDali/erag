@@ -1,78 +1,78 @@
 import tkinter as tk
 from tkinter import messagebox, ttk, filedialog
 import json
+import os
+
+# Import necessary functions from other modules
+# Note: You may need to adjust these imports based on your project structure
 from file_processing import set_chunk_sizes
 from embeddings_utils import set_batch_size, set_model_name, set_db_file, set_embeddings_file
-from create_graph import set_graph_settings, set_nlp_model, set_knowledge_graph_file, set_embeddings_file
+from create_graph import set_graph_settings, set_nlp_model, set_knowledge_graph_file
+from run_model import set_max_history_length, set_conversation_context_size, set_update_threshold, set_ollama_model, set_temperature
+from search_utils import set_top_k, set_entity_relevance_threshold, set_search_weights, set_search_toggles
 
 class SettingsManager:
     def __init__(self, notebook):
         self.notebook = notebook
         self.settings_tab = ttk.Frame(self.notebook)
 
-        # Existing settings variables
+        # General Settings
         self.chunk_size_var = tk.IntVar(value=500)
         self.overlap_size_var = tk.IntVar(value=200)
         self.batch_size_var = tk.IntVar(value=32)
+        self.results_file_path_var = tk.StringVar(value="results.txt")
+        self.max_history_length_var = tk.IntVar(value=5)
+        self.conversation_context_size_var = tk.IntVar(value=3)
+        self.update_threshold_var = tk.IntVar(value=10)
+        self.ollama_model_var = tk.StringVar(value="phi3:instruct")
+        self.temperature_var = tk.DoubleVar(value=0.1)
+
+        # Advanced Settings
         self.similarity_threshold_var = tk.DoubleVar(value=0.7)
         self.enable_family_extraction_var = tk.BooleanVar(value=True)
         self.min_entity_occurrence_var = tk.IntVar(value=1)
-
-        # New settings variables
         self.model_name_var = tk.StringVar(value="all-MiniLM-L6-v2")
         self.nlp_model_var = tk.StringVar(value="en_core_web_sm")
         self.db_file_path_var = tk.StringVar(value="db.txt")
         self.embeddings_file_path_var = tk.StringVar(value="db_embeddings.pt")
         self.knowledge_graph_file_path_var = tk.StringVar(value="knowledge_graph.json")
+        self.enable_semantic_edges_var = tk.BooleanVar(value=True)
+        self.top_k_var = tk.IntVar(value=5)
+        self.entity_relevance_threshold_var = tk.DoubleVar(value=0.5)
+
+        # Search Weights
+        self.lexical_weight_var = tk.DoubleVar(value=1.0)
+        self.semantic_weight_var = tk.DoubleVar(value=1.0)
+        self.graph_weight_var = tk.DoubleVar(value=1.0)
+        self.text_weight_var = tk.DoubleVar(value=1.0)
+
+        # Search Toggles
+        self.enable_lexical_search_var = tk.BooleanVar(value=True)
+        self.enable_semantic_search_var = tk.BooleanVar(value=True)
+        self.enable_graph_search_var = tk.BooleanVar(value=True)
+        self.enable_text_search_var = tk.BooleanVar(value=True)
 
         self.create_settings_tab()
 
     def create_settings_tab(self):
         self.create_settings_management_frame()
-        self.create_chunk_settings_frame()
-        self.create_embedding_settings_frame()
-        self.create_graph_settings_frame()
-        self.create_model_settings_frame()
-        self.create_file_path_settings_frame()
+        
+        # Create two columns
+        left_column = ttk.Frame(self.settings_tab)
+        left_column.pack(side="left", fill="both", expand=True, padx=10, pady=10)
+        right_column = ttk.Frame(self.settings_tab)
+        right_column.pack(side="right", fill="both", expand=True, padx=10, pady=10)
+
+        # General Settings (Left Column)
+        self.create_general_settings_frame(left_column)
+        self.create_search_settings_frame(left_column)
+
+        # Advanced Settings (Right Column)
+        self.create_advanced_settings_frame(right_column)
+        self.create_file_path_settings_frame(right_column)
 
         apply_button = tk.Button(self.settings_tab, text="Apply Settings", command=self.apply_settings)
         apply_button.pack(pady=10)
-
-
-    def create_model_settings_frame(self):
-        model_frame = tk.LabelFrame(self.settings_tab, text="Model Settings")
-        model_frame.pack(fill="x", padx=10, pady=5)
-
-        tk.Label(model_frame, text="Embedding Model:").grid(row=0, column=0, padx=5, pady=5, sticky="e")
-        model_name_entry = ttk.Entry(model_frame, textvariable=self.model_name_var, width=30)
-        model_name_entry.grid(row=0, column=1, padx=5, pady=5, sticky="w")
-
-        tk.Label(model_frame, text="NLP Model:").grid(row=1, column=0, padx=5, pady=5, sticky="e")
-        nlp_model_entry = ttk.Entry(model_frame, textvariable=self.nlp_model_var, width=30)
-        nlp_model_entry.grid(row=1, column=1, padx=5, pady=5, sticky="w")
-
-    def create_file_path_settings_frame(self):
-        file_path_frame = tk.LabelFrame(self.settings_tab, text="File Path Settings")
-        file_path_frame.pack(fill="x", padx=10, pady=5)
-
-        paths = [
-            ("Database File:", self.db_file_path_var),
-            ("Embeddings File:", self.embeddings_file_path_var),
-            ("Knowledge Graph File:", self.knowledge_graph_file_path_var)
-        ]
-
-        for i, (label, var) in enumerate(paths):
-            tk.Label(file_path_frame, text=label).grid(row=i, column=0, padx=5, pady=5, sticky="e")
-            entry = ttk.Entry(file_path_frame, textvariable=var, width=30)
-            entry.grid(row=i, column=1, padx=5, pady=5, sticky="w")
-            browse_button = tk.Button(file_path_frame, text="Browse", command=lambda v=var: self.browse_file_path(v))
-            browse_button.grid(row=i, column=2, padx=5, pady=5)
-
-    def browse_file_path(self, var):
-        file_path = filedialog.asksaveasfilename(defaultextension=".txt", filetypes=[("All Files", "*.*")])
-        if file_path:
-            var.set(file_path)
-
 
     def create_settings_management_frame(self):
         management_frame = tk.LabelFrame(self.settings_tab, text="Settings Management")
@@ -87,75 +87,161 @@ class SettingsManager:
         load_template_button = tk.Button(management_frame, text="Load Settings Template", command=self.load_settings_template)
         load_template_button.pack(side="left", padx=5, pady=5)
 
-    def create_chunk_settings_frame(self):
-        chunk_frame = tk.LabelFrame(self.settings_tab, text="Chunk Settings")
-        chunk_frame.pack(fill="x", padx=10, pady=5)
+    def create_general_settings_frame(self, parent):
+        frame = tk.LabelFrame(parent, text="General Settings")
+        frame.pack(fill="x", padx=5, pady=5)
 
-        tk.Label(chunk_frame, text="Chunk Size:").grid(row=0, column=0, padx=5, pady=5, sticky="e")
-        chunk_size_entry = ttk.Entry(chunk_frame, textvariable=self.chunk_size_var, width=10)
-        chunk_size_entry.grid(row=0, column=1, padx=5, pady=5, sticky="w")
+        settings = [
+            ("Chunk Size:", self.chunk_size_var),
+            ("Overlap Size:", self.overlap_size_var),
+            ("Batch Size:", self.batch_size_var),
+            ("Max History Length:", self.max_history_length_var),
+            ("Conversation Context Size:", self.conversation_context_size_var),
+            ("Update Threshold:", self.update_threshold_var),
+            ("Ollama Model:", self.ollama_model_var),
+            ("Temperature:", self.temperature_var),
+        ]
 
-        tk.Label(chunk_frame, text="Overlap Size:").grid(row=1, column=0, padx=5, pady=5, sticky="e")
-        overlap_size_entry = ttk.Entry(chunk_frame, textvariable=self.overlap_size_var, width=10)
-        overlap_size_entry.grid(row=1, column=1, padx=5, pady=5, sticky="w")
+        for i, (label, var) in enumerate(settings):
+            tk.Label(frame, text=label).grid(row=i, column=0, sticky="e", padx=5, pady=2)
+            tk.Entry(frame, textvariable=var, width=20).grid(row=i, column=1, sticky="w", padx=5, pady=2)
 
-    def create_embedding_settings_frame(self):
-        embedding_frame = tk.LabelFrame(self.settings_tab, text="Embedding Settings")
-        embedding_frame.pack(fill="x", padx=10, pady=5)
+        tk.Label(frame, text="Results File:").grid(row=len(settings), column=0, sticky="e", padx=5, pady=2)
+        tk.Entry(frame, textvariable=self.results_file_path_var, width=20).grid(row=len(settings), column=1, sticky="w", padx=5, pady=2)
+        tk.Button(frame, text="Browse", command=lambda: self.browse_file_path(self.results_file_path_var)).grid(row=len(settings), column=2, padx=5, pady=2)
 
-        tk.Label(embedding_frame, text="Batch Size:").grid(row=0, column=0, padx=5, pady=5, sticky="e")
-        batch_size_entry = ttk.Entry(embedding_frame, textvariable=self.batch_size_var, width=10)
-        batch_size_entry.grid(row=0, column=1, padx=5, pady=5, sticky="w")
+    def create_search_settings_frame(self, parent):
+        frame = tk.LabelFrame(parent, text="Search Settings")
+        frame.pack(fill="x", padx=5, pady=5)
 
-    def create_graph_settings_frame(self):
-        graph_frame = tk.LabelFrame(self.settings_tab, text="Graph Settings")
-        graph_frame.pack(fill="x", padx=10, pady=5)
+        toggles = [
+            ("Enable Lexical Search", self.enable_lexical_search_var),
+            ("Enable Semantic Search", self.enable_semantic_search_var),
+            ("Enable Graph Search", self.enable_graph_search_var),
+            ("Enable Text Search", self.enable_text_search_var),
+        ]
 
-        tk.Label(graph_frame, text="Similarity Threshold:").grid(row=0, column=0, padx=5, pady=5, sticky="e")
-        similarity_threshold_entry = ttk.Entry(graph_frame, textvariable=self.similarity_threshold_var, width=10)
-        similarity_threshold_entry.grid(row=0, column=1, padx=5, pady=5, sticky="w")
+        for i, (label, var) in enumerate(toggles):
+            tk.Checkbutton(frame, text=label, variable=var).grid(row=i, column=0, sticky="w", padx=5, pady=2)
 
-        enable_family_extraction_check = ttk.Checkbutton(graph_frame, text="Enable Family Relation Extraction", 
-                                                         variable=self.enable_family_extraction_var)
-        enable_family_extraction_check.grid(row=1, column=0, columnspan=2, padx=5, pady=5, sticky="w")
+        weights = [
+            ("Lexical Weight:", self.lexical_weight_var),
+            ("Semantic Weight:", self.semantic_weight_var),
+            ("Graph Weight:", self.graph_weight_var),
+            ("Text Weight:", self.text_weight_var),
+        ]
 
-        tk.Label(graph_frame, text="Min Entity Occurrence:").grid(row=2, column=0, padx=5, pady=5, sticky="e")
-        min_entity_occurrence_entry = ttk.Entry(graph_frame, textvariable=self.min_entity_occurrence_var, width=10)
-        min_entity_occurrence_entry.grid(row=2, column=1, padx=5, pady=5, sticky="w")
+        for i, (label, var) in enumerate(weights):
+            tk.Label(frame, text=label).grid(row=i, column=1, sticky="e", padx=5, pady=2)
+            tk.Entry(frame, textvariable=var, width=10).grid(row=i, column=2, sticky="w", padx=5, pady=2)
+
+    def create_advanced_settings_frame(self, parent):
+        frame = tk.LabelFrame(parent, text="Advanced Settings")
+        frame.pack(fill="x", padx=5, pady=5)
+
+        settings = [
+            ("Similarity Threshold:", self.similarity_threshold_var),
+            ("Min Entity Occurrence:", self.min_entity_occurrence_var),
+            ("Top K:", self.top_k_var),
+            ("Entity Relevance Threshold:", self.entity_relevance_threshold_var),
+        ]
+
+        for i, (label, var) in enumerate(settings):
+            tk.Label(frame, text=label).grid(row=i, column=0, sticky="e", padx=5, pady=2)
+            tk.Entry(frame, textvariable=var, width=20).grid(row=i, column=1, sticky="w", padx=5, pady=2)
+
+        tk.Checkbutton(frame, text="Enable Family Extraction", variable=self.enable_family_extraction_var).grid(row=len(settings), column=0, columnspan=2, sticky="w", padx=5, pady=2)
+        tk.Checkbutton(frame, text="Enable Semantic Edges", variable=self.enable_semantic_edges_var).grid(row=len(settings)+1, column=0, columnspan=2, sticky="w", padx=5, pady=2)
+
+    def create_file_path_settings_frame(self, parent):
+        frame = tk.LabelFrame(parent, text="File Path Settings")
+        frame.pack(fill="x", padx=5, pady=5)
+
+        paths = [
+            ("Database File:", self.db_file_path_var),
+            ("Embeddings File:", self.embeddings_file_path_var),
+            ("Knowledge Graph File:", self.knowledge_graph_file_path_var)
+        ]
+
+        for i, (label, var) in enumerate(paths):
+            tk.Label(frame, text=label).grid(row=i, column=0, sticky="e", padx=5, pady=2)
+            tk.Entry(frame, textvariable=var, width=20).grid(row=i, column=1, sticky="w", padx=5, pady=2)
+            tk.Button(frame, text="Browse", command=lambda v=var: self.browse_file_path(v)).grid(row=i, column=2, padx=5, pady=2)
+
+        tk.Label(frame, text="Embedding Model:").grid(row=len(paths), column=0, sticky="e", padx=5, pady=2)
+        tk.Entry(frame, textvariable=self.model_name_var, width=20).grid(row=len(paths), column=1, sticky="w", padx=5, pady=2)
+
+        tk.Label(frame, text="NLP Model:").grid(row=len(paths)+1, column=0, sticky="e", padx=5, pady=2)
+        tk.Entry(frame, textvariable=self.nlp_model_var, width=20).grid(row=len(paths)+1, column=1, sticky="w", padx=5, pady=2)
+
+    def browse_file_path(self, var):
+        file_path = filedialog.asksaveasfilename(defaultextension=".txt", filetypes=[("All Files", "*.*")])
+        if file_path:
+            var.set(file_path)
 
     def use_default_settings(self):
-        # Existing default settings
+        # Reset all variables to their default values
         self.chunk_size_var.set(500)
         self.overlap_size_var.set(200)
         self.batch_size_var.set(32)
+        self.results_file_path_var.set("results.txt")
+        self.max_history_length_var.set(5)
+        self.conversation_context_size_var.set(3)
+        self.update_threshold_var.set(10)
+        self.ollama_model_var.set("phi3:instruct")
+        self.temperature_var.set(0.1)
         self.similarity_threshold_var.set(0.7)
         self.enable_family_extraction_var.set(True)
         self.min_entity_occurrence_var.set(1)
-        
-        # New default settings
         self.model_name_var.set("all-MiniLM-L6-v2")
         self.nlp_model_var.set("en_core_web_sm")
         self.db_file_path_var.set("db.txt")
         self.embeddings_file_path_var.set("db_embeddings.pt")
         self.knowledge_graph_file_path_var.set("knowledge_graph.json")
+        self.enable_semantic_edges_var.set(True)
+        self.top_k_var.set(5)
+        self.entity_relevance_threshold_var.set(0.5)
+        self.lexical_weight_var.set(1.0)
+        self.semantic_weight_var.set(1.0)
+        self.graph_weight_var.set(1.0)
+        self.text_weight_var.set(1.0)
+        self.enable_lexical_search_var.set(True)
+        self.enable_semantic_search_var.set(True)
+        self.enable_graph_search_var.set(True)
+        self.enable_text_search_var.set(True)
         
         messagebox.showinfo("Default Settings", "Default settings have been restored.")
 
     def save_settings_template(self):
         settings = {
-            # Existing settings
             "chunk_size": self.chunk_size_var.get(),
             "overlap_size": self.overlap_size_var.get(),
             "batch_size": self.batch_size_var.get(),
+            "results_file_path": self.results_file_path_var.get(),
+            "max_history_length": self.max_history_length_var.get(),
+            "conversation_context_size": self.conversation_context_size_var.get(),
+            "update_threshold": self.update_threshold_var.get(),
+            "ollama_model": self.ollama_model_var.get(),
+            "temperature": self.temperature_var.get(),
             "similarity_threshold": self.similarity_threshold_var.get(),
             "enable_family_extraction": self.enable_family_extraction_var.get(),
             "min_entity_occurrence": self.min_entity_occurrence_var.get(),
-            # New settings
             "model_name": self.model_name_var.get(),
             "nlp_model": self.nlp_model_var.get(),
             "db_file_path": self.db_file_path_var.get(),
             "embeddings_file_path": self.embeddings_file_path_var.get(),
-            "knowledge_graph_file_path": self.knowledge_graph_file_path_var.get()
+            "knowledge_graph_file_path": self.knowledge_graph_file_path_var.get(),
+            "enable_semantic_edges": self.enable_semantic_edges_var.get(),
+            "top_k": self.top_k_var.get(),
+            "entity_relevance_threshold": self.entity_relevance_threshold_var.get(),
+            "lexical_weight": self.lexical_weight_var.get(),
+            "semantic_weight": self.semantic_weight_var.get(),
+            "graph_weight": self.graph_weight_var.get(),
+            "text_weight": self.text_weight_var.get(),
+            "enable_lexical_search": self.enable_lexical_search_var.get(),
+            "enable_semantic_search": self.enable_semantic_search_var.get(),
+            "enable_graph_search": self.enable_graph_search_var.get(),
+            "enable_text_search": self.enable_text_search_var.get()
         }
         file_path = filedialog.asksaveasfilename(defaultextension=".json", filetypes=[("JSON files", "*.json")])
         if file_path:
@@ -169,19 +255,37 @@ class SettingsManager:
             try:
                 with open(file_path, 'r') as f:
                     settings = json.load(f)
-                # Load existing settings
+                
+                # Load all settings
                 self.chunk_size_var.set(settings.get("chunk_size", 500))
                 self.overlap_size_var.set(settings.get("overlap_size", 200))
                 self.batch_size_var.set(settings.get("batch_size", 32))
+                self.results_file_path_var.set(settings.get("results_file_path", "results.txt"))
+                self.max_history_length_var.set(settings.get("max_history_length", 5))
+                self.conversation_context_size_var.set(settings.get("conversation_context_size", 3))
+                self.update_threshold_var.set(settings.get("update_threshold", 10))
+                self.ollama_model_var.set(settings.get("ollama_model", "phi3:instruct"))
+                self.temperature_var.set(settings.get("temperature", 0.1))
                 self.similarity_threshold_var.set(settings.get("similarity_threshold", 0.7))
                 self.enable_family_extraction_var.set(settings.get("enable_family_extraction", True))
                 self.min_entity_occurrence_var.set(settings.get("min_entity_occurrence", 1))
-                # Load new settings
                 self.model_name_var.set(settings.get("model_name", "all-MiniLM-L6-v2"))
                 self.nlp_model_var.set(settings.get("nlp_model", "en_core_web_sm"))
                 self.db_file_path_var.set(settings.get("db_file_path", "db.txt"))
                 self.embeddings_file_path_var.set(settings.get("embeddings_file_path", "db_embeddings.pt"))
                 self.knowledge_graph_file_path_var.set(settings.get("knowledge_graph_file_path", "knowledge_graph.json"))
+                self.enable_semantic_edges_var.set(settings.get("enable_semantic_edges", True))
+                self.top_k_var.set(settings.get("top_k", 5))
+                self.entity_relevance_threshold_var.set(settings.get("entity_relevance_threshold", 0.5))
+                self.lexical_weight_var.set(settings.get("lexical_weight", 1.0))
+                self.semantic_weight_var.set(settings.get("semantic_weight", 1.0))
+                self.graph_weight_var.set(settings.get("graph_weight", 1.0))
+                self.text_weight_var.set(settings.get("text_weight", 1.0))
+                self.enable_lexical_search_var.set(settings.get("enable_lexical_search", True))
+                self.enable_semantic_search_var.set(settings.get("enable_semantic_search", True))
+                self.enable_graph_search_var.set(settings.get("enable_graph_search", True))
+                self.enable_text_search_var.set(settings.get("enable_text_search", True))
+
                 messagebox.showinfo("Load Successful", f"Settings loaded from {file_path}")
             except json.JSONDecodeError:
                 messagebox.showerror("Error", "Invalid JSON file. Could not load settings.")
@@ -189,56 +293,110 @@ class SettingsManager:
                 messagebox.showerror("Error", f"An error occurred while loading settings: {str(e)}")
 
     def apply_settings(self):
-      try:
-        # Existing settings
-        chunk_size = self.chunk_size_var.get()
-        overlap_size = self.overlap_size_var.get()
-        batch_size = self.batch_size_var.get()
-        similarity_threshold = self.similarity_threshold_var.get()
-        enable_family_extraction = self.enable_family_extraction_var.get()
-        min_entity_occurrence = self.min_entity_occurrence_var.get()
+        try:
+            # Validate settings
+            if self.chunk_size_var.get() <= 0 or self.overlap_size_var.get() < 0 or self.overlap_size_var.get() >= self.chunk_size_var.get():
+                raise ValueError("Invalid chunk size or overlap size")
+            if self.batch_size_var.get() <= 0:
+                raise ValueError("Batch size must be positive")
+            if not 0 <= self.similarity_threshold_var.get() <= 1:
+                raise ValueError("Similarity threshold must be between 0 and 1")
+            if self.min_entity_occurrence_var.get() <= 0:
+                raise ValueError("Minimum entity occurrence must be positive")
+            if self.max_history_length_var.get() <= 0:
+                raise ValueError("Max history length must be positive")
+            if self.conversation_context_size_var.get() <= 0:
+                raise ValueError("Conversation context size must be positive")
+            if self.update_threshold_var.get() <= 0:
+                raise ValueError("Update threshold must be positive")
+            if self.temperature_var.get() < 0 or self.temperature_var.get() > 1:
+                raise ValueError("Temperature must be between 0 and 1")
+            if self.top_k_var.get() <= 0:
+                raise ValueError("Top K must be positive")
+            if not 0 <= self.entity_relevance_threshold_var.get() <= 1:
+                raise ValueError("Entity relevance threshold must be between 0 and 1")
 
-        # New settings
-        model_name = self.model_name_var.get()
-        nlp_model = self.nlp_model_var.get()
-        db_file_path = self.db_file_path_var.get()
-        embeddings_file_path = self.embeddings_file_path_var.get()
-        knowledge_graph_file_path = self.knowledge_graph_file_path_var.get()
-        
+            # Apply settings
+            set_chunk_sizes(self.chunk_size_var.get(), self.overlap_size_var.get())
+            set_batch_size(self.batch_size_var.get())
+            set_graph_settings(self.similarity_threshold_var.get(), self.enable_family_extraction_var.get(), self.min_entity_occurrence_var.get())
+            set_model_name(self.model_name_var.get())
+            set_nlp_model(self.nlp_model_var.get())
+            set_db_file(self.db_file_path_var.get())
+            set_embeddings_file(self.embeddings_file_path_var.get())
+            set_knowledge_graph_file(self.knowledge_graph_file_path_var.get())
+            set_max_history_length(self.max_history_length_var.get())
+            set_conversation_context_size(self.conversation_context_size_var.get())
+            set_update_threshold(self.update_threshold_var.get())
+            set_ollama_model(self.ollama_model_var.get())
+            set_temperature(self.temperature_var.get())
+            set_top_k(self.top_k_var.get())
+            set_entity_relevance_threshold(self.entity_relevance_threshold_var.get())
+            set_search_weights(self.lexical_weight_var.get(), self.semantic_weight_var.get(), 
+                               self.graph_weight_var.get(), self.text_weight_var.get())
+            set_search_toggles(self.enable_lexical_search_var.get(), self.enable_semantic_search_var.get(),
+                               self.enable_graph_search_var.get(), self.enable_text_search_var.get())
 
-        # Validate settings
-        if chunk_size <= 0 or overlap_size <= 0 or overlap_size >= chunk_size:
-            raise ValueError("Invalid chunk size or overlap size")
-        if batch_size <= 0:
-            raise ValueError("Batch size must be positive")
-        if not 0 <= similarity_threshold <= 1:
-            raise ValueError("Similarity threshold must be between 0 and 1")
-        if min_entity_occurrence <= 0:
-            raise ValueError("Minimum entity occurrence must be positive")
-        if not model_name or not nlp_model:
-            raise ValueError("Model name and NLP model cannot be empty")
-        if not db_file_path or not embeddings_file_path or not knowledge_graph_file_path:
-            raise ValueError("File paths cannot be empty")
+            # Save results file path
+            with open("config.json", "w") as f:
+                json.dump({"results_file_path": self.results_file_path_var.get()}, f)
 
-        # Apply settings
-        set_chunk_sizes(chunk_size, overlap_size)
-        set_batch_size(batch_size)
-        set_graph_settings(similarity_threshold, enable_family_extraction, min_entity_occurrence)
-        set_model_name(model_name)
-        set_nlp_model(nlp_model)
-        set_embeddings_file(embeddings_file_path)
-
-        # New calls to update file paths
-        set_db_file(db_file_path)
-        set_embeddings_file(embeddings_file_path)
-        set_knowledge_graph_file(knowledge_graph_file_path)
-
-        messagebox.showinfo("Settings Applied", "All settings have been successfully applied.")
-      except ValueError as e:
-        messagebox.showerror("Invalid Settings", str(e))
-      except Exception as e:
-        messagebox.showerror("Error", f"An error occurred while applying settings: {str(e)}")
+            messagebox.showinfo("Settings Applied", "All settings have been successfully applied.")
+        except ValueError as e:
+            messagebox.showerror("Invalid Settings", str(e))
+        except Exception as e:
+            messagebox.showerror("Error", f"An error occurred while applying settings: {str(e)}")
 
     def get_settings_tab(self):
-     return self.settings_tab
+        return self.settings_tab
 
+# Functions to be implemented in other files
+def set_max_history_length(value):
+    # Implement this in run_model.py
+    pass
+
+def set_conversation_context_size(value):
+    # Implement this in run_model.py
+    pass
+
+def set_update_threshold(value):
+    # Implement this in run_model.py
+    pass
+
+def set_ollama_model(value):
+    # Implement this in run_model.py
+    pass
+
+def set_temperature(value):
+    # Implement this in run_model.py
+    pass
+
+def set_top_k(value):
+    # Implement this in search_utils.py
+    pass
+
+def set_entity_relevance_threshold(value):
+    # Implement this in search_utils.py
+    pass
+
+def set_search_weights(lexical_weight, semantic_weight, graph_weight, text_weight):
+    # Implement this in search_utils.py
+    pass
+
+def set_search_toggles(enable_lexical, enable_semantic, enable_graph, enable_text):
+    # Implement this in search_utils.py
+    pass
+
+# You might want to add a main function if you want to test the SettingsManager independently
+def main():
+    root = tk.Tk()
+    notebook = ttk.Notebook(root)
+    notebook.pack(expand=True, fill="both")
+    
+    settings_manager = SettingsManager(notebook)
+    notebook.add(settings_manager.get_settings_tab(), text="Settings")
+    
+    root.mainloop()
+
+if __name__ == "__main__":
+    main()
