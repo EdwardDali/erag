@@ -1,7 +1,7 @@
 1. pip install -r requirements.txt
 2. Install Ollama (https://ollama.com/download)
 3. Install phi:instruct in ollama
-4. run gui.py
+4. run main.py
 
 
 ### What is RAG?
