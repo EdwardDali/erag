@@ -3,10 +3,10 @@ from tkinter import messagebox
 import threading
 import os
 from file_processing import process_file, append_to_db
-from localrag14 import RAGSystem
+from run_model import RAGSystem
 from embeddings_utils import compute_and_save_embeddings, load_or_compute_embeddings
 from sentence_transformers import SentenceTransformer
-from kg import create_knowledge_graph
+from create_graph import create_knowledge_graph
 
 class ERAGGUI:
     def __init__(self, master: tk.Tk):
