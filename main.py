@@ -9,6 +9,7 @@ from sentence_transformers import SentenceTransformer
 from create_graph import create_knowledge_graph
 from settings import SettingsManager
 from search_utils import set_top_k, set_entity_relevance_threshold, set_search_weights, set_search_toggles
+from create_knol import run_knol_creator
 
 class ERAGGUI:
     def __init__(self, master: tk.Tk):
@@ -74,6 +75,17 @@ class ERAGGUI:
 
         run_model_button = tk.Button(model_frame, text="Run Model", command=self.run_model)
         run_model_button.pack(side="left", padx=5, pady=5)
+
+        create_knol_button = tk.Button(model_frame, text="Create Knol", command=self.create_knol)
+        create_knol_button.pack(side="left", padx=5, pady=5)
+
+    def create_knol(self):
+        try:
+            api_type = self.api_type_var.get()
+            threading.Thread(target=lambda: run_knol_creator(api_type), daemon=True).start()
+            messagebox.showinfo("Info", "Knol creation process started. Check the console for interaction.")
+        except Exception as e:
+            messagebox.showerror("Error", f"An error occurred while starting the knol creation process: {str(e)}")
 
     def upload_and_chunk(self, file_type: str):
         try:
