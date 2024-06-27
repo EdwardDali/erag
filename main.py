@@ -19,12 +19,10 @@ class ERAGGUI:
         self.api_type_var.set("ollama")  # Default value
         self.rag_system = None
         self.model = SentenceTransformer("all-MiniLM-L6-v2")
-        self.db_embeddings, self.db_indexes, self.db_content = load_or_compute_embeddings(
-            self.model, 
-            "db.txt", 
-            "db_embeddings.pt"
-        )
-        self.knowledge_graph = create_knowledge_graph()
+        self.db_embeddings = None
+        self.db_indexes = None
+        self.db_content = None
+        self.knowledge_graph = None
 
         self.create_widgets()
 
@@ -93,7 +91,10 @@ class ERAGGUI:
             creator.db_embeddings = self.db_embeddings
             creator.db_content = self.db_content
             creator.knowledge_graph = self.knowledge_graph
-            creator.search_utils = SearchUtils(creator.model, creator.db_embeddings, creator.db_content, creator.knowledge_graph)
+            if all([creator.db_embeddings is not None, creator.db_content is not None, creator.knowledge_graph is not None]):
+                creator.search_utils = SearchUtils(creator.model, creator.db_embeddings, creator.db_content, creator.knowledge_graph)
+            else:
+                messagebox.showwarning("Warning", "Some components (embeddings, db content, or knowledge graph) are missing. The knol creation process may not have access to all information.")
             
             threading.Thread(target=creator.run_knol_creator, daemon=True).start()
             messagebox.showinfo("Info", "Knol creation process started. Check the console for interaction.")
@@ -113,29 +114,35 @@ class ERAGGUI:
 
     def execute_embeddings(self):
         try:
-            if not os.path.exists(self.settings_manager.db_file_path_var.get()):
-                messagebox.showerror("Error", f"{self.settings_manager.db_file_path_var.get()} not found. Please upload some documents first.")
+            db_file_path = self.settings_manager.db_file_path_var.get()
+            embeddings_file_path = self.settings_manager.embeddings_file_path_var.get()
+            
+            if not os.path.exists(db_file_path):
+                messagebox.showwarning("Warning", f"{db_file_path} not found. Please upload some documents first.")
                 return
 
             # Process db.txt
-            embeddings, _, _ = load_or_compute_embeddings(
+            self.db_embeddings, self.db_indexes, self.db_content = load_or_compute_embeddings(
                 self.model, 
-                self.settings_manager.db_file_path_var.get(), 
-                self.settings_manager.embeddings_file_path_var.get()
+                db_file_path, 
+                embeddings_file_path
             )
-            messagebox.showinfo("Success", f"Embeddings computed and saved successfully. Shape: {embeddings.shape}")
+            messagebox.showinfo("Success", f"Embeddings computed and saved successfully. Shape: {self.db_embeddings.shape}")
 
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred while computing embeddings: {str(e)}")
 
     def create_knowledge_graph(self):
         try:
-            if not os.path.exists(self.settings_manager.db_file_path_var.get()) or not os.path.exists(self.settings_manager.embeddings_file_path_var.get()):
-                messagebox.showerror("Error", f"{self.settings_manager.db_file_path_var.get()} or {self.settings_manager.embeddings_file_path_var.get()} not found. Please upload documents and execute embeddings first.")
+            db_file_path = self.settings_manager.db_file_path_var.get()
+            embeddings_file_path = self.settings_manager.embeddings_file_path_var.get()
+            
+            if not os.path.exists(db_file_path) or not os.path.exists(embeddings_file_path):
+                messagebox.showwarning("Warning", f"{db_file_path} or {embeddings_file_path} not found. Please upload documents and execute embeddings first.")
                 return
 
-            G = create_knowledge_graph()  # Call the imported function
-            messagebox.showinfo("Success", f"Knowledge graph created with {G.number_of_nodes()} nodes and {G.number_of_edges()} edges, and saved as {self.settings_manager.knowledge_graph_file_path_var.get()}.")
+            self.knowledge_graph = create_knowledge_graph()  # Call the imported function
+            messagebox.showinfo("Success", f"Knowledge graph created with {self.knowledge_graph.number_of_nodes()} nodes and {self.knowledge_graph.number_of_edges()} edges, and saved as {self.settings_manager.knowledge_graph_file_path_var.get()}.")
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred while creating the knowledge graph: {str(e)}")
 
