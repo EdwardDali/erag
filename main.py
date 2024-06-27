@@ -8,8 +8,8 @@ from embeddings_utils import compute_and_save_embeddings, load_or_compute_embedd
 from sentence_transformers import SentenceTransformer
 from create_graph import create_knowledge_graph
 from settings import SettingsManager
-from search_utils import set_top_k, set_entity_relevance_threshold, set_search_weights, set_search_toggles
-from create_knol import run_knol_creator
+from search_utils import SearchUtils, set_top_k, set_entity_relevance_threshold, set_search_weights, set_search_toggles
+from create_knol import KnolCreator
 
 class ERAGGUI:
     def __init__(self, master: tk.Tk):
@@ -19,6 +19,12 @@ class ERAGGUI:
         self.api_type_var.set("ollama")  # Default value
         self.rag_system = None
         self.model = SentenceTransformer("all-MiniLM-L6-v2")
+        self.db_embeddings, self.db_indexes, self.db_content = load_or_compute_embeddings(
+            self.model, 
+            "db.txt", 
+            "db_embeddings.pt"
+        )
+        self.knowledge_graph = create_knowledge_graph()
 
         self.create_widgets()
 
@@ -82,7 +88,14 @@ class ERAGGUI:
     def create_knol(self):
         try:
             api_type = self.api_type_var.get()
-            threading.Thread(target=lambda: run_knol_creator(api_type), daemon=True).start()
+            creator = KnolCreator(api_type)
+            creator.model = self.model
+            creator.db_embeddings = self.db_embeddings
+            creator.db_content = self.db_content
+            creator.knowledge_graph = self.knowledge_graph
+            creator.search_utils = SearchUtils(creator.model, creator.db_embeddings, creator.db_content, creator.knowledge_graph)
+            
+            threading.Thread(target=creator.run_knol_creator, daemon=True).start()
             messagebox.showinfo("Info", "Knol creation process started. Check the console for interaction.")
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred while starting the knol creation process: {str(e)}")
