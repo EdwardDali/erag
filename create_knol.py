@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-
-
 import sys
 import os
 import logging
@@ -33,7 +31,7 @@ class KnolCreator:
             logging.info(f"Saved {stage} knol as {filename}")
         except IOError as e:
             logging.error(f"Error saving {stage} knol to file: {str(e)}")
-
+            
     def create_knol(self, subject: str) -> str:
         system_message = f"""You are a knowledgeable assistant that creates structured, comprehensive, and detailed knowledge entries on specific subjects. When given a topic, provide an exhaustive explanation covering key aspects, sub-topics, and important details. Structure the information as follows:
 
@@ -116,6 +114,42 @@ Feel free to add new topics, subtopics, or points, and reorganize the structure 
             self.save_iteration(error_content, "improved_error", subject)
             return knol  # Return the original knol if improvement fails
 
+
+    def generate_questions(self, knol: str, subject: str) -> str:
+        system_message = f"""You are a knowledgeable assistant tasked with creating diverse and thought-provoking questions based on a given knowledge entry (knol) about {subject}. Generate 8 questions that cover different aspects of the knol, ranging from factual recall to critical thinking and analysis. Ensure the questions are clear, concise, and directly related to the content of the knol."""
+
+        user_message = f"""Based on the following knol about {subject}, generate 8 diverse questions:
+
+{knol}
+
+Please provide 8 questions that:
+1. Cover different aspects and topics from the knol
+2. Include a mix of question types (e.g., factual, analytical, comparative)
+3. Are clear and concise
+4. Are directly related to the content of the knol
+5. Encourage critical thinking and deeper understanding of the subject
+
+Format the output as a numbered list of questions."""
+
+        try:
+            response = self.client.chat.completions.create(
+                model=self.OLLAMA_MODEL,
+                messages=[
+                    {"role": "system", "content": system_message},
+                    {"role": "user", "content": user_message}
+                ],
+                temperature=self.TEMPERATURE
+            )
+            questions = response.choices[0].message.content
+            self.save_iteration(questions, "q", subject)
+            return questions
+        except Exception as e:
+            logging.error(f"Error in API call: {str(e)}")
+            error_content = f"An error occurred while generating questions: {str(e)}"
+            self.save_iteration(error_content, "q_error", subject)
+            return error_content
+
+
     def run_knol_creator(self):
         print(f"{ANSIColor.YELLOW.value}Welcome to the Knol Creation System. Type 'exit' to quit.{ANSIColor.RESET.value}")
 
@@ -136,12 +170,17 @@ Feel free to add new topics, subtopics, or points, and reorganize the structure 
             print(f"{ANSIColor.CYAN.value}Improving and expanding the knol...{ANSIColor.RESET.value}")
             improved_knol = self.improve_knol(initial_knol, user_input)
 
-            print(f"{ANSIColor.NEON_GREEN.value}Knol creation process completed.{ANSIColor.RESET.value}")
-            print(f"{ANSIColor.CYAN.value}You can find the results in files with '_initial' and '_improved' suffixes.{ANSIColor.RESET.value}")
+            print(f"{ANSIColor.CYAN.value}Generating questions based on the improved knol...{ANSIColor.RESET.value}")
+            questions = self.generate_questions(improved_knol, user_input)
 
-            # Print the improved knol content
+            print(f"{ANSIColor.NEON_GREEN.value}Knol creation process completed.{ANSIColor.RESET.value}")
+            print(f"{ANSIColor.CYAN.value}You can find the results in files with '_initial', '_improved', and '_q' suffixes.{ANSIColor.RESET.value}")
+
+            # Print the improved knol content and questions
             print(f"\n{ANSIColor.NEON_GREEN.value}Improved Knol Content:{ANSIColor.RESET.value}")
             print(improved_knol)
+            print(f"\n{ANSIColor.NEON_GREEN.value}Generated Questions:{ANSIColor.RESET.value}")
+            print(questions)
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
