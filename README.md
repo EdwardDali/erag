@@ -11,6 +11,7 @@ This RAG (Retrieval-Augmented Generation) tool is a sophisticated system that co
 5. **Knowledge Graph**: Builds and utilizes a knowledge graph for enhanced information retrieval.
 6. **Customizable Settings**: Offers a wide range of configurable parameters through a GUI.
 
+![Alt text](https://github.com/EdwardDali/e-rag/blob/main/gui.PNG)
 
 ## Installation
 
