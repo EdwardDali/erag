@@ -1,3 +1,6 @@
+import warnings
+warnings.filterwarnings("ignore", category=FutureWarning, module="huggingface_hub.file_download")
+
 import tkinter as tk
 from tkinter import messagebox, ttk
 import threading
