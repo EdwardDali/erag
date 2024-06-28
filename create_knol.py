@@ -7,6 +7,7 @@ from run_model import RAGSystem, ANSIColor
 from search_utils import SearchUtils
 from sentence_transformers import SentenceTransformer
 from embeddings_utils import load_embeddings_and_data
+from settings import settings
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -14,10 +15,6 @@ class KnolCreator:
     def __init__(self, api_type: str):
         self.rag_system = RAGSystem(api_type)
         self.search_utils = self.rag_system.search_utils
-        self.num_questions = 8
-
-    def set_num_questions(self, num_questions: int):
-        self.num_questions = num_questions
 
     def save_iteration(self, content: str, stage: str, subject: str):
         filename = f"knol_{subject.replace(' ', '_')}_{stage}.txt"
@@ -83,13 +80,13 @@ Feel free to add new topics, subtopics, or points, and reorganize the structure 
         return improved_content
 
     def generate_questions(self, knol: str, subject: str) -> str:
-        system_message = f"""You are a knowledgeable assistant tasked with creating diverse and thought-provoking questions based on a given knowledge entry (knol) about {subject}. Generate {self.num_questions} questions that cover different aspects of the knol, ranging from factual recall to critical thinking and analysis. Ensure the questions are clear, concise, and directly related to the content of the knol."""
+        system_message = f"""You are a knowledgeable assistant tasked with creating diverse and thought-provoking questions based on a given knowledge entry (knol) about {subject}. Generate {settings.num_questions} questions that cover different aspects of the knol, ranging from factual recall to critical thinking and analysis. Ensure the questions are clear, concise, and directly related to the content of the knol."""
 
-        user_input = f"""Based on the following knol about {subject}, generate {self.num_questions} diverse questions:
+        user_input = f"""Based on the following knol about {subject}, generate {settings.num_questions} diverse questions:
 
 {knol}
 
-Please provide {self.num_questions} questions that:
+Please provide {settings.num_questions} questions that:
 1. Cover different aspects and topics from the knol but are not fully covered by the current content
 2. Include a mix of question types (e.g., factual, analytical, comparative)
 3. Are clear and concise
@@ -125,7 +122,6 @@ Please provide a comprehensive answer to the question using the information from
         full_qa = "\n".join(answers)
         self.save_iteration(full_qa, "q_a", subject)
         return full_qa
-
 
     def create_final_knol(self, subject: str):
         improved_knol_filename = f"knol_{subject.replace(' ', '_')}_improved.txt"
