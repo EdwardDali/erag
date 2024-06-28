@@ -2,8 +2,9 @@
 
 1. Clone the repository and navigate to the project directory:
    ```
-   git clone https://github.com/yourusername/rag-tool.git && cd rag-tool
-   ```
+git clone https://github.com/EdwardDali/e-rag.git && cd e-rag   
+
+```
 
 2. Install the required Python dependencies:
    ```
