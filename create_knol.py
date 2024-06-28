@@ -14,6 +14,10 @@ class KnolCreator:
     def __init__(self, api_type: str):
         self.rag_system = RAGSystem(api_type)
         self.search_utils = self.rag_system.search_utils
+        self.num_questions = 8
+
+    def set_num_questions(self, num_questions: int):
+        self.num_questions = num_questions
 
     def save_iteration(self, content: str, stage: str, subject: str):
         filename = f"knol_{subject.replace(' ', '_')}_{stage}.txt"
@@ -79,14 +83,14 @@ Feel free to add new topics, subtopics, or points, and reorganize the structure 
         return improved_content
 
     def generate_questions(self, knol: str, subject: str) -> str:
-        system_message = f"""You are a knowledgeable assistant tasked with creating diverse and thought-provoking questions based on a given knowledge entry (knol) about {subject}. Generate 8 questions that cover different aspects of the knol, ranging from factual recall to critical thinking and analysis. Ensure the questions are clear, concise, and directly related to the content of the knol."""
+        system_message = f"""You are a knowledgeable assistant tasked with creating diverse and thought-provoking questions based on a given knowledge entry (knol) about {subject}. Generate {self.num_questions} questions that cover different aspects of the knol, ranging from factual recall to critical thinking and analysis. Ensure the questions are clear, concise, and directly related to the content of the knol."""
 
-        user_input = f"""Based on the following knol about {subject}, generate 8 diverse questions:
+        user_input = f"""Based on the following knol about {subject}, generate {self.num_questions} diverse questions:
 
 {knol}
 
-Please provide 8 questions that:
-1. Cover different aspects and topics from the knol
+Please provide {self.num_questions} questions that:
+1. Cover different aspects and topics from the knol but are not fully covered by the current content
 2. Include a mix of question types (e.g., factual, analytical, comparative)
 3. Are clear and concise
 4. Are directly related to the content of the knol
@@ -122,6 +126,35 @@ Please provide a comprehensive answer to the question using the information from
         self.save_iteration(full_qa, "q_a", subject)
         return full_qa
 
+
+    def create_final_knol(self, subject: str):
+        improved_knol_filename = f"knol_{subject.replace(' ', '_')}_improved.txt"
+        qa_filename = f"knol_{subject.replace(' ', '_')}_q_a.txt"
+        final_knol_filename = f"knol_{subject.replace(' ', '_')}_final.txt"
+
+        try:
+            # Read the improved knol content
+            with open(improved_knol_filename, "r", encoding="utf-8") as f:
+                improved_knol_content = f.read()
+
+            # Read the Q&A content
+            with open(qa_filename, "r", encoding="utf-8") as f:
+                qa_content = f.read()
+
+            # Combine the contents
+            final_content = f"{improved_knol_content}\n\nQuestions and Answers:\n\n{qa_content}"
+
+            # Write the final knol
+            with open(final_knol_filename, "w", encoding="utf-8") as f:
+                f.write(final_content)
+
+            logging.info(f"Created final knol as {final_knol_filename}")
+            print(f"{ANSIColor.NEON_GREEN.value}Final knol created: {final_knol_filename}{ANSIColor.RESET.value}")
+
+        except IOError as e:
+            logging.error(f"Error creating final knol: {str(e)}")
+            print(f"{ANSIColor.PINK.value}Error creating final knol. See log for details.{ANSIColor.RESET.value}")
+
     def run_knol_creator(self):
         print(f"{ANSIColor.YELLOW.value}Welcome to the Knol Creation System. Type 'exit' to quit.{ANSIColor.RESET.value}")
 
@@ -148,8 +181,11 @@ Please provide a comprehensive answer to the question using the information from
             print(f"{ANSIColor.CYAN.value}Answering questions using RAG...{ANSIColor.RESET.value}")
             qa_pairs = self.answer_questions(questions, user_input, improved_knol)
 
+            print(f"{ANSIColor.CYAN.value}Creating final knol...{ANSIColor.RESET.value}")
+            self.create_final_knol(user_input)
+
             print(f"{ANSIColor.NEON_GREEN.value}Knol creation process completed.{ANSIColor.RESET.value}")
-            print(f"{ANSIColor.CYAN.value}You can find the results in files with '_initial', '_improved', '_q', and '_q_a' suffixes.{ANSIColor.RESET.value}")
+            print(f"{ANSIColor.CYAN.value}You can find the results in files with '_initial', '_improved', '_q', '_q_a', and '_final' suffixes.{ANSIColor.RESET.value}")
 
             # Print the improved knol content, questions, and answers
             print(f"\n{ANSIColor.NEON_GREEN.value}Improved Knol Content:{ANSIColor.RESET.value}")

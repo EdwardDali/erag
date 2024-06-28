@@ -24,19 +24,22 @@ class ERAGGUI:
         self.db_content = None
         self.knowledge_graph = None
 
+        # Create the notebook
+        self.notebook = ttk.Notebook(self.master)
+        self.notebook.pack(expand=True, fill="both", padx=10, pady=10)
+
+        # Initialize SettingsManager after creating the notebook
+        self.settings_manager = SettingsManager(self.notebook)
+
         self.create_widgets()
 
         # Set up the window close event
         self.master.protocol("WM_DELETE_WINDOW", self.on_closing)
 
     def create_widgets(self):
-        self.notebook = ttk.Notebook(self.master)
-        self.notebook.pack(expand=True, fill="both", padx=10, pady=10)
-
         self.main_tab = ttk.Frame(self.notebook)
         self.notebook.add(self.main_tab, text="Main")
 
-        self.settings_manager = SettingsManager(self.notebook)
         self.settings_tab = self.settings_manager.get_settings_tab()
         self.notebook.add(self.settings_tab, text="Settings")
 
@@ -87,6 +90,10 @@ class ERAGGUI:
         try:
             api_type = self.api_type_var.get()
             creator = KnolCreator(api_type)
+            
+            # Set the number of questions from the settings
+            num_questions = self.settings_manager.num_questions_var.get()
+            creator.set_num_questions(num_questions)
             
             db_file_path = self.settings_manager.db_file_path_var.get()
             if os.path.exists(db_file_path):

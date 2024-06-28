@@ -26,6 +26,7 @@ class SettingsManager:
         self.update_threshold_var = tk.IntVar(value=10)
         self.ollama_model_var = tk.StringVar(value="phi3:instruct")
         self.temperature_var = tk.DoubleVar(value=0.1)
+        self.num_questions_var = tk.IntVar(value=8)
 
         # Advanced Settings
         self.similarity_threshold_var = tk.DoubleVar(value=0.7)
@@ -103,6 +104,7 @@ class SettingsManager:
             ("Update Threshold:", self.update_threshold_var),
             ("Ollama Model:", self.ollama_model_var),
             ("Temperature:", self.temperature_var),
+            ("Number of Questions:", self.num_questions_var), 
         ]
 
         for i, (label, var) in enumerate(settings):
@@ -212,6 +214,7 @@ class SettingsManager:
         self.enable_semantic_search_var.set(True)
         self.enable_graph_search_var.set(True)
         self.enable_text_search_var.set(True)
+        self.num_questions_var.set(8)
         
         messagebox.showinfo("Default Settings", "Default settings have been restored.")
 
@@ -260,6 +263,8 @@ class SettingsManager:
                 raise ValueError("Top K must be positive")
             if not 0 <= self.entity_relevance_threshold_var.get() <= 1:
                 raise ValueError("Entity relevance threshold must be between 0 and 1")
+            if self.num_questions_var.get() <= 0:
+                raise ValueError("Number of questions must be positive")
 
             # Apply settings
             set_chunk_sizes(self.chunk_size_var.get(), self.overlap_size_var.get())
@@ -322,7 +327,8 @@ class SettingsManager:
             "enable_lexical_search": self.enable_lexical_search_var.get(),
             "enable_semantic_search": self.enable_semantic_search_var.get(),
             "enable_graph_search": self.enable_graph_search_var.get(),
-            "enable_text_search": self.enable_text_search_var.get()
+            "enable_text_search": self.enable_text_search_var.get(),
+            "num_questions": self.num_questions_var.get(),
         }
 
     def save_current_config(self):
@@ -369,6 +375,7 @@ class SettingsManager:
         self.enable_semantic_search_var.set(settings.get("enable_semantic_search", True))
         self.enable_graph_search_var.set(settings.get("enable_graph_search", True))
         self.enable_text_search_var.set(settings.get("enable_text_search", True))
+        self.num_questions_var.set(settings.get("num_questions", 8))
 
     def get_settings_tab(self):
         return self.settings_tab
