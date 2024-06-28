@@ -1,22 +1,13 @@
-# Core dependencies
-numpy==1.21.0
-torch==1.9.0+cpu
--f https://download.pytorch.org/whl/torch_stable.html
-sentence-transformers==2.2.0
-openai==0.27.0
-
-# File processing
+torch==2.0.1
+sentence-transformers==2.2.2
+spacy==3.5.3
+networkx==3.1
+openai==0.27.8
+tiktoken==0.4.0
+numpy==1.24.3
+scikit-learn==1.2.2
+transformers==4.30.2
+docx2txt==0.8
+PyPDF2==3.0.1
 python-docx==0.8.11
-PyPDF2==1.26.0
-
-# Knowledge Graph Creation
-spacy==3.1.0
-networkx==2.6.2
-
-# GUI
-# Note: tkinter comes pre-installed with Python on Windows
-
-pip install -U pip setuptools wheel
-pip install -U spacy
-python -m spacy download en_core_web_sm
-pip install neo4j
+nltk==3.8.1
