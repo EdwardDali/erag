@@ -1,3 +1,17 @@
+## Overview
+
+This RAG (Retrieval-Augmented Generation) tool is a sophisticated system that combines lexical, semantic, text, and knowledge graph searches with conversation context to provide accurate and contextually relevant responses. The tool processes various document types, creates embeddings, builds a knowledge graph, and uses this information to answer user queries intelligently.
+
+## Features
+
+1. **Multi-modal Search**: Incorporates lexical, semantic, text, and knowledge graph searches.
+2. **Conversation Context**: Maintains context across multiple interactions for more coherent conversations.
+3. **Document Processing**: Handles various document types including DOCX, JSON, PDF, and plain text.
+4. **Embedding Generation**: Creates and manages embeddings for efficient semantic search.
+5. **Knowledge Graph**: Builds and utilizes a knowledge graph for enhanced information retrieval.
+6. **Customizable Settings**: Offers a wide range of configurable parameters through a GUI.
+
+
 ## Installation
 
 1. Clone the repository and navigate to the project directory:
