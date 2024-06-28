@@ -88,34 +88,52 @@ class ERAGGUI:
         create_knol_button.pack(side="left", padx=5, pady=5)
 
     def create_settings_tab(self):
+        # Create a main frame to hold the two columns
+        main_frame = ttk.Frame(self.settings_tab)
+        main_frame.grid(row=0, column=0, sticky="nsew")
+        main_frame.columnconfigure(0, weight=1)
+        main_frame.columnconfigure(1, weight=1)
+
+        # Left Column
+        left_column = ttk.Frame(main_frame)
+        left_column.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
+
+        # Right Column
+        right_column = ttk.Frame(main_frame)
+        right_column.grid(row=0, column=1, sticky="nsew", padx=5, pady=5)
+
         # Create frames for different setting categories
-        general_frame = ttk.LabelFrame(self.settings_tab, text="General Settings")
-        general_frame.grid(row=0, column=0, padx=10, pady=5, sticky="nsew")
+        upload_frame = self.create_labelframe(left_column, "Upload Settings", 0)
+        embeddings_frame = self.create_labelframe(left_column, "Embeddings Settings", 1)
+        model_frame = self.create_labelframe(left_column, "Model Settings", 2)
 
-        file_frame = ttk.LabelFrame(self.settings_tab, text="File Settings")
-        file_frame.grid(row=1, column=0, padx=10, pady=5, sticky="nsew")
-
-        search_frame = ttk.LabelFrame(self.settings_tab, text="Search Settings")
-        search_frame.grid(row=2, column=0, padx=10, pady=5, sticky="nsew")
+        knol_frame = self.create_labelframe(right_column, "Knol Creation Settings", 0)
+        search_frame = self.create_labelframe(right_column, "Search Settings", 1)
+        file_frame = self.create_labelframe(right_column, "File Settings", 2)
 
         # Create and layout settings fields
-        self.create_settings_fields(general_frame, [
+        self.create_settings_fields(upload_frame, [
             ("Chunk Size", "chunk_size"),
             ("Overlap Size", "overlap_size"),
+        ])
+
+        self.create_settings_fields(embeddings_frame, [
             ("Batch Size", "batch_size"),
+            ("Embeddings File Path", "embeddings_file_path"),
+            ("DB File Path", "db_file_path"),
+        ])
+
+        self.create_settings_fields(model_frame, [
             ("Max History Length", "max_history_length"),
             ("Conversation Context Size", "conversation_context_size"),
             ("Update Threshold", "update_threshold"),
             ("Ollama Model", "ollama_model"),
             ("Temperature", "temperature"),
-            ("Number of Questions", "num_questions"),
+            ("Model Name", "model_name"),
         ])
 
-        self.create_settings_fields(file_frame, [
-            ("DB File Path", "db_file_path"),
-            ("Embeddings File Path", "embeddings_file_path"),
-            ("Knowledge Graph File Path", "knowledge_graph_file_path"),
-            ("Results File Path", "results_file_path"),
+        self.create_settings_fields(knol_frame, [
+            ("Number of Questions", "num_questions"),
         ])
 
         self.create_settings_fields(search_frame, [
@@ -129,18 +147,28 @@ class ERAGGUI:
 
         # Create checkboxes for boolean settings
         checkbox_frame = ttk.Frame(search_frame)
-        checkbox_frame.grid(row=len(search_frame.grid_slaves()), column=0, columnspan=2, sticky="w")
+        checkbox_frame.grid(row=len(search_frame.grid_slaves()), column=0, columnspan=2, sticky="w", padx=5, pady=5)
         self.create_checkbox(checkbox_frame, "Enable Lexical Search", "enable_lexical_search", 0, 0)
         self.create_checkbox(checkbox_frame, "Enable Semantic Search", "enable_semantic_search", 0, 1)
         self.create_checkbox(checkbox_frame, "Enable Graph Search", "enable_graph_search", 1, 0)
         self.create_checkbox(checkbox_frame, "Enable Text Search", "enable_text_search", 1, 1)
 
+        self.create_settings_fields(file_frame, [
+            ("Knowledge Graph File Path", "knowledge_graph_file_path"),
+            ("Results File Path", "results_file_path"),
+        ])
+
         # Add buttons for settings management
         button_frame = ttk.Frame(self.settings_tab)
-        button_frame.grid(row=3, column=0, padx=10, pady=5, sticky="nsew")
+        button_frame.grid(row=1, column=0, padx=10, pady=5, sticky="nsew")
 
-        ttk.Button(button_frame, text="Apply Settings", command=self.apply_settings).grid(row=0, column=0, padx=5)
-        ttk.Button(button_frame, text="Reset to Defaults", command=self.reset_settings).grid(row=0, column=1, padx=5)
+        ttk.Button(button_frame, text="Apply Settings", command=self.apply_settings).pack(side="left", padx=5)
+        ttk.Button(button_frame, text="Reset to Defaults", command=self.reset_settings).pack(side="left", padx=5)
+
+    def create_labelframe(self, parent, text, row):
+        frame = ttk.LabelFrame(parent, text=text)
+        frame.grid(row=row, column=0, padx=5, pady=5, sticky="nsew")
+        return frame
 
     def create_settings_fields(self, parent, fields):
         for i, (label, key) in enumerate(fields):
@@ -186,8 +214,7 @@ class ERAGGUI:
             api_type = self.api_type_var.get()
             creator = KnolCreator(api_type)
             
-            creator.set_num_questions(settings.num_questions)
-            
+           
             if os.path.exists(settings.db_file_path):
                 with open(settings.db_file_path, "r", encoding="utf-8") as db_file:
                     creator.db_content = db_file.readlines()
