@@ -13,6 +13,7 @@ This RAG (Retrieval-Augmented Generation) tool is a sophisticated system that co
 
 ![Alt text](https://github.com/EdwardDali/e-rag/blob/main/gui.PNG)
 ![Alt text](https://github.com/EdwardDali/e-rag/blob/main/logical.PNG)
+![Alt text](https://github.com/EdwardDali/e-rag/blob/main/user_flow.PNG)
 
 ## Installation
 
