@@ -87,15 +87,36 @@ class ERAGGUI:
         try:
             api_type = self.api_type_var.get()
             creator = KnolCreator(api_type)
-            creator.model = self.model
-            creator.db_embeddings = self.db_embeddings
-            creator.db_content = self.db_content
-            creator.knowledge_graph = self.knowledge_graph
+            
+            db_file_path = self.settings_manager.db_file_path_var.get()
+            if os.path.exists(db_file_path):
+                with open(db_file_path, "r", encoding="utf-8") as db_file:
+                    creator.db_content = db_file.readlines()
+            else:
+                creator.db_content = None
+
+            embeddings_file_path = self.settings_manager.embeddings_file_path_var.get()
+            if os.path.exists(embeddings_file_path):
+                creator.db_embeddings, _, _ = load_or_compute_embeddings(
+                    self.model, 
+                    db_file_path, 
+                    embeddings_file_path
+                )
+            else:
+                creator.db_embeddings = None
+
+            knowledge_graph_file_path = self.settings_manager.knowledge_graph_file_path_var.get()
+            if os.path.exists(knowledge_graph_file_path):
+                creator.knowledge_graph = self.knowledge_graph
+            else:
+                creator.knowledge_graph = None
+
             if all([creator.db_embeddings is not None, creator.db_content is not None, creator.knowledge_graph is not None]):
                 creator.search_utils = SearchUtils(creator.model, creator.db_embeddings, creator.db_content, creator.knowledge_graph)
             else:
-                messagebox.showwarning("Warning", "Some components (embeddings, db content, or knowledge graph) are missing. The knol creation process may not have access to all information.")
-            
+                creator.search_utils = None
+                print("Some components are missing. The knol creation process will not use RAG capabilities.")
+
             threading.Thread(target=creator.run_knol_creator, daemon=True).start()
             messagebox.showinfo("Info", "Knol creation process started. Check the console for interaction.")
         except Exception as e:
