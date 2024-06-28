@@ -5,6 +5,7 @@ import logging
 from typing import List, Tuple
 import networkx as nx
 import spacy
+from settings import settings
 
 class SearchUtils:
     def __init__(self, model, db_embeddings, db_content, knowledge_graph):
@@ -12,22 +13,10 @@ class SearchUtils:
         self.db_embeddings = db_embeddings
         self.db_content = db_content
         self.knowledge_graph = knowledge_graph
-        self.nlp = spacy.load("en_core_web_sm")
-
-        # Default settings
-        self.top_k = 5
-        self.entity_relevance_threshold = 0.5
-        self.lexical_weight = 1.0
-        self.semantic_weight = 1.0
-        self.graph_weight = 1.0
-        self.text_weight = 1.0
-        self.enable_lexical_search = True
-        self.enable_semantic_search = True
-        self.enable_graph_search = True
-        self.enable_text_search = True
+        self.nlp = spacy.load(settings.nlp_model)
 
     def lexical_search(self, query: str) -> List[str]:
-        if not self.enable_lexical_search:
+        if not settings.enable_lexical_search:
             return []
         
         query_words = set(re.findall(r'\w+', query.lower()))
@@ -36,11 +25,11 @@ class SearchUtils:
             context_words = set(re.findall(r'\w+', context.lower()))
             overlap = len(query_words.intersection(context_words))
             overlap_scores.append(overlap)
-        top_indices = sorted(range(len(overlap_scores)), key=lambda i: overlap_scores[i], reverse=True)[:self.top_k]
+        top_indices = sorted(range(len(overlap_scores)), key=lambda i: overlap_scores[i], reverse=True)[:settings.top_k]
         return [str(self.db_content[i].strip()) for i in top_indices]
 
     def semantic_search(self, query: str) -> List[str]:
-        if not self.enable_semantic_search:
+        if not settings.enable_semantic_search:
             return []
         
         if isinstance(self.db_embeddings, torch.Tensor):
@@ -48,11 +37,11 @@ class SearchUtils:
         with torch.no_grad():
             input_embedding = self.model.encode([query], convert_to_tensor=True, show_progress_bar=False)
         cos_scores = util.cos_sim(input_embedding, torch.from_numpy(self.db_embeddings))[0]
-        top_indices = torch.topk(cos_scores, k=min(self.top_k, len(cos_scores)))[1].tolist()
+        top_indices = torch.topk(cos_scores, k=min(settings.top_k, len(cos_scores)))[1].tolist()
         return [str(self.db_content[idx].strip()) for idx in top_indices]
 
     def get_graph_context(self, query: str) -> List[str]:
-        if not self.enable_graph_search or not self.knowledge_graph.nodes():
+        if not settings.enable_graph_search or not self.knowledge_graph.nodes():
             return []
 
         query_entities = set(self.extract_entities(query))
@@ -73,10 +62,10 @@ class SearchUtils:
                 relevance_score += len(connected_docs) * 0.1
                 relevance_score += len(family_relations) * 0.2
                 
-                if relevance_score >= self.entity_relevance_threshold:
+                if relevance_score >= settings.entity_relevance_threshold:
                     node_scores.append((node, entity_type, connected_docs, family_relations, relevance_score))
 
-        top_entities = sorted(node_scores, key=lambda x: x[4], reverse=True)[:self.top_k]
+        top_entities = sorted(node_scores, key=lambda x: x[4], reverse=True)[:settings.top_k]
         
         if not top_entities:
             return []
@@ -105,7 +94,7 @@ class SearchUtils:
         return context
 
     def text_search(self, query: str) -> List[str]:
-        if not self.enable_text_search:
+        if not settings.enable_text_search:
             return []
         
         query_terms = query.lower().split()
@@ -113,7 +102,7 @@ class SearchUtils:
         for content in self.db_content:
             if any(term in content.lower() for term in query_terms):
                 results.append(content.strip())
-        return sorted(results, key=lambda x: sum(term in x.lower() for term in query_terms), reverse=True)[:self.top_k]
+        return sorted(results, key=lambda x: sum(term in x.lower() for term in query_terms), reverse=True)[:settings.top_k]
 
     def extract_entities(self, text: str) -> List[str]:
         doc = self.nlp(text)
@@ -132,16 +121,16 @@ class SearchUtils:
 
         search_query = " ".join(list(conversation_context) + [user_input])
 
-        lexical_results = self.lexical_search(search_query) if self.enable_lexical_search else []
-        semantic_results = self.semantic_search(search_query) if self.enable_semantic_search else []
-        graph_results = self.get_graph_context(search_query) if self.enable_graph_search else []
-        text_results = self.text_search(search_query) if self.enable_text_search else []
+        lexical_results = self.lexical_search(search_query)
+        semantic_results = self.semantic_search(search_query)
+        graph_results = self.get_graph_context(search_query)
+        text_results = self.text_search(search_query)
 
         # Apply weights
-        lexical_results = [(str(result), self.lexical_weight) for result in lexical_results]
-        semantic_results = [(str(result), self.semantic_weight) for result in semantic_results]
-        graph_results = [(str(result), self.graph_weight) for result in graph_results]
-        text_results = [(str(result), self.text_weight) for result in text_results]
+        lexical_results = [(str(result), settings.lexical_weight) for result in lexical_results]
+        semantic_results = [(str(result), settings.semantic_weight) for result in semantic_results]
+        graph_results = [(str(result), settings.graph_weight) for result in graph_results]
+        text_results = [(str(result), settings.text_weight) for result in text_results]
 
         # Combine all results and sort by weight
         all_results = lexical_results + semantic_results + graph_results + text_results
@@ -156,10 +145,10 @@ class SearchUtils:
                 seen.add(result)
 
         # Separate results back into their categories
-        lexical_results = [result for result, weight in unique_results if (result, self.lexical_weight) in lexical_results][:self.top_k]
-        semantic_results = [result for result, weight in unique_results if (result, self.semantic_weight) in semantic_results][:self.top_k]
-        graph_results = [result for result, weight in unique_results if (result, self.graph_weight) in graph_results][:self.top_k]
-        text_results = [result for result, weight in unique_results if (result, self.text_weight) in text_results][:self.top_k]
+        lexical_results = [result for result, weight in unique_results if (result, settings.lexical_weight) in lexical_results][:settings.top_k]
+        semantic_results = [result for result, weight in unique_results if (result, settings.semantic_weight) in semantic_results][:settings.top_k]
+        graph_results = [result for result, weight in unique_results if (result, settings.graph_weight) in graph_results][:settings.top_k]
+        text_results = [result for result, weight in unique_results if (result, settings.text_weight) in text_results][:settings.top_k]
 
         # Ensure all results are strings
         lexical_results = [str(result) for result in lexical_results]
@@ -173,25 +162,6 @@ class SearchUtils:
         logging.info(f"Number of text search results: {len(text_results)}")
 
         return lexical_results, semantic_results, graph_results, text_results
-
-# Setter functions for updating settings
-def set_top_k(value: int):
-    SearchUtils.top_k = value
-
-def set_entity_relevance_threshold(value: float):
-    SearchUtils.entity_relevance_threshold = value
-
-def set_search_weights(lexical_weight: float, semantic_weight: float, graph_weight: float, text_weight: float):
-    SearchUtils.lexical_weight = lexical_weight
-    SearchUtils.semantic_weight = semantic_weight
-    SearchUtils.graph_weight = graph_weight
-    SearchUtils.text_weight = text_weight
-
-def set_search_toggles(enable_lexical: bool, enable_semantic: bool, enable_graph: bool, enable_text: bool):
-    SearchUtils.enable_lexical_search = enable_lexical
-    SearchUtils.enable_semantic_search = enable_semantic
-    SearchUtils.enable_graph_search = enable_graph
-    SearchUtils.enable_text_search = enable_text
 
 FAMILY_RELATIONS = [
     "sister", "sisters", "brother", "brothers", "father", "mother", "parent", "parents",

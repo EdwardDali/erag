@@ -10,8 +10,8 @@ from run_model import RAGSystem
 from embeddings_utils import compute_and_save_embeddings, load_or_compute_embeddings
 from sentence_transformers import SentenceTransformer
 from create_graph import create_knowledge_graph
-from settings import SettingsManager
-from search_utils import SearchUtils, set_top_k, set_entity_relevance_threshold, set_search_weights, set_search_toggles
+from settings import settings
+from search_utils import SearchUtils
 from create_knol import KnolCreator
 
 class ERAGGUI:
@@ -21,7 +21,7 @@ class ERAGGUI:
         self.api_type_var = tk.StringVar(master)
         self.api_type_var.set("ollama")  # Default value
         self.rag_system = None
-        self.model = SentenceTransformer("all-MiniLM-L6-v2")
+        self.model = SentenceTransformer(settings.model_name)
         self.db_embeddings = None
         self.db_indexes = None
         self.db_content = None
@@ -30,9 +30,6 @@ class ERAGGUI:
         # Create the notebook
         self.notebook = ttk.Notebook(self.master)
         self.notebook.pack(expand=True, fill="both", padx=10, pady=10)
-
-        # Initialize SettingsManager after creating the notebook
-        self.settings_manager = SettingsManager(self.notebook)
 
         self.create_widgets()
 
@@ -43,10 +40,11 @@ class ERAGGUI:
         self.main_tab = ttk.Frame(self.notebook)
         self.notebook.add(self.main_tab, text="Main")
 
-        self.settings_tab = self.settings_manager.get_settings_tab()
+        self.settings_tab = ttk.Frame(self.notebook)
         self.notebook.add(self.settings_tab, text="Settings")
 
         self.create_main_tab()
+        self.create_settings_tab()
 
     def create_main_tab(self):
         self.create_upload_frame()
@@ -89,34 +87,123 @@ class ERAGGUI:
         create_knol_button = tk.Button(model_frame, text="Create Knol", command=self.create_knol)
         create_knol_button.pack(side="left", padx=5, pady=5)
 
+    def create_settings_tab(self):
+        # Create frames for different setting categories
+        general_frame = ttk.LabelFrame(self.settings_tab, text="General Settings")
+        general_frame.grid(row=0, column=0, padx=10, pady=5, sticky="nsew")
+
+        file_frame = ttk.LabelFrame(self.settings_tab, text="File Settings")
+        file_frame.grid(row=1, column=0, padx=10, pady=5, sticky="nsew")
+
+        search_frame = ttk.LabelFrame(self.settings_tab, text="Search Settings")
+        search_frame.grid(row=2, column=0, padx=10, pady=5, sticky="nsew")
+
+        # Create and layout settings fields
+        self.create_settings_fields(general_frame, [
+            ("Chunk Size", "chunk_size"),
+            ("Overlap Size", "overlap_size"),
+            ("Batch Size", "batch_size"),
+            ("Max History Length", "max_history_length"),
+            ("Conversation Context Size", "conversation_context_size"),
+            ("Update Threshold", "update_threshold"),
+            ("Ollama Model", "ollama_model"),
+            ("Temperature", "temperature"),
+            ("Number of Questions", "num_questions"),
+        ])
+
+        self.create_settings_fields(file_frame, [
+            ("DB File Path", "db_file_path"),
+            ("Embeddings File Path", "embeddings_file_path"),
+            ("Knowledge Graph File Path", "knowledge_graph_file_path"),
+            ("Results File Path", "results_file_path"),
+        ])
+
+        self.create_settings_fields(search_frame, [
+            ("Top K", "top_k"),
+            ("Entity Relevance Threshold", "entity_relevance_threshold"),
+            ("Lexical Weight", "lexical_weight"),
+            ("Semantic Weight", "semantic_weight"),
+            ("Graph Weight", "graph_weight"),
+            ("Text Weight", "text_weight"),
+        ])
+
+        # Create checkboxes for boolean settings
+        checkbox_frame = ttk.Frame(search_frame)
+        checkbox_frame.grid(row=len(search_frame.grid_slaves()), column=0, columnspan=2, sticky="w")
+        self.create_checkbox(checkbox_frame, "Enable Lexical Search", "enable_lexical_search", 0, 0)
+        self.create_checkbox(checkbox_frame, "Enable Semantic Search", "enable_semantic_search", 0, 1)
+        self.create_checkbox(checkbox_frame, "Enable Graph Search", "enable_graph_search", 1, 0)
+        self.create_checkbox(checkbox_frame, "Enable Text Search", "enable_text_search", 1, 1)
+
+        # Add buttons for settings management
+        button_frame = ttk.Frame(self.settings_tab)
+        button_frame.grid(row=3, column=0, padx=10, pady=5, sticky="nsew")
+
+        ttk.Button(button_frame, text="Apply Settings", command=self.apply_settings).grid(row=0, column=0, padx=5)
+        ttk.Button(button_frame, text="Reset to Defaults", command=self.reset_settings).grid(row=0, column=1, padx=5)
+
+    def create_settings_fields(self, parent, fields):
+        for i, (label, key) in enumerate(fields):
+            ttk.Label(parent, text=label).grid(row=i, column=0, sticky="e", padx=5, pady=2)
+            value = getattr(settings, key)
+            var = tk.StringVar(value=str(value))
+            entry = ttk.Entry(parent, textvariable=var)
+            entry.grid(row=i, column=1, sticky="w", padx=5, pady=2)
+            setattr(self, f"{key}_var", var)
+
+    def create_checkbox(self, parent, text, key, row, column):
+        var = tk.BooleanVar(value=getattr(settings, key))
+        ttk.Checkbutton(parent, text=text, variable=var).grid(row=row, column=column, sticky="w", padx=5, pady=2)
+        setattr(self, f"{key}_var", var)
+
+    def apply_settings(self):
+        for key in dir(settings):
+            if not key.startswith('_') and hasattr(self, f"{key}_var"):
+                value = getattr(self, f"{key}_var").get()
+                if isinstance(getattr(settings, key), bool):
+                    value = bool(value)
+                elif isinstance(getattr(settings, key), int):
+                    value = int(value)
+                elif isinstance(getattr(settings, key), float):
+                    value = float(value)
+                settings.update_setting(key, value)
+        
+        settings.apply_settings()
+        messagebox.showinfo("Settings", "Settings applied successfully")
+
+    def reset_settings(self):
+        settings.reset_to_defaults()
+        self.update_settings_display()
+        messagebox.showinfo("Settings", "Settings reset to defaults")
+
+    def update_settings_display(self):
+        for key in dir(settings):
+            if not key.startswith('_') and hasattr(self, f"{key}_var"):
+                getattr(self, f"{key}_var").set(str(getattr(settings, key)))
+
     def create_knol(self):
         try:
             api_type = self.api_type_var.get()
             creator = KnolCreator(api_type)
             
-            # Set the number of questions from the settings
-            num_questions = self.settings_manager.num_questions_var.get()
-            creator.set_num_questions(num_questions)
+            creator.set_num_questions(settings.num_questions)
             
-            db_file_path = self.settings_manager.db_file_path_var.get()
-            if os.path.exists(db_file_path):
-                with open(db_file_path, "r", encoding="utf-8") as db_file:
+            if os.path.exists(settings.db_file_path):
+                with open(settings.db_file_path, "r", encoding="utf-8") as db_file:
                     creator.db_content = db_file.readlines()
             else:
                 creator.db_content = None
 
-            embeddings_file_path = self.settings_manager.embeddings_file_path_var.get()
-            if os.path.exists(embeddings_file_path):
+            if os.path.exists(settings.embeddings_file_path):
                 creator.db_embeddings, _, _ = load_or_compute_embeddings(
                     self.model, 
-                    db_file_path, 
-                    embeddings_file_path
+                    settings.db_file_path, 
+                    settings.embeddings_file_path
                 )
             else:
                 creator.db_embeddings = None
 
-            knowledge_graph_file_path = self.settings_manager.knowledge_graph_file_path_var.get()
-            if os.path.exists(knowledge_graph_file_path):
+            if os.path.exists(settings.knowledge_graph_file_path):
                 creator.knowledge_graph = self.knowledge_graph
             else:
                 creator.knowledge_graph = None
@@ -145,18 +232,15 @@ class ERAGGUI:
 
     def execute_embeddings(self):
         try:
-            db_file_path = self.settings_manager.db_file_path_var.get()
-            embeddings_file_path = self.settings_manager.embeddings_file_path_var.get()
-            
-            if not os.path.exists(db_file_path):
-                messagebox.showwarning("Warning", f"{db_file_path} not found. Please upload some documents first.")
+            if not os.path.exists(settings.db_file_path):
+                messagebox.showwarning("Warning", f"{settings.db_file_path} not found. Please upload some documents first.")
                 return
 
             # Process db.txt
             self.db_embeddings, self.db_indexes, self.db_content = load_or_compute_embeddings(
                 self.model, 
-                db_file_path, 
-                embeddings_file_path
+                settings.db_file_path, 
+                settings.embeddings_file_path
             )
             messagebox.showinfo("Success", f"Embeddings computed and saved successfully. Shape: {self.db_embeddings.shape}")
 
@@ -165,15 +249,12 @@ class ERAGGUI:
 
     def create_knowledge_graph(self):
         try:
-            db_file_path = self.settings_manager.db_file_path_var.get()
-            embeddings_file_path = self.settings_manager.embeddings_file_path_var.get()
-            
-            if not os.path.exists(db_file_path) or not os.path.exists(embeddings_file_path):
-                messagebox.showwarning("Warning", f"{db_file_path} or {embeddings_file_path} not found. Please upload documents and execute embeddings first.")
+            if not os.path.exists(settings.db_file_path) or not os.path.exists(settings.embeddings_file_path):
+                messagebox.showwarning("Warning", f"{settings.db_file_path} or {settings.embeddings_file_path} not found. Please upload documents and execute embeddings first.")
                 return
 
-            self.knowledge_graph = create_knowledge_graph()  # Call the imported function
-            messagebox.showinfo("Success", f"Knowledge graph created with {self.knowledge_graph.number_of_nodes()} nodes and {self.knowledge_graph.number_of_edges()} edges, and saved as {self.settings_manager.knowledge_graph_file_path_var.get()}.")
+            self.knowledge_graph = create_knowledge_graph()
+            messagebox.showinfo("Success", f"Knowledge graph created with {self.knowledge_graph.number_of_nodes()} nodes and {self.knowledge_graph.number_of_edges()} edges, and saved as {settings.knowledge_graph_file_path}.")
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred while creating the knowledge graph: {str(e)}")
 
@@ -183,7 +264,7 @@ class ERAGGUI:
             self.rag_system = RAGSystem(api_type)
             
             # Apply settings to RAGSystem
-            self.apply_settings_to_rag_system()
+            settings.apply_settings()
             
             # Run the CLI in a separate thread to keep the GUI responsive
             threading.Thread(target=self.rag_system.run, daemon=True).start()
@@ -192,43 +273,8 @@ class ERAGGUI:
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred while starting the RAG system: {str(e)}")
 
-    def apply_settings_to_rag_system(self):
-        # Apply settings from SettingsManager to RAGSystem
-        from run_model import (set_max_history_length, set_conversation_context_size,
-                               set_update_threshold, set_ollama_model, set_temperature,
-                               set_embeddings_file, set_db_file, set_model_name,
-                               set_knowledge_graph_file, set_results_file)
-
-        set_max_history_length(self.settings_manager.max_history_length_var.get())
-        set_conversation_context_size(self.settings_manager.conversation_context_size_var.get())
-        set_update_threshold(self.settings_manager.update_threshold_var.get())
-        set_ollama_model(self.settings_manager.ollama_model_var.get())
-        set_temperature(self.settings_manager.temperature_var.get())
-        set_embeddings_file(self.settings_manager.embeddings_file_path_var.get())
-        set_db_file(self.settings_manager.db_file_path_var.get())
-        set_model_name(self.settings_manager.model_name_var.get())
-        set_knowledge_graph_file(self.settings_manager.knowledge_graph_file_path_var.get())
-        set_results_file(self.settings_manager.results_file_path_var.get())
-
-        # Apply settings to SearchUtils
-        set_top_k(self.settings_manager.top_k_var.get())
-        set_entity_relevance_threshold(self.settings_manager.entity_relevance_threshold_var.get())
-        set_search_weights(
-            self.settings_manager.lexical_weight_var.get(),
-            self.settings_manager.semantic_weight_var.get(),
-            self.settings_manager.graph_weight_var.get(),
-            self.settings_manager.text_weight_var.get()
-        )
-        set_search_toggles(
-            self.settings_manager.enable_lexical_search_var.get(),
-            self.settings_manager.enable_semantic_search_var.get(),
-            self.settings_manager.enable_graph_search_var.get(),
-            self.settings_manager.enable_text_search_var.get()
-        )
-
     def on_closing(self):
-        if self.settings_manager:
-            self.settings_manager.save_current_config()
+        settings.save_settings()
         self.master.destroy()
 
 def main():
@@ -237,4 +283,5 @@ def main():
     root.mainloop()
 
 if __name__ == "__main__":
+    settings.load_settings()
     main()

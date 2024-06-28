@@ -12,6 +12,7 @@ from openai import OpenAI
 import networkx as nx
 import json
 from search_utils import SearchUtils
+from settings import settings
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -24,58 +25,46 @@ class ANSIColor(Enum):
     RESET = '\033[0m'
 
 class RAGSystem:
-    # Class variables (settings)
-    MAX_HISTORY_LENGTH = 5
-    EMBEDDINGS_FILE = "db_embeddings.pt"
-    DB_FILE = "db.txt"
-    MODEL_NAME = "all-MiniLM-L6-v2"
-    OLLAMA_MODEL = "phi3:instruct"
-    UPDATE_THRESHOLD = 10
-    CONVERSATION_CONTEXT_SIZE = 3
-    KNOWLEDGE_GRAPH_FILE = "knowledge_graph.json"
-    RESULTS_FILE = "results.txt"
-    TEMPERATURE = 0.1
-
     def __init__(self, api_type: str):
         self.client = self.configure_api(api_type)
-        self.model = SentenceTransformer(self.MODEL_NAME)
+        self.model = SentenceTransformer(settings.model_name)
         self.db_embeddings, _, _ = self.load_embeddings()
         self.db_content = self.load_db_content()
         self.conversation_history = []
         self.new_entries = []
-        self.conversation_context = deque(maxlen=self.CONVERSATION_CONTEXT_SIZE * 2)
+        self.conversation_context = deque(maxlen=settings.conversation_context_size * 2)
         self.knowledge_graph = self.load_knowledge_graph()
         self.search_utils = SearchUtils(self.model, self.db_embeddings, self.db_content, self.knowledge_graph)
 
     @staticmethod
     def configure_api(api_type: str) -> OpenAI:
         if api_type == "ollama":
-            return OpenAI(base_url='http://localhost:11434/v1', api_key='phi3:instruct')
+            return OpenAI(base_url='http://localhost:11434/v1', api_key=settings.ollama_model)
         elif api_type == "llama":
             return OpenAI(base_url='http://localhost:8080/v1', api_key='sk-no-key-required')
         else:
             raise ValueError("Invalid API type")
 
     def load_embeddings(self):
-        embeddings, indexes, content = load_embeddings_and_data(self.EMBEDDINGS_FILE)
+        embeddings, indexes, content = load_embeddings_and_data(settings.embeddings_file_path)
         if embeddings is None or indexes is None or content is None:
-            logging.error(f"Failed to load data from {self.EMBEDDINGS_FILE}. Make sure the file exists and is properly formatted.")
+            logging.error(f"Failed to load data from {settings.embeddings_file_path}. Make sure the file exists and is properly formatted.")
             return torch.tensor([]), torch.tensor([]), []
         return embeddings, indexes, content
     
     def load_db_content(self):
-        if os.path.exists(self.DB_FILE):
-            with open(self.DB_FILE, "r", encoding='utf-8') as db_file:
+        if os.path.exists(settings.db_file_path):
+            with open(settings.db_file_path, "r", encoding='utf-8') as db_file:
                 return db_file.readlines()
         return []
 
     def load_knowledge_graph(self):
         try:
-            if not os.path.exists(self.KNOWLEDGE_GRAPH_FILE):
-                logging.warning(f"Knowledge graph file {self.KNOWLEDGE_GRAPH_FILE} not found.")
+            if not os.path.exists(settings.knowledge_graph_file_path):
+                logging.warning(f"Knowledge graph file {settings.knowledge_graph_file_path} not found.")
                 return nx.Graph()
 
-            with open(self.KNOWLEDGE_GRAPH_FILE, 'r') as file:
+            with open(settings.knowledge_graph_file_path, 'r') as file:
                 graph_data = json.load(file)
             
             G = nx.node_link_graph(graph_data)
@@ -120,9 +109,9 @@ Text Search Results:
 
         try:
             response = self.client.chat.completions.create(
-                model=self.OLLAMA_MODEL,
+                model=settings.ollama_model,
                 messages=messages,
-                temperature=self.TEMPERATURE
+                temperature=settings.temperature
             ).choices[0].message.content
 
             # Save debug results
@@ -138,7 +127,7 @@ Text Search Results:
                            graph_context: List[str], 
                            text_context: List[str],
                            response: str):
-        with open(self.RESULTS_FILE, "a", encoding="utf-8") as f:
+        with open(settings.results_file_path, "a", encoding="utf-8") as f:
             f.write(f"User Input: {user_input}\n\n")
             f.write("Lexical Search Results:\n")
             for i, content in enumerate(lexical_context, 1):
@@ -185,8 +174,8 @@ Text Search Results:
             self.conversation_history.append({"role": "assistant", "content": response})
             self.update_conversation_context(user_input, response)
 
-            if len(self.conversation_history) > self.MAX_HISTORY_LENGTH * 2:
-                self.conversation_history = self.conversation_history[-self.MAX_HISTORY_LENGTH * 2:]
+            if len(self.conversation_history) > settings.max_history_length * 2:
+                self.conversation_history = self.conversation_history[-settings.max_history_length * 2:]
 
             self.append_to_db(self.conversation_history[-2:])
 
@@ -195,7 +184,7 @@ Text Search Results:
         self.conversation_context.append(assistant_response)
 
     def append_to_db(self, new_entries: List[Dict[str, str]]):
-        with open(self.DB_FILE, "a", encoding="utf-8") as db_file:
+        with open(settings.db_file_path, "a", encoding="utf-8") as db_file:
             for entry in new_entries:
                 db_file.write(f"{entry['role']}: {entry['content']}\n")
         self.new_entries.extend([entry['content'] for entry in new_entries])
@@ -204,7 +193,7 @@ Text Search Results:
         self.db_content.extend([f"{entry['role']}: {entry['content']}" for entry in new_entries])
 
     def update_embeddings(self):
-        if len(self.new_entries) >= self.UPDATE_THRESHOLD:
+        if len(self.new_entries) >= settings.update_threshold:
             logging.info("Updating embeddings...")
             new_embeddings = self.model.encode(self.new_entries, convert_to_tensor=True, show_progress_bar=False)
             self.db_embeddings = torch.cat([self.db_embeddings, new_embeddings], dim=0)
@@ -215,41 +204,10 @@ Text Search Results:
                 'indexes': torch.arange(len(self.db_content)),
                 'content': self.db_content
             }
-            torch.save(data_to_save, self.EMBEDDINGS_FILE)
+            torch.save(data_to_save, settings.embeddings_file_path)
             
             self.new_entries.clear()
             logging.info("Embeddings updated successfully.")
-
-# Setter functions for updating settings
-def set_max_history_length(value: int):
-    RAGSystem.MAX_HISTORY_LENGTH = value
-
-def set_conversation_context_size(value: int):
-    RAGSystem.CONVERSATION_CONTEXT_SIZE = value
-
-def set_update_threshold(value: int):
-    RAGSystem.UPDATE_THRESHOLD = value
-
-def set_ollama_model(value: str):
-    RAGSystem.OLLAMA_MODEL = value
-
-def set_temperature(value: float):
-    RAGSystem.TEMPERATURE = value
-
-def set_embeddings_file(value: str):
-    RAGSystem.EMBEDDINGS_FILE = value
-
-def set_db_file(value: str):
-    RAGSystem.DB_FILE = value
-
-def set_model_name(value: str):
-    RAGSystem.MODEL_NAME = value
-
-def set_knowledge_graph_file(value: str):
-    RAGSystem.KNOWLEDGE_GRAPH_FILE = value
-
-def set_results_file(value: str):
-    RAGSystem.RESULTS_FILE = value
 
 def main(api_type: str):
     rag_system = RAGSystem(api_type)
