@@ -42,11 +42,10 @@ class Settings:
         # Knol Creation Settings
         self.num_questions = 8
 
-        # Internet RAG Settings
-        self.crawl_database_path = "crawl_database.json"
-        self.search_engine = "Google"
-        self.num_results = 5
-        self.crawl_depth = 1
+        ## Internet RAG Settings
+        self.num_urls_to_crawl = 5
+        self.summary_size = 5000
+        self.final_summary_size = 10000
 
         # Search Settings
         self.top_k = 5

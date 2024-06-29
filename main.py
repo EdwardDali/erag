@@ -154,6 +154,7 @@ class ERAGGUI:
         knol_frame = self.create_labelframe(right_column, "Knol Creation Settings", 0)
         search_frame = self.create_labelframe(right_column, "Search Settings", 1)
         file_frame = self.create_labelframe(right_column, "File Settings", 2)
+        internet_rag_frame = self.create_labelframe(right_column, "Internet RAG Settings", 3)
 
         # Create and layout settings fields
         self.create_settings_fields(upload_frame, [
@@ -191,6 +192,12 @@ class ERAGGUI:
 
         self.create_settings_fields(knol_frame, [
             ("Number of Questions", "num_questions"),
+        ])
+
+        self.create_settings_fields(internet_rag_frame, [
+            ("Number of URLs to Crawl", "num_urls_to_crawl"),
+            ("Summary Size", "summary_size"),
+            ("Final Summary Size", "final_summary_size"),
         ])
 
         self.create_settings_fields(search_frame, [

@@ -53,7 +53,7 @@ class InternetRAG:
     def perform_search(self, query):
         search_results = []
         with DDGS() as ddgs:
-            for result in ddgs.text(query, region='wt-wt', safesearch='moderate', timelimit=None, max_results=settings.num_results):
+            for result in ddgs.text(query, region='wt-wt', safesearch='moderate', timelimit=None, max_results=settings.num_urls_to_crawl):
                 search_results.append({'url': result["href"], 'title': result["title"], 'body': result["body"]})
         
         return search_results
@@ -123,7 +123,7 @@ class InternetRAG:
 
     def create_summary(self, content, query, index):
         system_message = f"""You are an AI assistant tasked with summarizing web content related to a given query. 
-        Create a summary of approximately 5000 characters. Focus on the most relevant and important points related to the query: {query}."""
+        Create a summary of approximately {settings.summary_size} characters. Focus on the most relevant and important points related to the query: {query}."""
 
         user_message = f"Web content:\n{content}\n\nPlease summarize this content in relation to the query: {query}"
 
@@ -154,7 +154,7 @@ class InternetRAG:
         combined_summaries = ''.join(summaries)
         system_message = f"""You are an AI assistant tasked with creating a final summary of web search results. 
         You will be given a series of summaries from different web pages, all related to the query: {query}. 
-        Create a comprehensive final summary of approximately 10000 characters. 
+        Create a comprehensive final summary of approximately {settings.final_summary_size} characters. 
         Integrate information from all provided summaries, avoid redundancy, and ensure the final summary is well-structured and informative."""
 
         user_message = f"Individual summaries:\n{combined_summaries}\n\nPlease create a final comprehensive summary related to the query: {query}"
