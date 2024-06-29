@@ -2,14 +2,14 @@ import warnings
 warnings.filterwarnings("ignore", category=FutureWarning, module="huggingface_hub.file_download")
 
 import tkinter as tk
-from tkinter import messagebox, ttk
+from tkinter import messagebox, ttk, filedialog  # Add filedialog here
 import threading
 import os
 from file_processing import process_file, append_to_db
 from run_model import RAGSystem
 from embeddings_utils import compute_and_save_embeddings, load_or_compute_embeddings
 from sentence_transformers import SentenceTransformer
-from create_graph import create_knowledge_graph
+from create_graph import create_knowledge_graph, create_knowledge_graph_from_raw
 from settings import settings
 from search_utils import SearchUtils
 from create_knol import KnolCreator
@@ -62,7 +62,7 @@ class ERAGGUI:
             button.pack(side="left", padx=5, pady=5)
 
     def create_embeddings_frame(self):
-        embeddings_frame = tk.LabelFrame(self.main_tab, text="Embeddings")
+        embeddings_frame = tk.LabelFrame(self.main_tab, text="Embeddings and Graph")
         embeddings_frame.pack(fill="x", padx=10, pady=5)
 
         execute_embeddings_button = tk.Button(embeddings_frame, text="Execute Embeddings", 
@@ -72,6 +72,29 @@ class ERAGGUI:
         create_knowledge_graph_button = tk.Button(embeddings_frame, text="Create Knowledge Graph", 
                                                   command=self.create_knowledge_graph)
         create_knowledge_graph_button.pack(side="left", padx=5, pady=5)
+
+        create_knowledge_graph_raw_button = tk.Button(embeddings_frame, text="Create Knowledge Graph from Raw", 
+                                                      command=self.create_knowledge_graph_from_raw)
+        create_knowledge_graph_raw_button.pack(side="left", padx=5, pady=5)
+
+    def create_knowledge_graph_from_raw(self):
+        try:
+            raw_file_path = filedialog.askopenfilename(title="Select Raw Document File",
+                                                       filetypes=[("Text Files", "*.txt")])
+            if not raw_file_path:
+                messagebox.showwarning("Warning", "No file selected.")
+                return
+
+            self.knowledge_graph = create_knowledge_graph_from_raw(raw_file_path)
+            if self.knowledge_graph:
+                doc_nodes = [n for n, d in self.knowledge_graph.nodes(data=True) if d['type'] == 'document']
+                chunk_nodes = [n for n, d in self.knowledge_graph.nodes(data=True) if d['type'] == 'chunk']
+                entity_nodes = [n for n, d in self.knowledge_graph.nodes(data=True) if d['type'] == 'entity']
+                messagebox.showinfo("Success", f"Knowledge graph created from raw documents with {len(doc_nodes)} document nodes, {len(chunk_nodes)} chunk nodes, {len(entity_nodes)} entity nodes, and {self.knowledge_graph.number_of_edges()} edges. Saved as {settings.knowledge_graph_file_path}.")
+            else:
+                messagebox.showwarning("Warning", "Failed to create knowledge graph from raw documents.")
+        except Exception as e:
+            messagebox.showerror("Error", f"An error occurred while creating the knowledge graph from raw documents: {str(e)}")
 
     def create_model_frame(self):
         model_frame = tk.LabelFrame(self.main_tab, text="Model")

@@ -5,6 +5,7 @@ from tkinter import filedialog
 from typing import Optional, List, Tuple
 import logging
 import os
+from settings import settings
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -13,10 +14,9 @@ CHUNK_SIZE = 500
 OVERLAP_SIZE = 200
 
 def set_chunk_sizes(chunk_size: int, overlap_size: int):
-    global CHUNK_SIZE, OVERLAP_SIZE
-    CHUNK_SIZE = chunk_size
-    OVERLAP_SIZE = overlap_size
-    logging.info(f"Chunk size set to {CHUNK_SIZE} and overlap size set to {OVERLAP_SIZE}")
+    settings.file_chunk_size = chunk_size
+    settings.file_overlap_size = overlap_size
+    logging.info(f"File chunk size set to {settings.file_chunk_size} and overlap size set to {settings.file_overlap_size}")
 
 
 def format_db_entry(content: str) -> str:
@@ -65,7 +65,7 @@ def handle_text_chunking(text: str) -> List[str]:
     start = 0
 
     while start < len(text):
-        end = start + CHUNK_SIZE
+        end = start + settings.file_chunk_size
         chunk_text = text[start:end]
         
         # Ensure we don't cut words in half
@@ -78,7 +78,7 @@ def handle_text_chunking(text: str) -> List[str]:
         chunks.append(chunk_text.strip())
 
         # Move start for next chunk, ensuring overlap
-        start = end - OVERLAP_SIZE
+        start = end - settings.file_overlap_size
 
     return chunks
 

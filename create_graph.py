@@ -91,6 +91,47 @@ def create_networkx_graph(data: List[str], embeddings: torch.Tensor) -> nx.Graph
     
     return G
 
+def process_raw_document(document: str, model: SentenceTransformer) -> Tuple[List[str], torch.Tensor]:
+    chunks = chunk_document(document)
+    chunk_embeddings = model.encode(chunks, convert_to_tensor=True)
+    return chunks, chunk_embeddings
+
+def create_graph_from_raw(raw_documents: List[str], model: SentenceTransformer) -> nx.Graph:
+    G = nx.Graph()
+    entity_count = {}
+    all_chunk_embeddings = []
+    
+    for doc_idx, document in enumerate(raw_documents):
+        doc_node = f"doc_{doc_idx}"
+        G.add_node(doc_node, type='document', text=document[:1000])  # Store first 1000 chars as preview
+        
+        chunks, chunk_embeddings = process_raw_document(document, model)
+        all_chunk_embeddings.append(chunk_embeddings)
+        
+        for chunk_idx, chunk in enumerate(chunks):
+            chunk_node = f"doc_{doc_idx}_chunk_{chunk_idx}"
+            G.add_node(chunk_node, type='chunk', text=chunk)
+            G.add_edge(doc_node, chunk_node, relation='contains')
+            
+            entities = extract_entities_with_confidence(chunk)
+            for entity, entity_type, confidence in entities:
+                entity_count[entity] = entity_count.get(entity, 0) + 1
+                if entity_count[entity] >= settings.min_entity_occurrence:
+                    if not G.has_node(entity):
+                        G.add_node(entity, type='entity', entity_type=entity_type, confidence=confidence)
+                    G.add_edge(chunk_node, entity, relation='contains', confidence=confidence)
+    
+    if settings.enable_semantic_edges:
+        # Add semantic similarity edges between document nodes
+        doc_embeddings = torch.stack([torch.mean(emb, dim=0) for emb in all_chunk_embeddings])
+        for i in range(len(raw_documents)):
+            for j in range(i+1, len(raw_documents)):
+                similarity = util.pytorch_cos_sim(doc_embeddings[i], doc_embeddings[j]).item()
+                if similarity > settings.similarity_threshold:
+                    G.add_edge(f"doc_{i}", f"doc_{j}", relation='similar', weight=similarity, confidence=similarity)
+    
+    return G
+
 def save_graph_json(G: nx.Graph, file_path: str):
     graph_data = nx.node_link_data(G)
     with open(file_path, 'w', encoding='utf-8') as file:
@@ -106,6 +147,19 @@ def create_knowledge_graph():
     G = create_networkx_graph(content, embeddings)
     save_graph_json(G, settings.knowledge_graph_file_path)
     logging.info(f"NetworkX graph created with {G.number_of_nodes()} nodes and {G.number_of_edges()} edges.")
+    logging.info(f"Graph saved as {settings.knowledge_graph_file_path}")
+    return G
+
+def create_knowledge_graph_from_raw(raw_file_path: str):
+    model = SentenceTransformer(settings.model_name)
+    
+    with open(raw_file_path, 'r', encoding='utf-8') as f:
+        raw_documents = f.read().split("---DOCUMENT_SEPARATOR---")
+        raw_documents = [doc.strip() for doc in raw_documents if doc.strip()]
+    
+    G = create_graph_from_raw(raw_documents, model)
+    save_graph_json(G, settings.knowledge_graph_file_path)
+    logging.info(f"NetworkX graph created from raw documents with {G.number_of_nodes()} nodes and {G.number_of_edges()} edges.")
     logging.info(f"Graph saved as {settings.knowledge_graph_file_path}")
     return G
 
