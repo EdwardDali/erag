@@ -15,21 +15,13 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 # Global variables for settings
 NLP_MODEL = "en_core_web_sm"
 SIMILARITY_THRESHOLD = 0.7
-ENABLE_FAMILY_EXTRACTION = True
 MIN_ENTITY_OCCURRENCE = 1
 KNOWLEDGE_GRAPH_FILE = "knowledge_graph.json"
-EMBEDDINGS_FILE = "db_embeddings.pt"  # Add this line
+EMBEDDINGS_FILE = "db_embeddings.pt"
+CHUNK_SIZE = 5000  # Increased chunk size
 
 # Initialize NLP model
 nlp = spacy.load(NLP_MODEL)
-
-FAMILY_RELATIONS = [
-    "sister", "sisters", "brother", "brothers", "father", "mother", "parent", "parents",
-    "son", "sons", "daughter", "daughters", "husband", "wife", "spouse",
-    "grandfather", "grandmother", "grandparent", "grandparents",
-    "grandson", "granddaughter", "grandchild", "grandchildren",
-    "uncle", "aunt", "cousin", "cousins", "niece", "nephew"
-]
 
 def set_nlp_model(new_model: str):
     global NLP_MODEL, nlp
@@ -37,13 +29,11 @@ def set_nlp_model(new_model: str):
     nlp = spacy.load(NLP_MODEL)
     logging.info(f"NLP model set to {NLP_MODEL}")
 
-def set_graph_settings(similarity_threshold: float, enable_family_extraction: bool, min_entity_occurrence: int):
-    global SIMILARITY_THRESHOLD, ENABLE_FAMILY_EXTRACTION, MIN_ENTITY_OCCURRENCE
+def set_graph_settings(similarity_threshold: float, min_entity_occurrence: int):
+    global SIMILARITY_THRESHOLD, MIN_ENTITY_OCCURRENCE
     SIMILARITY_THRESHOLD = similarity_threshold
-    ENABLE_FAMILY_EXTRACTION = enable_family_extraction
     MIN_ENTITY_OCCURRENCE = min_entity_occurrence
     logging.info(f"Graph settings updated: Similarity Threshold={SIMILARITY_THRESHOLD}, "
-                 f"Enable Family Extraction={ENABLE_FAMILY_EXTRACTION}, "
                  f"Min Entity Occurrence={MIN_ENTITY_OCCURRENCE}")
 
 def set_knowledge_graph_file(new_file: str):
@@ -51,7 +41,7 @@ def set_knowledge_graph_file(new_file: str):
     KNOWLEDGE_GRAPH_FILE = new_file
     logging.info(f"Knowledge graph file set to {KNOWLEDGE_GRAPH_FILE}")
 
-def set_embeddings_file(new_file: str):  # Add this function
+def set_embeddings_file(new_file: str):
     global EMBEDDINGS_FILE
     EMBEDDINGS_FILE = new_file
     logging.info(f"Embeddings file set to {EMBEDDINGS_FILE}")
@@ -59,56 +49,53 @@ def set_embeddings_file(new_file: str):  # Add this function
 def preprocess_text(text: str) -> str:
     return ' '.join(text.split())
 
-def extract_key_entities(text: str) -> List[Tuple[str, str]]:
+def extract_entities_with_confidence(text: str) -> List[Tuple[str, str, float]]:
     doc = nlp(text)
-    key_entities = []
+    entities = []
     for ent in doc.ents:
-        if ent.label_ in ['PERSON', 'ORG', 'GPE', 'LOC', 'PRODUCT', 'EVENT', 'WORK_OF_ART']:
-            key_entities.append((ent.text, ent.label_))
-    return key_entities
+        # Calculate a simple confidence score based on entity length and label
+        confidence = min(1.0, (len(ent.text) / 10) * (1 if ent.label_ in ['PERSON', 'ORG', 'GPE'] else 0.7))
+        entities.append((ent.text, ent.label_, confidence))
+    return entities
 
-def extract_family_relations(text: str) -> List[Tuple[str, str, str]]:
-    doc = nlp(text)
-    family_triples = []
+def chunk_document(document: str, chunk_size: int = CHUNK_SIZE) -> List[str]:
+    sentences = sent_tokenize(document)
+    chunks = []
+    current_chunk = ""
     
-    for sent in doc.sents:
-        entities = [ent for ent in sent.ents if ent.label_ == 'PERSON']
-        for i, entity1 in enumerate(entities):
-            for j in range(i+1, len(entities)):
-                entity2 = entities[j]
-                sent_text = sent.text.lower()
-                for relation in FAMILY_RELATIONS:
-                    if relation in sent_text:
-                        # Check if the relation is between the two entities
-                        if sent_text.index(entity1.text.lower()) < sent_text.index(relation) < sent_text.index(entity2.text.lower()):
-                            family_triples.append((entity1.text, relation, entity2.text))
-                        elif sent_text.index(entity2.text.lower()) < sent_text.index(relation) < sent_text.index(entity1.text.lower()):
-                            family_triples.append((entity2.text, relation, entity1.text))
+    for sentence in sentences:
+        if len(current_chunk) + len(sentence) <= chunk_size:
+            current_chunk += " " + sentence
+        else:
+            chunks.append(current_chunk.strip())
+            current_chunk = sentence
     
-    return family_triples
+    if current_chunk:
+        chunks.append(current_chunk.strip())
+    
+    return chunks
 
 def create_networkx_graph(data: List[str], embeddings: torch.Tensor) -> nx.Graph:
     G = nx.Graph()
     entity_count = {}
     
-    for i, chunk in enumerate(data):
-        chunk = preprocess_text(chunk)
-        key_entities = extract_key_entities(chunk)
-        family_triples = extract_family_relations(chunk) if ENABLE_FAMILY_EXTRACTION else []
+    for doc_idx, document in enumerate(data):
+        doc_node = f"doc_{doc_idx}"
+        G.add_node(doc_node, type='document', text=document)
         
-        doc_node = f"doc_{i}"
-        G.add_node(doc_node, type='document', text=chunk)
-        
-        for entity, entity_type in key_entities:
-            entity_count[entity] = entity_count.get(entity, 0) + 1
-            if entity_count[entity] >= MIN_ENTITY_OCCURRENCE:
-                if not G.has_node(entity):
-                    G.add_node(entity, type='entity', entity_type=entity_type)
-                G.add_edge(doc_node, entity, relation='contains')
-        
-        for subj, rel, obj in family_triples:
-            if entity_count.get(subj, 0) >= MIN_ENTITY_OCCURRENCE and entity_count.get(obj, 0) >= MIN_ENTITY_OCCURRENCE:
-                G.add_edge(subj, obj, relation=rel)
+        chunks = chunk_document(document)
+        for chunk_idx, chunk in enumerate(chunks):
+            chunk_node = f"doc_{doc_idx}_chunk_{chunk_idx}"
+            G.add_node(chunk_node, type='chunk', text=chunk)
+            G.add_edge(doc_node, chunk_node, relation='contains')
+            
+            entities = extract_entities_with_confidence(chunk)
+            for entity, entity_type, confidence in entities:
+                entity_count[entity] = entity_count.get(entity, 0) + 1
+                if entity_count[entity] >= MIN_ENTITY_OCCURRENCE:
+                    if not G.has_node(entity):
+                        G.add_node(entity, type='entity', entity_type=entity_type, confidence=confidence)
+                    G.add_edge(chunk_node, entity, relation='contains', confidence=confidence)
     
     # Add semantic similarity edges between document nodes
     doc_nodes = [n for n, d in G.nodes(data=True) if d['type'] == 'document']
@@ -117,7 +104,7 @@ def create_networkx_graph(data: List[str], embeddings: torch.Tensor) -> nx.Graph
             node2 = doc_nodes[j]
             similarity = util.pytorch_cos_sim(embeddings[i], embeddings[j]).item()
             if similarity > SIMILARITY_THRESHOLD:
-                G.add_edge(node1, node2, relation='similar', weight=similarity)
+                G.add_edge(node1, node2, relation='similar', weight=similarity, confidence=similarity)
     
     return G
 

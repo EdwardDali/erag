@@ -281,7 +281,13 @@ class ERAGGUI:
                 return
 
             self.knowledge_graph = create_knowledge_graph()
-            messagebox.showinfo("Success", f"Knowledge graph created with {self.knowledge_graph.number_of_nodes()} nodes and {self.knowledge_graph.number_of_edges()} edges, and saved as {settings.knowledge_graph_file_path}.")
+            if self.knowledge_graph:
+                doc_nodes = [n for n, d in self.knowledge_graph.nodes(data=True) if d['type'] == 'document']
+                chunk_nodes = [n for n, d in self.knowledge_graph.nodes(data=True) if d['type'] == 'chunk']
+                entity_nodes = [n for n, d in self.knowledge_graph.nodes(data=True) if d['type'] == 'entity']
+                messagebox.showinfo("Success", f"Knowledge graph created with {len(doc_nodes)} document nodes, {len(chunk_nodes)} chunk nodes, {len(entity_nodes)} entity nodes, and {self.knowledge_graph.number_of_edges()} edges. Saved as {settings.knowledge_graph_file_path}.")
+            else:
+                messagebox.showwarning("Warning", "Failed to create knowledge graph.")
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred while creating the knowledge graph: {str(e)}")
 

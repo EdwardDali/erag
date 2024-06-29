@@ -51,44 +51,32 @@ class SearchUtils:
             if data.get('type') == 'entity':
                 entity_name = node
                 entity_type = data.get('entity_type', 'Unknown')
-                connected_docs = [n for n in self.knowledge_graph.neighbors(node) if n.startswith('doc_')]
-                family_relations = [
-                    (node, edge_data['relation'], neighbor) 
-                    for neighbor, edge_data in self.knowledge_graph[node].items() 
-                    if 'relation' in edge_data and edge_data['relation'] in FAMILY_RELATIONS
-                ]
+                confidence = data.get('confidence', 0.5)  # Default confidence if not set
+                connected_chunks = [n for n in self.knowledge_graph.neighbors(node) if self.knowledge_graph.nodes[n]['type'] == 'chunk']
+                connected_docs = set([self.get_parent_document(chunk) for chunk in connected_chunks])
                 
                 relevance_score = 1 if entity_name.lower() in query.lower() else 0
-                relevance_score += len(connected_docs) * 0.1
-                relevance_score += len(family_relations) * 0.2
+                relevance_score += len(connected_chunks) * 0.1
+                relevance_score += len(connected_docs) * 0.2
+                relevance_score *= confidence  # Adjust relevance based on confidence
                 
                 if relevance_score >= settings.entity_relevance_threshold:
-                    node_scores.append((node, entity_type, connected_docs, family_relations, relevance_score))
+                    node_scores.append((node, entity_type, connected_chunks, relevance_score))
 
-        top_entities = sorted(node_scores, key=lambda x: x[4], reverse=True)[:settings.top_k]
+        top_entities = sorted(node_scores, key=lambda x: x[3], reverse=True)[:settings.top_k]
         
-        if not top_entities:
-            return []
-
         context = []
-        for entity, entity_type, connected_docs, family_relations, _ in top_entities:
+        for entity, entity_type, connected_chunks, _ in top_entities:
             entity_info = f"Entity: {entity} (Type: {entity_type})"
-            doc_contexts = []
-            for doc in connected_docs[:3]:
-                doc_text = self.knowledge_graph.nodes[doc].get('text', '')
-                doc_contexts.append(doc_text)
+            chunk_contexts = []
+            for chunk in connected_chunks[:3]:
+                chunk_text = self.knowledge_graph.nodes[chunk].get('text', '')
+                chunk_contexts.append(chunk_text)
             
             related_entities = [n for n in self.knowledge_graph.neighbors(entity) if self.knowledge_graph.nodes[n]['type'] == 'entity']
             related_info = f"Related Entities: {', '.join(related_entities[:5])}"
             
-            family_info = "Family Relations:"
-            for rel in family_relations:
-                if rel[0] == entity:
-                    family_info += f"\n{entity} is the {rel[1]} of {rel[2]}"
-                else:
-                    family_info += f"\n{rel[0]} is the {rel[1]} of {entity}"
-            
-            context_text = f"{entity_info}\n{related_info}\n{family_info}\nRelevant Documents:\n" + "\n".join(doc_contexts)
+            context_text = f"{entity_info}\n{related_info}\nRelevant Chunks:\n" + "\n".join(chunk_contexts)
             context.append(context_text)
 
         return context
@@ -108,6 +96,12 @@ class SearchUtils:
         doc = self.nlp(text)
         return [ent.text for ent in doc.ents]
 
+    def get_parent_document(self, chunk_node: str) -> str:
+        for neighbor in self.knowledge_graph.neighbors(chunk_node):
+            if self.knowledge_graph.nodes[neighbor]['type'] == 'document':
+                return neighbor
+        return None
+
     def get_relevant_context(self, user_input: str, conversation_context: List[str]) -> Tuple[List[str], List[str], List[str], List[str]]:
         logging.info(f"DB Embeddings shape: {self.db_embeddings.shape if hasattr(self.db_embeddings, 'shape') else 'No shape attribute'}")
         logging.info(f"DB Content length: {len(self.db_content)}")
@@ -126,47 +120,9 @@ class SearchUtils:
         graph_results = self.get_graph_context(search_query)
         text_results = self.text_search(search_query)
 
-        # Apply weights
-        lexical_results = [(str(result), settings.lexical_weight) for result in lexical_results]
-        semantic_results = [(str(result), settings.semantic_weight) for result in semantic_results]
-        graph_results = [(str(result), settings.graph_weight) for result in graph_results]
-        text_results = [(str(result), settings.text_weight) for result in text_results]
-
-        # Combine all results and sort by weight
-        all_results = lexical_results + semantic_results + graph_results + text_results
-        all_results.sort(key=lambda x: x[1], reverse=True)
-
-        # Remove duplicates while preserving order
-        seen = set()
-        unique_results = []
-        for result, weight in all_results:
-            if result not in seen:
-                unique_results.append((result, weight))
-                seen.add(result)
-
-        # Separate results back into their categories
-        lexical_results = [result for result, weight in unique_results if (result, settings.lexical_weight) in lexical_results][:settings.top_k]
-        semantic_results = [result for result, weight in unique_results if (result, settings.semantic_weight) in semantic_results][:settings.top_k]
-        graph_results = [result for result, weight in unique_results if (result, settings.graph_weight) in graph_results][:settings.top_k]
-        text_results = [result for result, weight in unique_results if (result, settings.text_weight) in text_results][:settings.top_k]
-
-        # Ensure all results are strings
-        lexical_results = [str(result) for result in lexical_results]
-        semantic_results = [str(result) for result in semantic_results]
-        graph_results = [str(result) for result in graph_results]
-        text_results = [str(result) for result in text_results]
-
         logging.info(f"Number of lexical results: {len(lexical_results)}")
         logging.info(f"Number of semantic results: {len(semantic_results)}")
         logging.info(f"Number of graph results: {len(graph_results)}")
         logging.info(f"Number of text search results: {len(text_results)}")
 
         return lexical_results, semantic_results, graph_results, text_results
-
-FAMILY_RELATIONS = [
-    "sister", "sisters", "brother", "brothers", "father", "mother", "parent", "parents",
-    "son", "sons", "daughter", "daughters", "husband", "wife", "spouse",
-    "grandfather", "grandmother", "grandparent", "grandparents",
-    "grandson", "granddaughter", "grandchild", "grandchildren",
-    "uncle", "aunt", "cousin", "cousins", "niece", "nephew"
-]
