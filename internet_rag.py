@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+# -*- coding: utf-8 -*-
+
 import requests
 from bs4 import BeautifulSoup
 import json
@@ -10,6 +12,9 @@ from urllib.parse import urljoin, quote_plus
 from settings import settings
 from run_model import ANSIColor
 from openai import OpenAI
+import random
+import time
+from duckduckgo_search import DDGS
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -19,6 +24,12 @@ class InternetRAG:
         self.crawl_database = {}
         self.load_crawl_database()
         self.client = self.configure_api(api_type)
+        self.session = requests.Session()
+        self.session.headers.update({
+            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.5"
+        })
 
     @staticmethod
     def configure_api(api_type: str) -> OpenAI:
@@ -60,48 +71,57 @@ class InternetRAG:
         return crawled_data
 
     def perform_search(self, query):
-        search_engines = [
-            ("https://duckduckgo.com/html/?q={}", self.parse_duckduckgo),
-            ("https://www.bing.com/search?q={}", self.parse_bing),
-            ("https://search.yahoo.com/search?p={}", self.parse_yahoo),
-            ("https://www.qwant.com/?q={}", self.parse_qwant),
-            ("https://www.startpage.com/do/search?q={}", self.parse_startpage),
-            ("https://www.google.com/search?q={}", self.parse_google)
-        ]
-        
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-        }
-
         search_results = []
-        for search_url, parse_function in search_engines:
-            try:
-                formatted_url = search_url.format(quote_plus(query))
-                logging.info(f"Trying search engine: {formatted_url}")
-                response = requests.get(formatted_url, headers=headers, timeout=10)
-                soup = BeautifulSoup(response.text, 'html.parser')
+        
+        # First, try DuckDuckGo search
+        ddg_results = self.search_duckduckgo(query, settings.num_results)
+        search_results.extend(ddg_results)
+        
+        # If we don't have enough results, fall back to other search engines
+        if len(search_results) < settings.num_results:
+            fallback_engines = [
+                ("https://www.bing.com/search?q={}", self.parse_bing),
+                ("https://search.yahoo.com/search?p={}", self.parse_yahoo),
+                ("https://www.qwant.com/?q={}", self.parse_qwant),
+                ("https://www.startpage.com/do/search?q={}", self.parse_startpage),
+                ("https://www.google.com/search?q={}", self.parse_google)
+            ]
+            
+            random.shuffle(fallback_engines)
+            
+            for search_url, parse_function in fallback_engines:
+                if len(search_results) >= settings.num_results:
+                    break
                 
-                results = parse_function(soup)
+                try:
+                    formatted_url = search_url.format(quote_plus(query))
+                    logging.info(f"Trying search engine: {formatted_url}")
+                    response = self.session.get(formatted_url, timeout=15)
+                    response.raise_for_status()
+                    soup = BeautifulSoup(response.text, 'html.parser')
+                    
+                    results = parse_function(soup)
+                    
+                    for href in results:
+                        if href and href.startswith('http') and not href.startswith('http://go.microsoft.com'):
+                            search_results.append(href)
+                        if len(search_results) >= settings.num_results:
+                            break
+                    
+                    time.sleep(random.uniform(1, 3))  # Add a random delay between requests
                 
-                logging.debug(f"Raw results from {formatted_url}: {results[:5]}")  # Debug: show first 5 raw results
-                
-                for href in results:
-                    if href and href.startswith('http') and not href.startswith('http://go.microsoft.com'):
-                        search_results.append(href)
-                    if len(search_results) >= settings.num_results:
-                        break
-                
-                if search_results:
-                    logging.info(f"Found {len(search_results)} search results from {formatted_url}")
-                    break  # Exit the loop if we have results
-                else:
-                    logging.info(f"No results found from {formatted_url}")
-
-            except Exception as e:
-                logging.error(f"Error performing search with {formatted_url}: {str(e)}")
+                except requests.exceptions.RequestException as e:
+                    logging.error(f"Error performing search with {formatted_url}: {str(e)}")
         
         logging.info(f"Total search results found: {len(search_results)}")
         return search_results
+
+    def search_duckduckgo(self, query: str, max_results: int):
+        results = []
+        with DDGS() as ddgs:
+            for result in ddgs.text(query, region='wt-wt', safesearch='moderate', timelimit=None, max_results=max_results):
+                results.append(result["href"])
+        return results
 
     def parse_duckduckgo(self, soup):
         return [result.get('href') for result in soup.find_all('a', class_='result__a')] or \
@@ -146,14 +166,14 @@ class InternetRAG:
             return []
 
         try:
-            headers = {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-            }
-            response = requests.get(url, headers=headers, timeout=10)
-            soup = BeautifulSoup(response.text, 'html.parser')
+            response = self.session.get(url, timeout=15)
+            response.raise_for_status()
+            soup = BeautifulSoup(response.content, features="lxml")
             
             # Extract text content
-            text_content = soup.get_text(separator=' ', strip=True)
+            for script in soup(["script", "style"]):
+                script.extract()
+            text_content = ' '.join(soup.stripped_strings)
             
             # Check if the content is relevant to the query using Ollama
             if self.is_content_relevant(text_content, query):
@@ -164,6 +184,7 @@ class InternetRAG:
                 sub_pages = []
                 for link in links[:5]:  # Limit to 5 sub-links per page
                     sub_pages.extend(self.crawl_page(link, depth - 1, query))
+                    time.sleep(random.uniform(0.5, 1.5))  # Add a random delay between requests
                 
                 logging.info(f"Successfully crawled {url}")
                 return [{"url": url, "content": text_content}] + sub_pages
@@ -171,7 +192,7 @@ class InternetRAG:
                 logging.info(f"Skipped {url} due to irrelevant content")
                 return []
         
-        except Exception as e:
+        except requests.exceptions.RequestException as e:
             logging.error(f"Error crawling {url}: {str(e)}")
             return []
 
@@ -258,6 +279,10 @@ Please provide a structured and comprehensive summary of the information related
 
             print(f"{ANSIColor.CYAN.value}Searching and crawling the web...{ANSIColor.RESET.value}")
             crawled_data = self.search_and_crawl(user_input)
+
+            if not crawled_data:
+                print(f"{ANSIColor.PINK.value}Sorry, no results found for your query. Please try a different search term.{ANSIColor.RESET.value}")
+                continue
 
             print(f"{ANSIColor.CYAN.value}Processing and structuring the crawled data...{ANSIColor.RESET.value}")
             processed_data = self.process_crawled_data(crawled_data, user_input)
