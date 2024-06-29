@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 
-# -*- coding: utf-8 -*-
-
 import requests
 from bs4 import BeautifulSoup
 import json
@@ -38,29 +36,19 @@ class InternetRAG:
         else:
             raise ValueError("Invalid API type")
 
-    def search_and_crawl(self, query):
-        logging.info(f"Performing search and crawling for query: {query}")
+    def search_and_process(self, query):
+        logging.info(f"Performing search for query: {query}")
         search_results = self.perform_search(query)
         logging.info(f"Search returned {len(search_results)} URLs")
-        crawled_data = self.crawl_pages(search_results, query)
-
-        if crawled_data:
-            self.save_raw_results(query, crawled_data)
-            logging.info(f"Crawled and saved data for query: {query}")
-        else:
-            logging.warning(f"No data could be crawled for the query: {query}")
-
-        return crawled_data
-
-    def save_raw_results(self, query, crawled_data):
-        filename = f"internet_rag_{query.replace(' ', '_')}_noLLM.txt"
-        with open(filename, 'w', encoding='utf-8') as f:
-            for item in crawled_data:
-                f.write(f"Source: DuckDuckGo\n")
-                f.write(f"URL: {item['url']}\n")
-                f.write(f"Content:\n{item['content']}\n\n")
-                f.write("-" * 80 + "\n\n")
-        logging.info(f"Raw results saved to {filename}")
+        
+        relevant_urls = self.filter_relevant_urls(search_results, query)
+        logging.info(f"Found {len(relevant_urls)} relevant URLs")
+        
+        summaries = self.process_relevant_urls(relevant_urls, query)
+        
+        final_summary = self.create_final_summary(summaries, query)
+        
+        return final_summary
 
     def perform_search(self, query):
         search_results = []
@@ -68,50 +56,18 @@ class InternetRAG:
             for result in ddgs.text(query, region='wt-wt', safesearch='moderate', timelimit=None, max_results=settings.num_results):
                 search_results.append({'url': result["href"], 'title': result["title"], 'body': result["body"]})
         
-        logging.info(f"Total search results found: {len(search_results)}")
         return search_results
 
-    def crawl_pages(self, urls, query):
-        crawled_data = []
-        for url_data in urls:
-            page_data = self.crawl_page(url_data['url'], settings.crawl_depth, query, url_data['title'], url_data['body'])
-            if page_data:
-                crawled_data.append(page_data)
-        logging.info(f"Crawled {len(crawled_data)} pages in total")
-        return crawled_data
+    def filter_relevant_urls(self, search_results, query):
+        relevant_urls = []
+        for result in search_results:
+            if self.is_url_relevant(result, query):
+                relevant_urls.append(result)
+        return relevant_urls
 
-    def crawl_page(self, url, depth, query, title, snippet):
-        if depth == 0:
-            return None
-
-        try:
-            response = self.session.get(url, timeout=15)
-            response.raise_for_status()
-            soup = BeautifulSoup(response.content, features="lxml")
-            
-            # Extract text content
-            for script in soup(["script", "style"]):
-                script.extract()
-            text_content = ' '.join(soup.stripped_strings)
-            
-            # Combine title, snippet, and full content
-            full_content = f"Title: {title}\n\nSnippet: {snippet}\n\nFull Content:\n{text_content}"
-            
-            # Check if the content is relevant to the query using Ollama
-            if self.is_content_relevant(full_content, query):
-                logging.info(f"Successfully crawled {url}")
-                return {"url": url, "content": full_content}
-            else:
-                logging.info(f"Skipped {url} due to irrelevant content")
-                return None
-        
-        except requests.exceptions.RequestException as e:
-            logging.error(f"Error crawling {url}: {str(e)}")
-            return None
-
-    def is_content_relevant(self, content, query):
-        system_message = "You are an AI assistant tasked with determining if a piece of text is relevant to a given query. Respond with 'Yes' if the content is relevant, and 'No' if it is not."
-        user_message = f"Query: {query}\n\nContent: {content[:500]}...\n\nIs this content relevant to the query?"
+    def is_url_relevant(self, result, query):
+        system_message = "You are an AI assistant tasked with determining if a search result is relevant to a given query. Respond with 'Yes' if the result seems relevant, and 'No' if it does not."
+        user_message = f"Query: {query}\n\nSearch Result Title: {result['title']}\nSearch Result Snippet: {result['body']}\n\nIs this search result relevant to the query?"
 
         try:
             response = self.client.chat.completions.create(
@@ -125,60 +81,100 @@ class InternetRAG:
 
             return response == 'yes'
         except Exception as e:
-            logging.error(f"Error checking content relevance: {str(e)}")
+            logging.error(f"Error checking URL relevance: {str(e)}")
             return False
 
-    def process_crawled_data(self, query):
-        filename = f"internet_rag_{query.replace(' ', '_')}_noLLM.txt"
-        if not os.path.exists(filename):
-            return f"No data could be found for the query: {query}"
+    def process_relevant_urls(self, relevant_urls, query):
+        summaries = []
+        for i, result in enumerate(relevant_urls, 1):
+            content = self.crawl_page(result['url'])
+            if content:
+                filename = f"internet_rag_{query.replace(' ', '_')}_{i}.txt"
+                self.save_content(filename, content)
+                summary = self.create_summary(content, query, i)
+                summaries.append(summary)
+                self.append_summary(f"internet_rag_{query.replace(' ', '_')}.txt", summary, i)
+        return summaries
 
-        with open(filename, 'r', encoding='utf-8') as f:
-            raw_data = f.read()
+    def crawl_page(self, url):
+        try:
+            response = self.session.get(url, timeout=15)
+            response.raise_for_status()
+            soup = BeautifulSoup(response.content, features="lxml")
+            
+            for script in soup(["script", "style"]):
+                script.extract()
+            text_content = ' '.join(soup.stripped_strings)
+            
+            logging.info(f"Successfully crawled {url}")
+            return text_content
+        
+        except requests.exceptions.RequestException as e:
+            logging.error(f"Error crawling {url}: {str(e)}")
+            return None
 
-        system_message = f"""You are an AI assistant tasked with summarizing web search results. Given a query and the content from several web pages, provide a structured and comprehensive summary of the information related to the query. Focus on the most relevant and important points, and organize the information as follows:
+    def save_content(self, filename, content):
+        try:
+            with open(filename, "w", encoding="utf-8") as f:
+                f.write(content)
+            logging.info(f"Content saved as {filename}")
+        except IOError as e:
+            logging.error(f"Error saving content to file: {str(e)}")
 
-Title: Internet RAG Results: {query}
+    def create_summary(self, content, query, index):
+        system_message = f"""You are an AI assistant tasked with summarizing web content related to a given query. 
+        Create a summary of approximately 5000 characters. Focus on the most relevant and important points related to the query: {query}."""
 
-1. [Main Topic 1]
-1.1. [Subtopic 1.1]
-• [Key point 1]
-• [Key point 2]
-• [Key point 3]
-...
-
-1.2. [Subtopic 1.2]
-• [Relevant information 1]
-• [Relevant information 2]
-• [Relevant information 3]
-...
-
-2. [Main Topic 2]
-...
-
-Ensure that the structure is consistent and the information is detailed and accurate. Aim to provide at least 3-5 points for each subtopic, but you can include more if necessary. Stay strictly on the topic of the query and do not include information about unrelated subjects."""
-
-        user_input = f"""Query: {query}
-
-Web page contents:
-{raw_data}
-
-Please provide a structured and comprehensive summary of the information related to the query, following the format specified in the system message. Focus on the most relevant and important points, and organize the information into main topics and subtopics."""
+        user_message = f"Web content:\n{content}\n\nPlease summarize this content in relation to the query: {query}"
 
         try:
             response = self.client.chat.completions.create(
                 model=settings.ollama_model,
                 messages=[
                     {"role": "system", "content": system_message},
-                    {"role": "user", "content": user_input}
+                    {"role": "user", "content": user_message}
                 ],
                 temperature=settings.temperature
             ).choices[0].message.content
 
+            return f"Summary {index}:\n{response}\n\n{'='*50}\n\n"
+        except Exception as e:
+            logging.error(f"Error in API call for creating summary: {str(e)}")
+            return f"Summary {index}: Error in creating summary.\n\n{'='*50}\n\n"
+
+    def append_summary(self, filename, summary, index):
+        try:
+            with open(filename, "a", encoding="utf-8") as f:
+                f.write(summary)
+            logging.info(f"Summary {index} appended to {filename}")
+        except IOError as e:
+            logging.error(f"Error appending summary to file: {str(e)}")
+
+    def create_final_summary(self, summaries, query):
+        combined_summaries = ''.join(summaries)
+        system_message = f"""You are an AI assistant tasked with creating a final summary of web search results. 
+        You will be given a series of summaries from different web pages, all related to the query: {query}. 
+        Create a comprehensive final summary of approximately 10000 characters. 
+        Integrate information from all provided summaries, avoid redundancy, and ensure the final summary is well-structured and informative."""
+
+        user_message = f"Individual summaries:\n{combined_summaries}\n\nPlease create a final comprehensive summary related to the query: {query}"
+
+        try:
+            response = self.client.chat.completions.create(
+                model=settings.ollama_model,
+                messages=[
+                    {"role": "system", "content": system_message},
+                    {"role": "user", "content": user_message}
+                ],
+                temperature=settings.temperature
+            ).choices[0].message.content
+
+            filename = f"internet_rag_{query.replace(' ', '_')}_final.txt"
+            self.save_content(filename, response)
             return response
         except Exception as e:
-            logging.error(f"Error in API call: {str(e)}")
-            return "I'm sorry, but I encountered an error while processing your request."
+            logging.error(f"Error in API call for creating final summary: {str(e)}")
+            return "Error in creating final summary."
 
     def run(self):
         print(f"{ANSIColor.YELLOW.value}Welcome to the Internet RAG System. Type 'exit' to quit.{ANSIColor.RESET.value}")
@@ -194,27 +190,15 @@ Please provide a structured and comprehensive summary of the information related
                 print(f"{ANSIColor.PINK.value}Please enter a valid query.{ANSIColor.RESET.value}")
                 continue
 
-            print(f"{ANSIColor.CYAN.value}Searching and crawling the web...{ANSIColor.RESET.value}")
-            crawled_data = self.search_and_crawl(user_input)
+            print(f"{ANSIColor.CYAN.value}Searching and processing web content...{ANSIColor.RESET.value}")
+            final_summary = self.search_and_process(user_input)
 
-            if not crawled_data:
-                print(f"{ANSIColor.PINK.value}Sorry, no results found for your query. Please try a different search term.{ANSIColor.RESET.value}")
+            if not final_summary:
+                print(f"{ANSIColor.PINK.value}Sorry, no relevant results found for your query. Please try a different search term.{ANSIColor.RESET.value}")
                 continue
 
-            print(f"{ANSIColor.CYAN.value}Processing and structuring the crawled data...{ANSIColor.RESET.value}")
-            processed_data = self.process_crawled_data(user_input)
-
-            # Save the processed data to a file
-            filename = f"internet_rag_{user_input.replace(' ', '_')}.txt"
-            try:
-                with open(filename, "w", encoding="utf-8") as f:
-                    f.write(processed_data)
-                print(f"{ANSIColor.CYAN.value}Processed data saved as {filename}{ANSIColor.RESET.value}")
-            except IOError as e:
-                logging.error(f"Error saving processed data to file: {str(e)}")
-
-            print(f"\n{ANSIColor.NEON_GREEN.value}Processed Internet RAG Results:{ANSIColor.RESET.value}")
-            print(processed_data)
+            print(f"\n{ANSIColor.NEON_GREEN.value}Final Summary:{ANSIColor.RESET.value}")
+            print(final_summary)
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
