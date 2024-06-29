@@ -114,8 +114,8 @@ class ERAGGUI:
 
         # Create and layout settings fields
         self.create_settings_fields(upload_frame, [
-            ("Chunk Size", "chunk_size"),
-            ("Overlap Size", "overlap_size"),
+            ("Chunk Size", "file_chunk_size"),
+            ("Overlap Size", "file_overlap_size"),
         ])
 
         self.create_settings_fields(embeddings_frame, [
@@ -131,7 +131,6 @@ class ERAGGUI:
             ("Similarity Threshold", "similarity_threshold"),
             ("Min Entity Occurrence", "min_entity_occurrence"),
             ("Knowledge Graph File Path", "knowledge_graph_file_path"),
-            ("Embeddings File Path", "embeddings_file_path"),
         ])
 
         # Create checkbox for enable_semantic_edges

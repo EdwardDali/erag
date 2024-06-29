@@ -13,8 +13,8 @@ class Settings:
 
     def _initialize(self):
         # Upload Settings
-        self.chunk_size = 500
-        self.overlap_size = 200
+        self.file_chunk_size: int = 500
+        self.file_overlap_size: int = 200
 
         # Embeddings Settings
         self.batch_size = 32
