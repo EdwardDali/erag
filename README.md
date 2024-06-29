@@ -19,7 +19,7 @@ This RAG (Retrieval-Augmented Generation) tool is a sophisticated system that co
 
 1. Clone the repository and navigate to the project directory:
  ```
-git clone https://github.com/EdwardDali/e-rag.git && cd e-rag   
+git clone https://github.com/EdwardDali/erag.git && cd erag   
 ```
 
 2. Install the required Python dependencies:
