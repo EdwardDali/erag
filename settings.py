@@ -21,6 +21,16 @@ class Settings:
         self.embeddings_file_path = "db_embeddings.pt"
         self.db_file_path = "db.txt"
 
+        # Graph Settings
+        self.graph_chunk_size: int = 5000
+        self.graph_overlap_size: int = 200
+        self.nlp_model = "en_core_web_sm"
+        self.similarity_threshold = 0.7
+        self.min_entity_occurrence = 1
+        self.enable_semantic_edges = True
+        self.knowledge_graph_file_path = "knowledge_graph.json"
+        self.embeddings_file_path = "db_embeddings.pt"
+
         # Model Settings
         self.max_history_length = 5
         self.conversation_context_size = 3

@@ -105,7 +105,8 @@ class ERAGGUI:
         # Create frames for different setting categories
         upload_frame = self.create_labelframe(left_column, "Upload Settings", 0)
         embeddings_frame = self.create_labelframe(left_column, "Embeddings Settings", 1)
-        model_frame = self.create_labelframe(left_column, "Model Settings", 2)
+        graph_frame = self.create_labelframe(left_column, "Graph Settings", 2)
+        model_frame = self.create_labelframe(left_column, "Model Settings", 3)
 
         knol_frame = self.create_labelframe(right_column, "Knol Creation Settings", 0)
         search_frame = self.create_labelframe(right_column, "Search Settings", 1)
@@ -122,6 +123,20 @@ class ERAGGUI:
             ("Embeddings File Path", "embeddings_file_path"),
             ("DB File Path", "db_file_path"),
         ])
+
+        self.create_settings_fields(graph_frame, [
+            ("Graph Chunk Size", "graph_chunk_size"),
+            ("Graph Overlap Size", "graph_overlap_size"),
+            ("NLP Model", "nlp_model"),
+            ("Similarity Threshold", "similarity_threshold"),
+            ("Min Entity Occurrence", "min_entity_occurrence"),
+            ("Knowledge Graph File Path", "knowledge_graph_file_path"),
+            ("Embeddings File Path", "embeddings_file_path"),
+        ])
+
+        # Create checkbox for enable_semantic_edges
+        self.create_checkbox(graph_frame, "Enable Semantic Edges", "enable_semantic_edges", 
+                             len(graph_frame.grid_slaves()), 0)
 
         self.create_settings_fields(model_frame, [
             ("Max History Length", "max_history_length"),
@@ -154,8 +169,7 @@ class ERAGGUI:
         self.create_checkbox(checkbox_frame, "Enable Text Search", "enable_text_search", 1, 1)
 
         self.create_settings_fields(file_frame, [
-            ("Knowledge Graph File Path", "knowledge_graph_file_path"),
-            ("Results File Path", "results_file_path"),
+                        ("Results File Path", "results_file_path"),
         ])
 
         # Add buttons for settings management
