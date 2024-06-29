@@ -2,7 +2,7 @@ import warnings
 warnings.filterwarnings("ignore", category=FutureWarning, module="huggingface_hub.file_download")
 
 import tkinter as tk
-from tkinter import messagebox, ttk, filedialog  # Add filedialog here
+from tkinter import messagebox, ttk, filedialog
 import threading
 import os
 from file_processing import process_file, append_to_db
@@ -13,6 +13,7 @@ from create_graph import create_knowledge_graph, create_knowledge_graph_from_raw
 from settings import settings
 from search_utils import SearchUtils
 from create_knol import KnolCreator
+from internet_rag import InternetRAG  # Add this import
 
 class ERAGGUI:
     def __init__(self, master: tk.Tk):
@@ -109,6 +110,25 @@ class ERAGGUI:
 
         create_knol_button = tk.Button(model_frame, text="Create Knol", command=self.create_knol)
         create_knol_button.pack(side="left", padx=5, pady=5)
+
+        # Add the new button for Internet RAG
+        internet_rag_button = tk.Button(model_frame, text="Internet RAG", command=self.run_internet_rag)
+        internet_rag_button.pack(side="left", padx=5, pady=5)
+
+    def run_internet_rag(self):
+        try:
+            api_type = self.api_type_var.get()
+            internet_rag = InternetRAG(api_type)
+            
+            # Apply settings to InternetRAG
+            settings.apply_settings()
+            
+            # Run the Internet RAG in a separate thread to keep the GUI responsive
+            threading.Thread(target=internet_rag.run, daemon=True).start()
+            
+            messagebox.showinfo("Info", f"Internet RAG system started with {api_type} API. Check the console for interaction.")
+        except Exception as e:
+            messagebox.showerror("Error", f"An error occurred while starting the Internet RAG system: {str(e)}")
 
     def create_settings_tab(self):
         # Create a main frame to hold the two columns

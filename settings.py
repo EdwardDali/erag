@@ -42,6 +42,12 @@ class Settings:
         # Knol Creation Settings
         self.num_questions = 8
 
+        # Internet RAG Settings
+        self.crawl_database_path = "crawl_database.json"
+        self.search_engine = "Google"
+        self.num_results = 5
+        self.crawl_depth = 1
+
         # Search Settings
         self.top_k = 5
         self.entity_relevance_threshold = 0.5
