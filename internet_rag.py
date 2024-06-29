@@ -56,7 +56,7 @@ class InternetRAG:
         filename = f"internet_rag_{query.replace(' ', '_')}_noLLM.txt"
         with open(filename, 'w', encoding='utf-8') as f:
             for item in crawled_data:
-                f.write(f"Source: {item['source']}\n")
+                f.write(f"Source: DuckDuckGo\n")
                 f.write(f"URL: {item['url']}\n")
                 f.write(f"Content:\n{item['content']}\n\n")
                 f.write("-" * 80 + "\n\n")
@@ -64,97 +64,23 @@ class InternetRAG:
 
     def perform_search(self, query):
         search_results = []
-        
-        # First, try DuckDuckGo search
-        ddg_results = self.search_duckduckgo(query, settings.num_results)
-        search_results.extend([{'url': url, 'source': 'DuckDuckGo'} for url in ddg_results])
-        
-        # If we don't have enough results, fall back to other search engines
-        if len(search_results) < settings.num_results:
-            fallback_engines = [
-                ("https://www.bing.com/search?q={}", self.parse_bing, "Bing"),
-                ("https://search.yahoo.com/search?p={}", self.parse_yahoo, "Yahoo"),
-                ("https://www.qwant.com/?q={}", self.parse_qwant, "Qwant"),
-                ("https://www.startpage.com/do/search?q={}", self.parse_startpage, "StartPage"),
-                ("https://www.google.com/search?q={}", self.parse_google, "Google")
-            ]
-            
-            random.shuffle(fallback_engines)
-            
-            for search_url, parse_function, engine_name in fallback_engines:
-                if len(search_results) >= settings.num_results:
-                    break
-                
-                try:
-                    formatted_url = search_url.format(quote_plus(query))
-                    logging.info(f"Trying search engine: {formatted_url}")
-                    response = self.session.get(formatted_url, timeout=15)
-                    response.raise_for_status()
-                    soup = BeautifulSoup(response.text, 'html.parser')
-                    
-                    results = parse_function(soup)
-                    
-                    for href in results:
-                        if href and href.startswith('http') and not href.startswith('http://go.microsoft.com'):
-                            search_results.append({'url': href, 'source': engine_name})
-                        if len(search_results) >= settings.num_results:
-                            break
-                    
-                    time.sleep(random.uniform(1, 3))  # Add a random delay between requests
-                
-                except requests.exceptions.RequestException as e:
-                    logging.error(f"Error performing search with {formatted_url}: {str(e)}")
+        with DDGS() as ddgs:
+            for result in ddgs.text(query, region='wt-wt', safesearch='moderate', timelimit=None, max_results=settings.num_results):
+                search_results.append({'url': result["href"], 'title': result["title"], 'body': result["body"]})
         
         logging.info(f"Total search results found: {len(search_results)}")
         return search_results
 
-    def search_duckduckgo(self, query: str, max_results: int):
-        results = []
-        with DDGS() as ddgs:
-            for result in ddgs.text(query, region='wt-wt', safesearch='moderate', timelimit=None, max_results=max_results):
-                results.append(result["href"])
-        return results
-
-    def parse_duckduckgo(self, soup):
-        return [result.get('href') for result in soup.find_all('a', class_='result__a')] or \
-               [result.get('href') for result in soup.find_all('a') if result.get('href') and result.get('href').startswith('http')]
-
-    def parse_bing(self, soup):
-        return [result.get('href') for result in soup.find_all('a', class_='b_attribution')] or \
-               [result.get('href') for result in soup.find_all('cite')] or \
-               [result.get('href') for result in soup.find_all('a') if result.get('href') and result.get('href').startswith('http')]
-
-    def parse_yahoo(self, soup):
-        return [result.get('href') for result in soup.find_all('a', class_=' ac-algo fz-l ac-21th lh-24')] or \
-               [result.get('href') for result in soup.find_all('a', class_='ac-algo')] or \
-               [result.get('href') for result in soup.find_all('a') if result.get('href') and result.get('href').startswith('http')]
-
-    def parse_qwant(self, soup):
-        return [result.get('href') for result in soup.find_all('a', class_='external_link')] or \
-               [result.get('href') for result in soup.find_all('a', class_='url')] or \
-               [result.get('href') for result in soup.find_all('a') if result.get('href') and result.get('href').startswith('http')]
-
-    def parse_startpage(self, soup):
-        return [result.get('href') for result in soup.find_all('a', class_='w-gl__result-url')] or \
-               [result.get('href') for result in soup.find_all('a', class_='result-link')] or \
-               [result.get('href') for result in soup.find_all('a') if result.get('href') and result.get('href').startswith('http')]
-
-    def parse_google(self, soup):
-        return [result.get('href') for result in soup.find_all('a', class_='l')] or \
-               [result.get('href') for result in soup.find_all('cite')] or \
-               [result.get('href') for result in soup.find_all('a') if result.get('href') and result.get('href').startswith('http')]
-
     def crawl_pages(self, urls, query):
         crawled_data = []
         for url_data in urls:
-            page_data = self.crawl_page(url_data['url'], settings.crawl_depth, query)
+            page_data = self.crawl_page(url_data['url'], settings.crawl_depth, query, url_data['title'], url_data['body'])
             if page_data:
-                page_data['source'] = url_data['source']
                 crawled_data.append(page_data)
         logging.info(f"Crawled {len(crawled_data)} pages in total")
         return crawled_data
 
-    def crawl_page(self, url, depth, query):
+    def crawl_page(self, url, depth, query, title, snippet):
         if depth == 0:
             return None
 
@@ -168,10 +94,13 @@ class InternetRAG:
                 script.extract()
             text_content = ' '.join(soup.stripped_strings)
             
+            # Combine title, snippet, and full content
+            full_content = f"Title: {title}\n\nSnippet: {snippet}\n\nFull Content:\n{text_content}"
+            
             # Check if the content is relevant to the query using Ollama
-            if self.is_content_relevant(text_content, query):
+            if self.is_content_relevant(full_content, query):
                 logging.info(f"Successfully crawled {url}")
-                return {"url": url, "content": text_content}
+                return {"url": url, "content": full_content}
             else:
                 logging.info(f"Skipped {url} due to irrelevant content")
                 return None
