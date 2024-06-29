@@ -21,8 +21,6 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 class InternetRAG:
     def __init__(self, api_type: str):
-        self.crawl_database = {}
-        self.load_crawl_database()
         self.client = self.configure_api(api_type)
         self.session = requests.Session()
         self.session.headers.update({
@@ -40,56 +38,50 @@ class InternetRAG:
         else:
             raise ValueError("Invalid API type")
 
-    def load_crawl_database(self):
-        if os.path.exists(settings.crawl_database_path):
-            with open(settings.crawl_database_path, 'r') as f:
-                self.crawl_database = json.load(f)
-        else:
-            self.crawl_database = {}
-
-    def save_crawl_database(self):
-        with open(settings.crawl_database_path, 'w') as f:
-            json.dump(self.crawl_database, f, indent=4)
-
     def search_and_crawl(self, query):
-        if query in self.crawl_database and self.crawl_database[query]:
-            logging.info(f"Using cached results for query: {query}")
-            return self.crawl_database[query]
-
         logging.info(f"Performing search and crawling for query: {query}")
         search_results = self.perform_search(query)
         logging.info(f"Search returned {len(search_results)} URLs")
         crawled_data = self.crawl_pages(search_results, query)
 
         if crawled_data:
-            self.crawl_database[query] = crawled_data
-            self.save_crawl_database()
+            self.save_raw_results(query, crawled_data)
             logging.info(f"Crawled and saved data for query: {query}")
         else:
             logging.warning(f"No data could be crawled for the query: {query}")
 
         return crawled_data
 
+    def save_raw_results(self, query, crawled_data):
+        filename = f"internet_rag_{query.replace(' ', '_')}_noLLM.txt"
+        with open(filename, 'w', encoding='utf-8') as f:
+            for item in crawled_data:
+                f.write(f"Source: {item['source']}\n")
+                f.write(f"URL: {item['url']}\n")
+                f.write(f"Content:\n{item['content']}\n\n")
+                f.write("-" * 80 + "\n\n")
+        logging.info(f"Raw results saved to {filename}")
+
     def perform_search(self, query):
         search_results = []
         
         # First, try DuckDuckGo search
         ddg_results = self.search_duckduckgo(query, settings.num_results)
-        search_results.extend(ddg_results)
+        search_results.extend([{'url': url, 'source': 'DuckDuckGo'} for url in ddg_results])
         
         # If we don't have enough results, fall back to other search engines
         if len(search_results) < settings.num_results:
             fallback_engines = [
-                ("https://www.bing.com/search?q={}", self.parse_bing),
-                ("https://search.yahoo.com/search?p={}", self.parse_yahoo),
-                ("https://www.qwant.com/?q={}", self.parse_qwant),
-                ("https://www.startpage.com/do/search?q={}", self.parse_startpage),
-                ("https://www.google.com/search?q={}", self.parse_google)
+                ("https://www.bing.com/search?q={}", self.parse_bing, "Bing"),
+                ("https://search.yahoo.com/search?p={}", self.parse_yahoo, "Yahoo"),
+                ("https://www.qwant.com/?q={}", self.parse_qwant, "Qwant"),
+                ("https://www.startpage.com/do/search?q={}", self.parse_startpage, "StartPage"),
+                ("https://www.google.com/search?q={}", self.parse_google, "Google")
             ]
             
             random.shuffle(fallback_engines)
             
-            for search_url, parse_function in fallback_engines:
+            for search_url, parse_function, engine_name in fallback_engines:
                 if len(search_results) >= settings.num_results:
                     break
                 
@@ -104,7 +96,7 @@ class InternetRAG:
                     
                     for href in results:
                         if href and href.startswith('http') and not href.startswith('http://go.microsoft.com'):
-                            search_results.append(href)
+                            search_results.append({'url': href, 'source': engine_name})
                         if len(search_results) >= settings.num_results:
                             break
                     
@@ -154,16 +146,17 @@ class InternetRAG:
 
     def crawl_pages(self, urls, query):
         crawled_data = []
-        for url in urls:
-            page_data = self.crawl_page(url, settings.crawl_depth, query)
+        for url_data in urls:
+            page_data = self.crawl_page(url_data['url'], settings.crawl_depth, query)
             if page_data:
-                crawled_data.extend(page_data)
+                page_data['source'] = url_data['source']
+                crawled_data.append(page_data)
         logging.info(f"Crawled {len(crawled_data)} pages in total")
         return crawled_data
 
     def crawl_page(self, url, depth, query):
         if depth == 0:
-            return []
+            return None
 
         try:
             response = self.session.get(url, timeout=15)
@@ -177,24 +170,15 @@ class InternetRAG:
             
             # Check if the content is relevant to the query using Ollama
             if self.is_content_relevant(text_content, query):
-                # Extract links for further crawling
-                links = [urljoin(url, link.get('href')) for link in soup.find_all('a', href=True)]
-                
-                # Recursive crawling
-                sub_pages = []
-                for link in links[:5]:  # Limit to 5 sub-links per page
-                    sub_pages.extend(self.crawl_page(link, depth - 1, query))
-                    time.sleep(random.uniform(0.5, 1.5))  # Add a random delay between requests
-                
                 logging.info(f"Successfully crawled {url}")
-                return [{"url": url, "content": text_content}] + sub_pages
+                return {"url": url, "content": text_content}
             else:
                 logging.info(f"Skipped {url} due to irrelevant content")
-                return []
+                return None
         
         except requests.exceptions.RequestException as e:
             logging.error(f"Error crawling {url}: {str(e)}")
-            return []
+            return None
 
     def is_content_relevant(self, content, query):
         system_message = "You are an AI assistant tasked with determining if a piece of text is relevant to a given query. Respond with 'Yes' if the content is relevant, and 'No' if it is not."
@@ -215,9 +199,13 @@ class InternetRAG:
             logging.error(f"Error checking content relevance: {str(e)}")
             return False
 
-    def process_crawled_data(self, crawled_data, query):
-        if not crawled_data:
-            return f"No data could be crawled for the query: {query}"
+    def process_crawled_data(self, query):
+        filename = f"internet_rag_{query.replace(' ', '_')}_noLLM.txt"
+        if not os.path.exists(filename):
+            return f"No data could be found for the query: {query}"
+
+        with open(filename, 'r', encoding='utf-8') as f:
+            raw_data = f.read()
 
         system_message = f"""You are an AI assistant tasked with summarizing web search results. Given a query and the content from several web pages, provide a structured and comprehensive summary of the information related to the query. Focus on the most relevant and important points, and organize the information as follows:
 
@@ -244,7 +232,7 @@ Ensure that the structure is consistent and the information is detailed and accu
         user_input = f"""Query: {query}
 
 Web page contents:
-{json.dumps(crawled_data, indent=2)}
+{raw_data}
 
 Please provide a structured and comprehensive summary of the information related to the query, following the format specified in the system message. Focus on the most relevant and important points, and organize the information into main topics and subtopics."""
 
@@ -285,7 +273,7 @@ Please provide a structured and comprehensive summary of the information related
                 continue
 
             print(f"{ANSIColor.CYAN.value}Processing and structuring the crawled data...{ANSIColor.RESET.value}")
-            processed_data = self.process_crawled_data(crawled_data, user_input)
+            processed_data = self.process_crawled_data(user_input)
 
             # Save the processed data to a file
             filename = f"internet_rag_{user_input.replace(' ', '_')}.txt"
