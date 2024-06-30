@@ -1,22 +1,15 @@
-import requests
-from bs4 import BeautifulSoup
-import logging
-from urllib.parse import urljoin
 from settings import settings
-from talk2doc import ANSIColor
 from openai import OpenAI
-import random
-import time
+import logging
+from bs4 import BeautifulSoup
+import requests
 from duckduckgo_search import DDGS
-import os
 import re
-from search_utils import SearchUtils
 from sentence_transformers import SentenceTransformer
 import numpy as np
 from collections import deque
-
-# Set up logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+from search_utils import SearchUtils
+from talk2doc import ANSIColor
 
 class WebRAG:
     def __init__(self, api_type: str):
@@ -27,17 +20,15 @@ class WebRAG:
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
             "Accept-Language": "en-US,en;q=0.5"
         })
-        self.chunk_size = 500
-        self.overlap_size = 100
         self.model = SentenceTransformer(settings.model_name)
         self.search_utils = None
         self.all_search_results = []
         self.conversation_history = []
         self.conversation_context = deque(maxlen=settings.conversation_context_size * 2)
         self.current_urls = set()
-        self.web_rag_file = "web_rag_qa.txt"
+        self.web_rag_file = settings.web_rag_file
         self.current_question_file = None
-        self.context_size = 5  # Initial context size
+        self.context_size = settings.initial_context_size
 
     @staticmethod
     def configure_api(api_type: str) -> OpenAI:
@@ -53,7 +44,7 @@ class WebRAG:
         self.all_search_results = self.perform_search(query)
         logging.info(f"Search returned {len(self.all_search_results)} URLs")
         
-        relevant_urls = self.filter_relevant_urls(self.all_search_results[:5], query)
+        relevant_urls = self.filter_relevant_urls(self.all_search_results[:settings.web_rag_urls_to_crawl], query)
         logging.info(f"Found {len(relevant_urls)} relevant URLs")
         
         summarized_query = self.summarize_query(query)
@@ -62,7 +53,6 @@ class WebRAG:
         
         answer = self.generate_qa(query)
         
-        # Save question and answer to web_rag_qa.txt
         with open(self.web_rag_file, "a", encoding="utf-8") as f:
             f.write(f"Question: {query}\n\n")
             f.write(f"Answer: {answer}\n\n")
@@ -81,26 +71,23 @@ class WebRAG:
                     {"role": "system", "content": system_message},
                     {"role": "user", "content": user_message}
                 ],
-                temperature=0.3
+                temperature=settings.temperature
             ).choices[0].message.content.strip()
 
-            # Remove any non-alphanumeric characters and replace spaces with underscores
             safe_filename = re.sub(r'[^a-zA-Z0-9\s]', '', response)
             safe_filename = safe_filename.replace(' ', '_').lower()
-
-            # Truncate if it's still too long
             safe_filename = safe_filename[:50]
 
             return safe_filename
         except Exception as e:
             logging.error(f"Error summarizing query: {str(e)}")
-            return "web_rag_query"  # Fallback to a generic filename
+            return "web_rag_query"
 
     def perform_search(self, query):
         search_results = []
         with DDGS() as ddgs:
-            for result in ddgs.text(query, region='wt-wt', safesearch='moderate', timelimit=None, max_results=settings.num_urls_to_crawl):
-                search_results.append(result)  # Append the entire result object
+            for result in ddgs.text(query, region='wt-wt', safesearch='moderate', timelimit=None, max_results=settings.web_rag_urls_to_crawl):
+                search_results.append(result)
         return search_results
 
     def filter_relevant_urls(self, search_results, query):
@@ -152,7 +139,7 @@ class WebRAG:
             return False
 
         unprocessed_urls = [result['href'] for result in self.all_search_results if result['href'] not in self.current_urls]
-        urls_to_process = unprocessed_urls[:5]
+        urls_to_process = unprocessed_urls[:settings.web_rag_urls_to_crawl]
         
         if not urls_to_process:
             print(f"{ANSIColor.PINK.value}No more URLs to process.{ANSIColor.RESET.value}")
@@ -191,10 +178,10 @@ class WebRAG:
         chunks = []
         start = 0
         while start < len(text):
-            end = start + self.chunk_size
+            end = start + settings.web_rag_chunk_size
             chunk = text[start:end]
             chunks.append(chunk)
-            start = end - self.overlap_size
+            start = end - settings.web_rag_overlap_size
         return chunks
 
     def crawl_page(self, url):

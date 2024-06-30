@@ -28,6 +28,7 @@ class ERAGGUI:
         self.db_indexes = None
         self.db_content = None
         self.knowledge_graph = None
+        self.web_rag = None
 
         # Create the notebook
         self.notebook = ttk.Notebook(self.master)
@@ -80,25 +81,6 @@ class ERAGGUI:
                                                       command=self.create_knowledge_graph_from_raw)
         create_knowledge_graph_raw_button.pack(side="left", padx=5, pady=5)
 
-    def create_knowledge_graph_from_raw(self):
-        try:
-            raw_file_path = filedialog.askopenfilename(title="Select Raw Document File",
-                                                       filetypes=[("Text Files", "*.txt")])
-            if not raw_file_path:
-                messagebox.showwarning("Warning", "No file selected.")
-                return
-
-            self.knowledge_graph = create_knowledge_graph_from_raw(raw_file_path)
-            if self.knowledge_graph:
-                doc_nodes = [n for n, d in self.knowledge_graph.nodes(data=True) if d['type'] == 'document']
-                chunk_nodes = [n for n, d in self.knowledge_graph.nodes(data=True) if d['type'] == 'chunk']
-                entity_nodes = [n for n, d in self.knowledge_graph.nodes(data=True) if d['type'] == 'entity']
-                messagebox.showinfo("Success", f"Knowledge graph created from raw documents with {len(doc_nodes)} document nodes, {len(chunk_nodes)} chunk nodes, {len(entity_nodes)} entity nodes, and {self.knowledge_graph.number_of_edges()} edges. Saved as {settings.knowledge_graph_file_path}.")
-            else:
-                messagebox.showwarning("Warning", "Failed to create knowledge graph from raw documents.")
-        except Exception as e:
-            messagebox.showerror("Error", f"An error occurred while creating the knowledge graph from raw documents: {str(e)}")
-
     def create_model_frame(self):
         model_frame = tk.LabelFrame(self.main_tab, text="Model")
         model_frame.pack(fill="x", padx=10, pady=5)
@@ -125,36 +107,6 @@ class ERAGGUI:
         web_rag_button = tk.Button(rag_frame, text="Web Rag", command=self.run_web_rag)
         web_rag_button.pack(side="left", padx=5, pady=5)
 
-    def run_web_sum(self):
-        try:
-            api_type = self.api_type_var.get()
-            web_sum = WebSum(api_type)  # Changed from InternetRAG to WebSum
-            
-            # Apply settings to WebSum
-            settings.apply_settings()
-            
-            # Run the Web Sum in a separate thread to keep the GUI responsive
-            threading.Thread(target=web_sum.run, daemon=True).start()
-            
-            messagebox.showinfo("Info", f"Web Sum system started with {api_type} API. Check the console for interaction.")
-        except Exception as e:
-            messagebox.showerror("Error", f"An error occurred while starting the Web Sum system: {str(e)}")
-
-    def run_web_rag(self):
-        try:
-            api_type = self.api_type_var.get()
-            web_rag = WebRAG(api_type)
-            
-            # Apply settings to WebRAG
-            settings.apply_settings()
-            
-            # Run the Web RAG in a separate thread to keep the GUI responsive
-            threading.Thread(target=web_rag.run, daemon=True).start()
-            
-            messagebox.showinfo("Info", f"Web RAG system started with {api_type} API. Check the console for interaction.")
-        except Exception as e:
-            messagebox.showerror("Error", f"An error occurred while starting the Web RAG system: {str(e)}")
-
     def create_settings_tab(self):
         # Create a main frame to hold the two columns
         main_frame = ttk.Frame(self.settings_tab)
@@ -179,7 +131,8 @@ class ERAGGUI:
         knol_frame = self.create_labelframe(right_column, "Knol Creation Settings", 0)
         search_frame = self.create_labelframe(right_column, "Search Settings", 1)
         file_frame = self.create_labelframe(right_column, "File Settings", 2)
-        internet_rag_frame = self.create_labelframe(right_column, "Web Summary Settings", 3)
+        web_sum_frame = self.create_labelframe(right_column, "Web Sum Settings", 3)
+        web_rag_frame = self.create_labelframe(right_column, "Web RAG Settings", 4)
 
         # Create and layout settings fields
         self.create_settings_fields(upload_frame, [
@@ -219,10 +172,18 @@ class ERAGGUI:
             ("Number of Questions", "num_questions"),
         ])
 
-        self.create_settings_fields(internet_rag_frame, [
-            ("Number of URLs to Crawl", "num_urls_to_crawl"),
+        self.create_settings_fields(web_sum_frame, [
+            ("Web Sum URLs to Crawl", "web_sum_urls_to_crawl"),
             ("Summary Size", "summary_size"),
             ("Final Summary Size", "final_summary_size"),
+        ])
+
+        self.create_settings_fields(web_rag_frame, [
+            ("Web Rag URLs to Crawl", "web_rag_urls_to_crawl"),
+            ("Initial Context Size", "initial_context_size"),
+            ("Web RAG File", "web_rag_file"),
+            ("Web RAG Chunk Size", "web_rag_chunk_size"),
+            ("Web RAG Overlap Size", "web_rag_overlap_size"),
         ])
 
         self.create_settings_fields(search_frame, [
@@ -243,7 +204,7 @@ class ERAGGUI:
         self.create_checkbox(checkbox_frame, "Enable Text Search", "enable_text_search", 1, 1)
 
         self.create_settings_fields(file_frame, [
-                        ("Results File Path", "results_file_path"),
+            ("Results File Path", "results_file_path"),
         ])
 
         # Add buttons for settings management
@@ -302,7 +263,6 @@ class ERAGGUI:
             api_type = self.api_type_var.get()
             creator = KnolCreator(api_type)
             
-           
             if os.path.exists(settings.db_file_path):
                 with open(settings.db_file_path, "r", encoding="utf-8") as db_file:
                     creator.db_content = db_file.readlines()
@@ -379,6 +339,25 @@ class ERAGGUI:
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred while creating the knowledge graph: {str(e)}")
 
+    def create_knowledge_graph_from_raw(self):
+        try:
+            raw_file_path = filedialog.askopenfilename(title="Select Raw Document File",
+                                                       filetypes=[("Text Files", "*.txt")])
+            if not raw_file_path:
+                messagebox.showwarning("Warning", "No file selected.")
+                return
+
+            self.knowledge_graph = create_knowledge_graph_from_raw(raw_file_path)
+            if self.knowledge_graph:
+                doc_nodes = [n for n, d in self.knowledge_graph.nodes(data=True) if d['type'] == 'document']
+                chunk_nodes = [n for n, d in self.knowledge_graph.nodes(data=True) if d['type'] == 'chunk']
+                entity_nodes = [n for n, d in self.knowledge_graph.nodes(data=True) if d['type'] == 'entity']
+                messagebox.showinfo("Success", f"Knowledge graph created from raw documents with {len(doc_nodes)} document nodes, {len(chunk_nodes)} chunk nodes, {len(entity_nodes)} entity nodes, and {self.knowledge_graph.number_of_edges()} edges. Saved as {settings.knowledge_graph_file_path}.")
+            else:
+                messagebox.showwarning("Warning", "Failed to create knowledge graph from raw documents.")
+        except Exception as e:
+            messagebox.showerror("Error", f"An error occurred while creating the knowledge graph from raw documents: {str(e)}")
+
     def run_model(self):
         try:
             api_type = self.api_type_var.get()
@@ -393,6 +372,36 @@ class ERAGGUI:
             messagebox.showinfo("Info", f"RAG system started with {api_type} API. Check the console for interaction.")
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred while starting the RAG system: {str(e)}")
+
+    def run_web_sum(self):
+        try:
+            api_type = self.api_type_var.get()
+            web_sum = WebSum(api_type)
+            
+            # Apply settings to WebSum
+            settings.apply_settings()
+            
+            # Run the Web Sum in a separate thread to keep the GUI responsive
+            threading.Thread(target=web_sum.run, daemon=True).start()
+            
+            messagebox.showinfo("Info", f"Web Sum system started with {api_type} API. Check the console for interaction.")
+        except Exception as e:
+            messagebox.showerror("Error", f"An error occurred while starting the Web Sum system: {str(e)}")
+
+    def run_web_rag(self):
+        try:
+            api_type = self.api_type_var.get()
+            self.web_rag = WebRAG(api_type)
+            
+            # Apply settings to WebRAG
+            settings.apply_settings()
+            
+            # Run the Web RAG in a separate thread to keep the GUI responsive
+            threading.Thread(target=self.web_rag.run, daemon=True).start()
+            
+            messagebox.showinfo("Info", f"Web RAG system started with {api_type} API. Check the console for interaction.")
+        except Exception as e:
+            messagebox.showerror("Error", f"An error occurred while starting the Web RAG system: {str(e)}")
 
     def on_closing(self):
         settings.save_settings()

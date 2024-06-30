@@ -42,10 +42,17 @@ class Settings:
         # Knol Creation Settings
         self.num_questions = 8
 
-        ## Web Summary Settings
-        self.num_urls_to_crawl = 5
+        # Web Sum Settings
+        self.web_sum_urls_to_crawl = 5
         self.summary_size = 5000
         self.final_summary_size = 10000
+
+        # Web RAG Settings
+        self.web_rag_urls_to_crawl = 5
+        self.initial_context_size = 5
+        self.web_rag_file = "web_rag_qa.txt"
+        self.web_rag_chunk_size = 500
+        self.web_rag_overlap_size = 100
 
         # Search Settings
         self.top_k = 5
