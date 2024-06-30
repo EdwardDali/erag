@@ -559,3 +559,11 @@ Relevant Context:
 - Text Search Results: "Once upon a time there were three little sisters," the Dormouse began in a great hurry; “and their names were Elsie, Lacie, and Tillie; and they lived at the bottom of a well—"
 ===
 The name of the three sisters is Elsie, Lacie, and Tillie. This information comes directly from the text search results where it states: "Once upon a time there were three little sisters," the Dormouse began in a great hurry; “and their names were Elsie, Lacie, and Tillie; and they lived at the bottom of a well—".
+user: Humpty Dumpty
+assistant:  In this conversation between Alice and the Mock Turtle, they discuss various aspects of whiting fish and their peculiar behavior related to dancing with lobsters. The Gryphon explains that whitings have tails in their mouths because they were thrown out to sea during a dance with lobsters. This unusual adaptation allows them not to lose their tails again, which are essential for swimming.
+
+The most relevant information from the context is:
+
+- Whiting fish get their tails fast in their mouths so that they can't lose them when thrown into the sea during a dance with lobsters.
+
+This explanation comes directly from the conversation between Alice and the Gryphon, as well as the Mock Turtle's commentary on whitings. There is no direct lexical or semantic search result provided in this context; it relies solely on the narrative given by Lewis Carroll in "Through the Looking-Glass."

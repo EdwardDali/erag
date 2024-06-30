@@ -42,7 +42,7 @@ class Settings:
         # Knol Creation Settings
         self.num_questions = 8
 
-        ## Internet RAG Settings
+        ## Web Summary Settings
         self.num_urls_to_crawl = 5
         self.summary_size = 5000
         self.final_summary_size = 10000

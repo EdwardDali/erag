@@ -3,7 +3,7 @@
 import sys
 import os
 import logging
-from run_model import RAGSystem, ANSIColor
+from talk2doc import RAGSystem, ANSIColor  # Updated import statement
 from search_utils import SearchUtils
 from sentence_transformers import SentenceTransformer
 from embeddings_utils import load_embeddings_and_data

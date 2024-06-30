@@ -6,14 +6,14 @@ from tkinter import messagebox, ttk, filedialog
 import threading
 import os
 from file_processing import process_file, append_to_db
-from run_model import RAGSystem
+from talk2doc import RAGSystem
 from embeddings_utils import compute_and_save_embeddings, load_or_compute_embeddings
 from sentence_transformers import SentenceTransformer
 from create_graph import create_knowledge_graph, create_knowledge_graph_from_raw
 from settings import settings
 from search_utils import SearchUtils
 from create_knol import KnolCreator
-from internet_rag import InternetRAG  # Add this import
+from web_sum import WebSum
 
 class ERAGGUI:
     def __init__(self, master: tk.Tk):
@@ -51,6 +51,7 @@ class ERAGGUI:
         self.create_upload_frame()
         self.create_embeddings_frame()
         self.create_model_frame()
+        self.create_rag_frame()
 
     def create_upload_frame(self):
         upload_frame = tk.LabelFrame(self.main_tab, text="Upload")
@@ -102,33 +103,38 @@ class ERAGGUI:
         model_frame.pack(fill="x", padx=10, pady=5)
 
         api_options = ["ollama", "llama"]
+        api_label = tk.Label(model_frame, text="API Type:")
+        api_label.pack(side="left", padx=5, pady=5)
         api_menu = tk.OptionMenu(model_frame, self.api_type_var, *api_options)
         api_menu.pack(side="left", padx=5, pady=5)
 
-        run_model_button = tk.Button(model_frame, text="Run Model", command=self.run_model)
-        run_model_button.pack(side="left", padx=5, pady=5)
+    def create_rag_frame(self):
+        rag_frame = tk.LabelFrame(self.main_tab, text="RAG")
+        rag_frame.pack(fill="x", padx=10, pady=5)
 
-        create_knol_button = tk.Button(model_frame, text="Create Knol", command=self.create_knol)
+        talk2doc_button = tk.Button(rag_frame, text="Talk2Doc", command=self.run_model)
+        talk2doc_button.pack(side="left", padx=5, pady=5)
+
+        create_knol_button = tk.Button(rag_frame, text="Create Knol", command=self.create_knol)
         create_knol_button.pack(side="left", padx=5, pady=5)
 
-        # Add the new button for Internet RAG
-        internet_rag_button = tk.Button(model_frame, text="Internet RAG", command=self.run_internet_rag)
-        internet_rag_button.pack(side="left", padx=5, pady=5)
+        web_sum_button = tk.Button(rag_frame, text="Web Sum", command=self.run_web_sum)
+        web_sum_button.pack(side="left", padx=5, pady=5)
 
-    def run_internet_rag(self):
+    def run_web_sum(self):
         try:
             api_type = self.api_type_var.get()
-            internet_rag = InternetRAG(api_type)
+            web_sum = WebSum(api_type)  # Changed from InternetRAG to WebSum
             
-            # Apply settings to InternetRAG
+            # Apply settings to WebSum
             settings.apply_settings()
             
-            # Run the Internet RAG in a separate thread to keep the GUI responsive
-            threading.Thread(target=internet_rag.run, daemon=True).start()
+            # Run the Web Sum in a separate thread to keep the GUI responsive
+            threading.Thread(target=web_sum.run, daemon=True).start()
             
-            messagebox.showinfo("Info", f"Internet RAG system started with {api_type} API. Check the console for interaction.")
+            messagebox.showinfo("Info", f"Web Sum system started with {api_type} API. Check the console for interaction.")
         except Exception as e:
-            messagebox.showerror("Error", f"An error occurred while starting the Internet RAG system: {str(e)}")
+            messagebox.showerror("Error", f"An error occurred while starting the Web Sum system: {str(e)}")
 
     def create_settings_tab(self):
         # Create a main frame to hold the two columns
@@ -154,7 +160,7 @@ class ERAGGUI:
         knol_frame = self.create_labelframe(right_column, "Knol Creation Settings", 0)
         search_frame = self.create_labelframe(right_column, "Search Settings", 1)
         file_frame = self.create_labelframe(right_column, "File Settings", 2)
-        internet_rag_frame = self.create_labelframe(right_column, "Internet RAG Settings", 3)
+        internet_rag_frame = self.create_labelframe(right_column, "Web Summary Settings", 3)
 
         # Create and layout settings fields
         self.create_settings_fields(upload_frame, [
