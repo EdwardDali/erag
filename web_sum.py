@@ -53,7 +53,7 @@ class WebSum:
     def perform_search(self, query):
         search_results = []
         with DDGS() as ddgs:
-            for result in ddgs.text(query, region='wt-wt', safesearch='moderate', timelimit=None, max_results=settings.num_urls_to_crawl):
+            for result in ddgs.text(query, region='wt-wt', safesearch='moderate', timelimit=None, max_results=settings.web_sum_urls_to_crawl):
                 search_results.append({'url': result["href"], 'title': result["title"], 'body': result["body"]})
         
         return search_results

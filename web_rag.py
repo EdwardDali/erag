@@ -46,6 +46,7 @@ class WebRAG:
         logging.info(f"Performing search for query: {query}")
         self.current_query = query  # Store the current query
         self.search_offset = 0  # Reset search offset for new query
+        self.all_search_results = []  # Reset all search results for new query
         search_results = self.perform_search(query)
         logging.info(f"Search returned {len(search_results)} URLs")
         
@@ -234,7 +235,17 @@ class WebRAG:
         
         conversation_context = " ".join(self.conversation_context)
         
-        system_message = """You are an AI assistant tasked with answering questions based on the provided context and conversation history. Prioritize the most recent conversation context when answering questions, but also consider other relevant information if necessary. If the given context doesn't provide a suitable answer, rely on your general knowledge."""
+        system_message = """You are an AI assistant tasked with answering questions based on the provided context and conversation history. Follow these guidelines:
+
+1. Prioritize the most recent conversation context when answering questions, but also consider other relevant information if necessary.
+2. If the given context doesn't provide a suitable answer, rely on your general knowledge.
+3. Structure your answer in a clear, organized manner:
+   - Start with a brief overview or main point.
+   - Use headings for main topics if applicable.
+   - Use bullet points or numbered lists for details or sub-points.
+4. Stay focused on the specific question asked. If the question is about a particular aspect or metric, concentrate on that in your answer.
+5. If the question is asking for specific data or numbers, prioritize providing that information.
+6. Be concise but comprehensive. Aim for a well-structured answer that covers the main points without unnecessary elaboration."""
 
         user_message = f"""Conversation Context:
 {conversation_context}
@@ -244,7 +255,7 @@ Search Context:
 
 Question: {query}
 
-Please provide a comprehensive answer to the question based on the given context and conversation history. Prioritize the Conversation Context when answering, followed by the most relevant information from the Search Context. If none of the provided context is relevant, you can answer based on your general knowledge."""
+Please provide a comprehensive and well-structured answer to the question based on the given context and conversation history. Prioritize the Conversation Context when answering, followed by the most relevant information from the Search Context. If none of the provided context is relevant, you can answer based on your general knowledge."""
 
         try:
             response = self.client.chat.completions.create(
