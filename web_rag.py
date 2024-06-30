@@ -29,6 +29,9 @@ class WebRAG:
         self.web_rag_file = settings.web_rag_file
         self.current_question_file = None
         self.context_size = settings.initial_context_size
+        self.processed_urls = set()  # Keep track of processed URLs
+        self.current_query = None  # Store the current query
+        self.search_offset = 0  # New attribute to keep track of search offset
 
     @staticmethod
     def configure_api(api_type: str) -> OpenAI:
@@ -41,10 +44,12 @@ class WebRAG:
 
     def search_and_process(self, query):
         logging.info(f"Performing search for query: {query}")
-        self.all_search_results = self.perform_search(query)
-        logging.info(f"Search returned {len(self.all_search_results)} URLs")
+        self.current_query = query  # Store the current query
+        self.search_offset = 0  # Reset search offset for new query
+        search_results = self.perform_search(query)
+        logging.info(f"Search returned {len(search_results)} URLs")
         
-        relevant_urls = self.filter_relevant_urls(self.all_search_results[:settings.web_rag_urls_to_crawl], query)
+        relevant_urls = self.filter_relevant_urls(search_results, query)
         logging.info(f"Found {len(relevant_urls)} relevant URLs")
         
         summarized_query = self.summarize_query(query)
@@ -83,13 +88,18 @@ class WebRAG:
             logging.error(f"Error summarizing query: {str(e)}")
             return "web_rag_query"
 
-    def perform_search(self, query):
-        search_results = []
-        with DDGS() as ddgs:
-            for result in ddgs.text(query, region='wt-wt', safesearch='moderate', timelimit=None, max_results=settings.web_rag_urls_to_crawl):
-                search_results.append(result)
-        return search_results
+    def perform_search(self, query, offset=0):
+        if offset == 0 or not self.all_search_results:
+            self.all_search_results = []
+            with DDGS() as ddgs:
+                for result in ddgs.text(query, region='wt-wt', safesearch='moderate', timelimit=None, max_results=settings.web_rag_urls_to_crawl * 5):  # Fetch more results
+                    self.all_search_results.append(result)
+        
+        start = offset
+        end = offset + settings.web_rag_urls_to_crawl
+        return self.all_search_results[start:end]
 
+    
     def filter_relevant_urls(self, search_results, query):
         relevant_urls = []
         for result in search_results:
@@ -134,24 +144,30 @@ class WebRAG:
         self._create_embeddings(all_content)
 
     def process_next_urls(self):
-        if not self.current_question_file:
-            print(f"{ANSIColor.PINK.value}No current question context. Please perform a search first.{ANSIColor.RESET.value}")
+        if not self.current_query:
+            print(f"{ANSIColor.PINK.value}No current query context. Please perform a search first.{ANSIColor.RESET.value}")
             return False
 
-        unprocessed_urls = [result['href'] for result in self.all_search_results if result['href'] not in self.current_urls]
-        urls_to_process = unprocessed_urls[:settings.web_rag_urls_to_crawl]
+        # Get next batch of search results
+        new_search_results = self.perform_search(self.current_query, offset=self.search_offset)
+        self.search_offset += settings.web_rag_urls_to_crawl  # Increase offset for next search
+        
+        # Filter out already processed URLs
+        urls_to_process = [result for result in new_search_results if result['href'] not in self.processed_urls]
         
         if not urls_to_process:
-            print(f"{ANSIColor.PINK.value}No more URLs to process.{ANSIColor.RESET.value}")
+            print(f"{ANSIColor.PINK.value}No new URLs found to process. Try a new search query.{ANSIColor.RESET.value}")
             return False
 
         all_content = []
         with open(self.current_question_file, "a", encoding='utf-8') as f:
-            for url in urls_to_process:
+            for result in urls_to_process:
+                url = result['href']
                 content = self.crawl_page(url)
                 if content:
-                    self.current_urls.add(url)
-                    f.write(f"\nURL: {url}\n\n")
+                    self.processed_urls.add(url)
+                    f.write(f"\nURL: {url}\n")
+                    f.write(f"Title: {result.get('title', 'No title')}\n")
                     f.write("Content:\n")
                     chunks = self.create_chunks(content)
                     for chunk in chunks:
@@ -167,9 +183,8 @@ class WebRAG:
             self.search_utils.db_embeddings = np.vstack([self.search_utils.db_embeddings, new_embeddings])
             self.search_utils.db_content.extend(all_content)
 
-        self.context_size *= 2  # Double the context size for the next search
         return True
-
+        
     def _create_embeddings(self, all_content):
         embeddings = self.model.encode(all_content, show_progress_bar=False)
         self.search_utils = SearchUtils(self.model, embeddings, all_content, None)
@@ -271,36 +286,37 @@ Please provide a comprehensive answer to the question based on the given context
                 self.conversation_history.clear()
                 self.conversation_context.clear()
                 self.current_question_file = None
-                self.context_size = 5  # Reset context size
-                print(f"{ANSIColor.CYAN.value}Conversation history and context cleared.{ANSIColor.RESET.value}")
+                self.current_query = None
+                self.context_size = settings.initial_context_size
+                self.processed_urls.clear()
+                self.search_utils = None  # Reset search utils
+                self.search_offset = 0  # Reset search offset
+                print(f"{ANSIColor.CYAN.value}Conversation history, context, and processed URLs cleared.{ANSIColor.RESET.value}")
                 continue
             elif user_input.lower() == 'check':
-                print(f"{ANSIColor.CYAN.value}Processing next 5 URLs and updating knowledge base...{ANSIColor.RESET.value}")
+                if not self.current_query:
+                    print(f"{ANSIColor.PINK.value}No current query. Please perform a search first.{ANSIColor.RESET.value}")
+                    continue
+                print(f"{ANSIColor.CYAN.value}Searching for new URLs and updating knowledge base...{ANSIColor.RESET.value}")
                 if self.process_next_urls():
-                    if self.current_question_file:
-                        last_query = self.conversation_history[-2]['content'] if self.conversation_history else "Previous question"
-                        print(f"{ANSIColor.CYAN.value}Generating new answer based on expanded information...{ANSIColor.RESET.value}")
-                        new_answer = self.generate_qa(last_query)
-                        print(f"\n{ANSIColor.NEON_GREEN.value}Updated Answer:{ANSIColor.RESET.value}\n{new_answer}")
-                        with open(self.web_rag_file, "a", encoding="utf-8") as f:
-                            f.write(f"Updated Answer:\n{new_answer}\n\n")
-                            f.write("-" * 50 + "\n\n")
+                    print(f"{ANSIColor.CYAN.value}Generating new answer based on expanded information...{ANSIColor.RESET.value}")
+                    new_answer = self.generate_qa(self.current_query)
+                    print(f"\n{ANSIColor.NEON_GREEN.value}Updated Answer:{ANSIColor.RESET.value}\n{new_answer}")
+                    with open(self.web_rag_file, "a", encoding="utf-8") as f:
+                        f.write(f"Updated Answer:\n{new_answer}\n\n")
+                        f.write("-" * 50 + "\n\n")
                     print(f"{ANSIColor.NEON_GREEN.value}Knowledge base updated. You can now ask questions with the expanded information.{ANSIColor.RESET.value}")
                 continue
 
-            if not user_input:
-                print(f"{ANSIColor.PINK.value}Please enter a valid query.{ANSIColor.RESET.value}")
-                continue
-
-            if not self.search_utils:
+            if not self.search_utils or not self.current_query:
                 print(f"{ANSIColor.CYAN.value}Searching and processing web content...{ANSIColor.RESET.value}")
                 answer = self.search_and_process(user_input)
-                print(f"{ANSIColor.NEON_GREEN.value}Relevant content has been processed.{ANSIColor.RESET.value}")
+                print(f"\n{ANSIColor.NEON_GREEN.value}Answer:{ANSIColor.RESET.value}\n{answer}")
+                print(f"{ANSIColor.NEON_GREEN.value}Relevant content has been processed. You can now ask follow-up questions or use 'check' to process more URLs.{ANSIColor.RESET.value}")
             else:
                 print(f"{ANSIColor.CYAN.value}Generating answer based on existing knowledge...{ANSIColor.RESET.value}")
                 answer = self.generate_qa(user_input)
-
-            print(f"\n{ANSIColor.NEON_GREEN.value}Answer:{ANSIColor.RESET.value}\n{answer}")
+                print(f"\n{ANSIColor.NEON_GREEN.value}Answer:{ANSIColor.RESET.value}\n{answer}")
 
             print(f"{ANSIColor.NEON_GREEN.value}You can ask follow-up questions, start a new search, or use 'check' to process more URLs and update the knowledge base.{ANSIColor.RESET.value}")
 
