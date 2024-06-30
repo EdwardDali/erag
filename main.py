@@ -14,6 +14,7 @@ from settings import settings
 from search_utils import SearchUtils
 from create_knol import KnolCreator
 from web_sum import WebSum
+from web_rag import WebRAG
 
 class ERAGGUI:
     def __init__(self, master: tk.Tk):
@@ -121,6 +122,9 @@ class ERAGGUI:
         web_sum_button = tk.Button(rag_frame, text="Web Sum", command=self.run_web_sum)
         web_sum_button.pack(side="left", padx=5, pady=5)
 
+        web_rag_button = tk.Button(rag_frame, text="Web Rag", command=self.run_web_rag)
+        web_rag_button.pack(side="left", padx=5, pady=5)
+
     def run_web_sum(self):
         try:
             api_type = self.api_type_var.get()
@@ -135,6 +139,21 @@ class ERAGGUI:
             messagebox.showinfo("Info", f"Web Sum system started with {api_type} API. Check the console for interaction.")
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred while starting the Web Sum system: {str(e)}")
+
+    def run_web_rag(self):
+        try:
+            api_type = self.api_type_var.get()
+            web_rag = WebRAG(api_type)
+            
+            # Apply settings to WebRAG
+            settings.apply_settings()
+            
+            # Run the Web RAG in a separate thread to keep the GUI responsive
+            threading.Thread(target=web_rag.run, daemon=True).start()
+            
+            messagebox.showinfo("Info", f"Web RAG system started with {api_type} API. Check the console for interaction.")
+        except Exception as e:
+            messagebox.showerror("Error", f"An error occurred while starting the Web RAG system: {str(e)}")
 
     def create_settings_tab(self):
         # Create a main frame to hold the two columns
