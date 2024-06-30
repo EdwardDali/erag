@@ -61,13 +61,14 @@ class WebRAG:
         self.process_relevant_urls(relevant_urls, self.current_question_file)
         
         answer = self.generate_qa(query)
-        print(f"\n{ANSIColor.NEON_GREEN.value}Answer:{ANSIColor.RESET.value}\n{answer}")
-
+        
         # Save question and answer to web_rag_qa.txt
         with open(self.web_rag_file, "a", encoding="utf-8") as f:
             f.write(f"Question: {query}\n\n")
             f.write(f"Answer: {answer}\n\n")
             f.write("-" * 50 + "\n\n")
+        
+        return answer
 
     def summarize_query(self, query):
         system_message = "You are an AI assistant tasked with summarizing a question into a short phrase suitable for a filename. Provide only the summary, no additional text. The summary should be 3-5 words long."
@@ -148,11 +149,15 @@ class WebRAG:
     def process_next_urls(self):
         if not self.current_question_file:
             print(f"{ANSIColor.PINK.value}No current question context. Please perform a search first.{ANSIColor.RESET.value}")
-            return
+            return False
 
         unprocessed_urls = [result['href'] for result in self.all_search_results if result['href'] not in self.current_urls]
         urls_to_process = unprocessed_urls[:5]
         
+        if not urls_to_process:
+            print(f"{ANSIColor.PINK.value}No more URLs to process.{ANSIColor.RESET.value}")
+            return False
+
         all_content = []
         with open(self.current_question_file, "a", encoding='utf-8') as f:
             for url in urls_to_process:
@@ -176,6 +181,7 @@ class WebRAG:
             self.search_utils.db_content.extend(all_content)
 
         self.context_size *= 2  # Double the context size for the next search
+        return True
 
     def _create_embeddings(self, all_content):
         embeddings = self.model.encode(all_content, show_progress_bar=False)
@@ -226,11 +232,17 @@ class WebRAG:
         
         conversation_context = " ".join(self.conversation_context)
         
-        system_message = """You are an AI assistant tasked with answering questions based on the provided context and conversation history. Use the context to inform your answers, but also draw on your general knowledge if necessary. If the context doesn't provide relevant information, be honest about the limitations of your knowledge."""
+        system_message = """You are an AI assistant tasked with answering questions based on the provided context and conversation history. Prioritize the most recent conversation context when answering questions, but also consider other relevant information if necessary. If the given context doesn't provide a suitable answer, rely on your general knowledge."""
 
-        user_message = f"""Conversation Context:\n{conversation_context}\n\nSearch Context:\n{context}\n\nQuestion: {query}
+        user_message = f"""Conversation Context:
+{conversation_context}
 
-Please provide a comprehensive answer to the question based on the given context and conversation history."""
+Search Context:
+{context}
+
+Question: {query}
+
+Please provide a comprehensive answer to the question based on the given context and conversation history. Prioritize the Conversation Context when answering, followed by the most relevant information from the Search Context. If none of the provided context is relevant, you can answer based on your general knowledge."""
 
         try:
             response = self.client.chat.completions.create(
@@ -277,23 +289,31 @@ Please provide a comprehensive answer to the question based on the given context
                 continue
             elif user_input.lower() == 'check':
                 print(f"{ANSIColor.CYAN.value}Processing next 5 URLs and updating knowledge base...{ANSIColor.RESET.value}")
-                self.process_next_urls()
-                if self.current_question_file:
-                    last_query = self.conversation_history[-2]['content'] if self.conversation_history else "Previous question"
-                    print(f"{ANSIColor.CYAN.value}Generating new answer based on expanded information...{ANSIColor.RESET.value}")
-                    new_answer = self.generate_qa(last_query)
-                    print(f"\n{ANSIColor.NEON_GREEN.value}Updated Answer:{ANSIColor.RESET.value}\n{new_answer}")
-                    with open(self.web_rag_file, "a", encoding="utf-8") as f:
-                        f.write(f"Updated Answer:\n{new_answer}\n\n")
-                        f.write("-" * 50 + "\n\n")
-                print(f"{ANSIColor.NEON_GREEN.value}Knowledge base updated. You can now ask questions with the expanded information.{ANSIColor.RESET.value}")
+                if self.process_next_urls():
+                    if self.current_question_file:
+                        last_query = self.conversation_history[-2]['content'] if self.conversation_history else "Previous question"
+                        print(f"{ANSIColor.CYAN.value}Generating new answer based on expanded information...{ANSIColor.RESET.value}")
+                        new_answer = self.generate_qa(last_query)
+                        print(f"\n{ANSIColor.NEON_GREEN.value}Updated Answer:{ANSIColor.RESET.value}\n{new_answer}")
+                        with open(self.web_rag_file, "a", encoding="utf-8") as f:
+                            f.write(f"Updated Answer:\n{new_answer}\n\n")
+                            f.write("-" * 50 + "\n\n")
+                    print(f"{ANSIColor.NEON_GREEN.value}Knowledge base updated. You can now ask questions with the expanded information.{ANSIColor.RESET.value}")
                 continue
 
             if not user_input:
                 print(f"{ANSIColor.PINK.value}Please enter a valid query.{ANSIColor.RESET.value}")
                 continue
 
-            self.search_and_process(user_input)
+            if not self.search_utils:
+                print(f"{ANSIColor.CYAN.value}Searching and processing web content...{ANSIColor.RESET.value}")
+                answer = self.search_and_process(user_input)
+                print(f"{ANSIColor.NEON_GREEN.value}Relevant content has been processed.{ANSIColor.RESET.value}")
+            else:
+                print(f"{ANSIColor.CYAN.value}Generating answer based on existing knowledge...{ANSIColor.RESET.value}")
+                answer = self.generate_qa(user_input)
+
+            print(f"\n{ANSIColor.NEON_GREEN.value}Answer:{ANSIColor.RESET.value}\n{answer}")
 
             print(f"{ANSIColor.NEON_GREEN.value}You can ask follow-up questions, start a new search, or use 'check' to process more URLs and update the knowledge base.{ANSIColor.RESET.value}")
 
