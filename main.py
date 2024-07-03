@@ -19,7 +19,7 @@ from web_rag import WebRAG
 class ERAGGUI:
     def __init__(self, master: tk.Tk):
         self.master = master
-        self.master.title("E-RAG")
+        self.master.title("ERAG")
         self.api_type_var = tk.StringVar(master)
         self.api_type_var.set("ollama")  # Default value
         self.rag_system = None
@@ -53,7 +53,8 @@ class ERAGGUI:
         self.create_upload_frame()
         self.create_embeddings_frame()
         self.create_model_frame()
-        self.create_rag_frame()
+        self.create_doc_rag_frame()
+        self.create_web_rag_frame()
 
     def create_upload_frame(self):
         upload_frame = tk.LabelFrame(self.main_tab, text="Upload")
@@ -91,15 +92,20 @@ class ERAGGUI:
         api_menu = tk.OptionMenu(model_frame, self.api_type_var, *api_options)
         api_menu.pack(side="left", padx=5, pady=5)
 
-    def create_rag_frame(self):
-        rag_frame = tk.LabelFrame(self.main_tab, text="RAG")
+    def create_doc_rag_frame(self):
+        rag_frame = tk.LabelFrame(self.main_tab, text="Doc Rag")
         rag_frame.pack(fill="x", padx=10, pady=5)
 
         talk2doc_button = tk.Button(rag_frame, text="Talk2Doc", command=self.run_model)
         talk2doc_button.pack(side="left", padx=5, pady=5)
 
-        create_knol_button = tk.Button(rag_frame, text="Create Knol", command=self.create_knol)
+        create_knol_button = tk.Button(rag_frame, text="Create Knol", command=self.create_knol)              
         create_knol_button.pack(side="left", padx=5, pady=5)
+
+    def create_web_rag_frame(self):
+
+        rag_frame = tk.LabelFrame(self.main_tab, text="Web Rag")
+        rag_frame.pack(fill="x", padx=10, pady=5)
 
         web_sum_button = tk.Button(rag_frame, text="Web Sum", command=self.run_web_sum)
         web_sum_button.pack(side="left", padx=5, pady=5)
