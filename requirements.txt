@@ -10,3 +10,8 @@ transformers==4.30.2
 python-docx==0.8.11
 PyPDF2==3.0.1
 nltk==3.8.1
+requests==2.26.0
+beautifulsoup4==4.10.0
+duckduckgo_search==2.8.0
+lxml==4.9.2
+docx==0.2.4
