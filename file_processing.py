@@ -6,6 +6,7 @@ from typing import Optional, List, Tuple
 import logging
 import os
 from settings import settings
+import json
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -17,7 +18,6 @@ def set_chunk_sizes(chunk_size: int, overlap_size: int):
     settings.file_chunk_size = chunk_size
     settings.file_overlap_size = overlap_size
     logging.info(f"File chunk size set to {settings.file_chunk_size} and overlap size set to {settings.file_overlap_size}")
-
 
 def format_db_entry(content: str) -> str:
     """Format a single database entry."""
@@ -57,6 +57,18 @@ def upload_txt() -> Optional[Tuple[str, str]]:
             logging.error(f"Error processing TXT file: {str(e)}")
     return None, None
 
+def upload_json() -> Optional[Tuple[str, str]]:
+    file_path = filedialog.askopenfilename(filetypes=[("JSON Files", "*.json")])
+    if file_path:
+        try:
+            with open(file_path, 'r', encoding="utf-8") as json_file:
+                data = json.load(json_file)
+                text = json.dumps(data, indent=2)  # Convert JSON to formatted string
+                return text, os.path.basename(file_path)
+        except Exception as e:
+            logging.error(f"Error processing JSON file: {str(e)}")
+    return None, None
+
 def handle_text_chunking(text: str) -> List[str]:
     # Normalize whitespace and clean up text
     text = re.sub(r'\s+', ' ', text).strip()
@@ -86,7 +98,8 @@ def process_file(file_type: str) -> Optional[List[str]]:
     upload_functions = {
         "DOCX": upload_docx,
         "PDF": upload_pdf,
-        "Text": upload_txt
+        "Text": upload_txt,
+        "JSON": upload_json
     }
     
     if file_type not in upload_functions:
@@ -104,7 +117,7 @@ def append_to_db(chunks: List[str], db_file: str = "db.txt"):
     logging.info(f"Appended {len(chunks)} chunks to {db_file}")
 
 if __name__ == "__main__":
-    file_types = ["DOCX", "PDF", "Text"]
+    file_types = ["DOCX", "PDF", "Text", "JSON"]
     for file_type in file_types:
         chunks = process_file(file_type)
         if chunks:
