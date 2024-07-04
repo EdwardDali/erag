@@ -34,9 +34,9 @@ git clone https://github.com/EdwardDali/erag.git && cd erag
    - For Windows:
      Visit https://ollama.ai/download and follow the installation instructions.
 
-5. Pull the phi3:instruct model:
+5. Run the phi3 model:
    ```
-   ollama pull phi3:instruct
+   ollama run phi3:3.8b-mini-128k-instruct-q4_K_M
    ```
 
 Note: Ensure you have Python 3.7 or later installed on your system before proceeding with the installation.
