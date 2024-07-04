@@ -3,6 +3,7 @@ import logging
 from openai import OpenAI
 from enum import Enum
 from settings import settings
+import re
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -60,31 +61,28 @@ class RouteQuery:
            - Deep: If the query requires a comprehensive analysis, multiple aspects, or extensive information.
 
         4. Based on your evaluation, recommend one of the following options:
+First check if there is relevant information in the TOC; if yes chose A or B. If there is no relevant information in TOC chose C or D. For complex query not in the TOC choose D.
            A. talk2doc (RAGSystem): 
-              - Use for relevant content and simple queries.
-              - Best when the TOC indicates that the answer is likely in the local database.
-              - Capable of lexical and semantic search on local content.
-              - Uses a knowledge graph for context.
-              - Ideal for specific questions about topics mentioned in the TOC.
+              - in TOC: yes
+              - simple: yes
 
-           B. create_knol (KnolCreator): 
-              - Use for relevant content and deep dive queries.
-              - Best when the TOC suggests extensive information is available in the local database.
-              - Creates comprehensive, structured knowledge entries.
-              - Generates questions and answers based on the created knowledge.
-              - Ideal for in-depth exploration of topics well-represented in the TOC.
+           B. create_knol (KnolCreator):
+              - in TOC: yes
+              - simple: no
 
-           C. web_rag (WebRAG): 
-              - Use only when the TOC doesn't indicate relevant local content and for simple queries.
-              - Performs web searches for relevant, up-to-date information.
-              - Processes and summarizes web content.
-              - Suitable for queries requiring current or broad internet information not covered in the TOC.
+           C. web_rag (WebRAG):
+              - in TOC: no
+              - simple: yes
 
-           D. web_sum (WebSum): 
-              - Use only when the TOC doesn't indicate relevant local content and for deep dive queries.
-              - Creates comprehensive summaries from multiple web sources.
-              - Best for queries requiring in-depth research and synthesis of web information on topics not covered in the TOC.
 
+           D. web_sum (WebSum):
+              - in TOC: no
+              - simple: no
+
+
+              
+
+              
         5. Provide a detailed explanation for your recommendation, referencing specific parts of the query or TOC that influenced your decision. Consider the unique capabilities of each system in your reasoning.
 
         Format your response as follows:
@@ -147,7 +145,9 @@ class RouteQuery:
                 elif key == 'complexity':
                     evaluation['complexity'] = 'deep' if 'deep' in value.lower() else 'simple'
                 elif key == 'recommendation':
-                    evaluation['recommendation'] = value.upper() if value.upper() in ['A', 'B', 'C', 'D'] else 'C'
+                    # Extract the letter before any additional text
+                    match = re.match(r'([A-D])', value.upper())
+                    evaluation['recommendation'] = match.group(1) if match else 'C'
                 elif key == 'explanation':
                     evaluation['explanation'] = value
 
