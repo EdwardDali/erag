@@ -1,12 +1,7 @@
 import sys
 import logging
-import time
 from openai import OpenAI
 from enum import Enum
-from talk2doc import RAGSystem
-from create_knol import KnolCreator
-from web_rag import WebRAG
-from web_sum import WebSum
 from settings import settings
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -22,11 +17,6 @@ class RouteQuery:
     def __init__(self, api_type: str):
         self.api_type = api_type
         self.client = self.configure_api(api_type)
-        self.current_system = None
-        self.talk2doc = RAGSystem(api_type)
-        self.create_knol = KnolCreator(api_type)
-        self.web_rag = WebRAG(api_type)
-        self.web_sum = WebSum(api_type)
 
     @staticmethod
     def configure_api(api_type: str) -> OpenAI:
@@ -38,16 +28,25 @@ class RouteQuery:
             raise ValueError("Invalid API type")
 
     def load_db_content(self):
+        logging.info("Loading database content...")
         try:
-            with open(settings.db_file_path, 'r', encoding='utf-8') as f:
-                return f.read()
+            with open('db_content.txt', 'r', encoding='utf-8') as f:
+                content = f.read()
+            logging.info("Successfully loaded database content from db_content.txt")
+            logging.info(f"Loaded db_content (first 100 characters): {content[:100]}...")
+            return content
         except FileNotFoundError:
-            logging.error(f"db_content.txt not found at {settings.db_file_path}")
+            logging.error("db_content.txt not found")
             return ""
 
-    def evaluate_query(self, query: str, db_content: str) -> dict:
-        system_message = """You are an intelligent query router. Your task is to analyze the given query and the provided database content summary to determine the most appropriate way to handle the query. The database content summary contains a table of contents for documents accessible by the system. Evaluate the following:
+    def evaluate_query(self, query: str) -> dict:
+        logging.info(f"Evaluating query: {query}")
+        
+        db_content = self.load_db_content()
+        
+        system_message = """You are an intelligent query router. Your task is to analyze the given query and the provided database content summary (which is a table of contents) to determine the most appropriate way to handle the query. Base your decision ONLY on the information provided in the query and the database content summary.
 
+        Evaluate the following:
         1. Relevance: Does the database content summary indicate that relevant information is available for the query? (high/low)
         2. Complexity: Is the query asking for a simple answer or a deep dive? (simple/deep)
 
@@ -57,31 +56,59 @@ class RouteQuery:
         C. web_rag (for non-relevant content and simple queries)
         D. web_sum (for non-relevant content and deep dive queries)
 
-        Provide your recommendation in the following format:
+        Format your response as follows:
+        Query: [Repeat the exact query here]
         Relevance: [high/low]
         Complexity: [simple/deep]
         Recommendation: [A/B/C/D]
-        Explanation: [brief explanation of your choice]"""
+        Explanation: [Your detailed explanation here]
+
+        Remember: Only use the information provided in the query and database content summary for your decision."""
+
+        user_message = f"Query: {query}\n\nDatabase Content Summary:\n{db_content}\n\nPlease evaluate the query and the database content summary, then provide your recommendation."
+        
+        logging.info(f"User message sent to LLM: {user_message[:100]}...")  # Log the first 100 characters of the user message
 
         messages = [
             {"role": "system", "content": system_message},
-            {"role": "user", "content": f"Query: {query}\n\nDatabase Content Summary:\n{db_content}\n\nPlease evaluate the query and the database content summary, then provide your recommendation."}
+            {"role": "user", "content": user_message}
         ]
 
         try:
+            logging.info("Sending request to LLM...")
             response = self.client.chat.completions.create(
                 model=settings.ollama_model,
                 messages=messages,
                 temperature=settings.temperature
             )
-            return self.parse_evaluation(response.choices[0].message.content)
+            
+            llm_response = response.choices[0].message.content
+            
+            print(f"\n{ANSIColor.CYAN.value}LLM-generated response:{ANSIColor.RESET.value}")
+            print(llm_response)
+            print(f"\n{ANSIColor.YELLOW.value}Parsing LLM response...{ANSIColor.RESET.value}")
+            
+            parsed_response = self.parse_evaluation(llm_response)
+            
+            if parsed_response['query'].lower() != query.lower():
+                logging.warning(f"LLM response query '{parsed_response['query']}' doesn't match the input query '{query}'. Using default routing.")
+                return {
+                    "query": query,
+                    "recommendation": "C",
+                    "relevance": "low",
+                    "complexity": "simple",
+                    "explanation": "Default routing due to LLM response mismatch."
+                }
+            
+            return parsed_response
         except Exception as e:
             logging.error(f"Error in LLM response: {str(e)}. Using default routing.")
             return {
+                "query": query,
                 "recommendation": "C",
                 "relevance": "low",
                 "complexity": "simple",
-                "explanation": "Default routing due to error."
+                "explanation": "Default routing due to error in LLM response."
             }
 
     def parse_evaluation(self, response: str) -> dict:
@@ -91,44 +118,40 @@ class RouteQuery:
             if ':' in line:
                 key, value = line.split(':', 1)
                 key = key.strip().lower()
-                value = value.strip().lower()
-                if key == 'relevance':
-                    evaluation['relevance'] = 'high' if 'high' in value else 'low'
+                value = value.strip()
+                if key == 'query':
+                    evaluation['query'] = value
+                elif key == 'relevance':
+                    evaluation['relevance'] = 'high' if 'high' in value.lower() else 'low'
                 elif key == 'complexity':
-                    evaluation['complexity'] = 'deep' if 'deep' in value else 'simple'
+                    evaluation['complexity'] = 'deep' if 'deep' in value.lower() else 'simple'
                 elif key == 'recommendation':
                     evaluation['recommendation'] = value.upper() if value.upper() in ['A', 'B', 'C', 'D'] else 'C'
                 elif key == 'explanation':
                     evaluation['explanation'] = value
 
-        # Ensure all keys are present
-        for key in ['relevance', 'complexity', 'recommendation', 'explanation']:
+        for key in ['query', 'relevance', 'complexity', 'recommendation', 'explanation']:
             if key not in evaluation:
                 evaluation[key] = 'N/A'
 
         return evaluation
 
-    def execute_query(self, query: str, recommendation: str):
-        print(f"\n{ANSIColor.CYAN.value}Executing query with {self.current_system}: {query}{ANSIColor.RESET.value}")
-        
-        try:
-            if self.current_system == "talk2doc":
-                response = self.talk2doc.ollama_chat(query, "You are a helpful assistant. Please respond to the user's query based on the available context.")
-            elif self.current_system == "create_knol":
-                self.create_knol.run_knol_creator()
-                response = "Knol creation process completed. Please check the generated files for results."
-            elif self.current_system == "web_rag":
-                response = self.web_rag.search_and_process(query)
-            elif self.current_system == "web_sum":
-                response = self.web_sum.search_and_process(query)
-            else:
-                response = "Error: Invalid system selected."
-        except Exception as e:
-            logging.error(f"Error executing query: {str(e)}")
-            response = f"An error occurred while processing your query: {str(e)}"
-
-        print(f"\n{ANSIColor.NEON_GREEN.value}Response:{ANSIColor.RESET.value}")
-        print(response)
+    def load_component(self, component_name: str):
+        logging.info(f"Loading component: {component_name}")
+        if component_name == 'talk2doc':
+            from talk2doc import RAGSystem
+            return RAGSystem(self.api_type)
+        elif component_name == 'create_knol':
+            from create_knol import KnolCreator
+            return KnolCreator(self.api_type)
+        elif component_name == 'web_rag':
+            from web_rag import WebRAG
+            return WebRAG(self.api_type)
+        elif component_name == 'web_sum':
+            from web_sum import WebSum
+            return WebSum(self.api_type)
+        else:
+            raise ValueError(f"Unknown component: {component_name}")
 
     def route_query(self, query: str, evaluation: dict):
         print(f"{ANSIColor.CYAN.value}Routing decision:{ANSIColor.RESET.value}")
@@ -145,11 +168,21 @@ class RouteQuery:
         }.get(evaluation['recommendation'], 'web_rag')
 
         print(f"\n{ANSIColor.YELLOW.value}Loading system: {system_to_load}{ANSIColor.RESET.value}")
-        time.sleep(1)  # Simulate loading time
+        component = self.load_component(system_to_load)
         print(f"{ANSIColor.NEON_GREEN.value}System loaded: {system_to_load}{ANSIColor.RESET.value}")
-        
-        self.current_system = system_to_load
-        self.execute_query(query, evaluation['recommendation'])
+
+        if system_to_load == 'talk2doc':
+            response = component.ollama_chat(query, "You are a helpful assistant. Please respond to the user's query based on the available context.")
+        elif system_to_load == 'create_knol':
+            component.run_knol_creator()
+            response = "Knol creation process completed. Please check the generated files for results."
+        elif system_to_load in ['web_rag', 'web_sum']:
+            response = component.search_and_process(query)
+        else:
+            response = "Error: Invalid system selected."
+
+        print(f"\n{ANSIColor.NEON_GREEN.value}Response:{ANSIColor.RESET.value}")
+        print(response)
 
     def run(self):
         print(f"{ANSIColor.YELLOW.value}Welcome to the Query Routing System. Type 'exit' to quit.{ANSIColor.RESET.value}")
@@ -166,8 +199,7 @@ class RouteQuery:
                 continue
 
             print(f"{ANSIColor.CYAN.value}Evaluating your query...{ANSIColor.RESET.value}")
-            db_content = self.load_db_content()
-            evaluation = self.evaluate_query(user_input, db_content)
+            evaluation = self.evaluate_query(user_input)
 
             self.route_query(user_input, evaluation)
 
