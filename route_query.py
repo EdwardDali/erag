@@ -44,26 +44,59 @@ class RouteQuery:
         
         db_content = self.load_db_content()
         
-        system_message = """You are an intelligent query router. Your task is to analyze the given query and the provided database content summary (which is a table of contents) to determine the most appropriate way to handle the query. Base your decision ONLY on the information provided in the query and the database content summary.
+        system_message = """You are an intelligent query router with expertise in analyzing user queries and database content. Your task is to determine the most appropriate way to handle a given query based on the available information and the capabilities of our systems. 
 
-        Evaluate the following:
-        1. Relevance: Does the database content summary indicate that relevant information is available for the query? (high/low)
-        2. Complexity: Is the query asking for a simple answer or a deep dive? (simple/deep)
+        IMPORTANT: The database content provided is a Table of Contents (TOC) summary, not the full content. The presence of relevant entries in this TOC is a strong indicator that detailed information is available in the local documents.
 
-        Based on your evaluation, recommend one of the following options:
-        A. talk2doc (for relevant content and simple queries)
-        B. create_knol (for relevant content and deep dive queries)
-        C. web_rag (for non-relevant content and simple queries)
-        D. web_sum (for non-relevant content and deep dive queries)
+        Follow these steps:
+
+        1. Carefully analyze the query and the provided TOC summary.
+        2. Determine the relevance of the database content to the query:
+           - High: If the TOC mentions topics directly related to the query. This strongly suggests that relevant detailed information is available locally.
+           - Low: If the TOC does not contain any entries related to the query topic.
+
+        3. Assess the complexity of the query:
+           - Simple: If the query can be answered with a straightforward explanation or fact.
+           - Deep: If the query requires a comprehensive analysis, multiple aspects, or extensive information.
+
+        4. Based on your evaluation, recommend one of the following options:
+           A. talk2doc (RAGSystem): 
+              - Use for relevant content and simple queries.
+              - Best when the TOC indicates that the answer is likely in the local database.
+              - Capable of lexical and semantic search on local content.
+              - Uses a knowledge graph for context.
+              - Ideal for specific questions about topics mentioned in the TOC.
+
+           B. create_knol (KnolCreator): 
+              - Use for relevant content and deep dive queries.
+              - Best when the TOC suggests extensive information is available in the local database.
+              - Creates comprehensive, structured knowledge entries.
+              - Generates questions and answers based on the created knowledge.
+              - Ideal for in-depth exploration of topics well-represented in the TOC.
+
+           C. web_rag (WebRAG): 
+              - Use only when the TOC doesn't indicate relevant local content and for simple queries.
+              - Performs web searches for relevant, up-to-date information.
+              - Processes and summarizes web content.
+              - Suitable for queries requiring current or broad internet information not covered in the TOC.
+
+           D. web_sum (WebSum): 
+              - Use only when the TOC doesn't indicate relevant local content and for deep dive queries.
+              - Creates comprehensive summaries from multiple web sources.
+              - Best for queries requiring in-depth research and synthesis of web information on topics not covered in the TOC.
+
+        5. Provide a detailed explanation for your recommendation, referencing specific parts of the query or TOC that influenced your decision. Consider the unique capabilities of each system in your reasoning.
 
         Format your response as follows:
-        Query: [Repeat the exact query here]
         Relevance: [high/low]
         Complexity: [simple/deep]
         Recommendation: [A/B/C/D]
         Explanation: [Your detailed explanation here]
 
-        Remember: Only use the information provided in the query and database content summary for your decision."""
+        Remember:
+        - The presence of relevant topics in the TOC is a strong indicator to use local systems (A or B). Only recommend web-based options (C or D) if the TOC clearly lacks relevant entries.
+        - For queries about current events or rapidly changing information not likely to be in our local database, you may consider web-based options even if some related content exists in the TOC.
+        - Always explain your reasoning, especially when choosing between talk2doc and create_knol for locally available information."""
 
         user_message = f"Query: {query}\n\nDatabase Content Summary:\n{db_content}\n\nPlease evaluate the query and the database content summary, then provide your recommendation."
         
@@ -90,21 +123,11 @@ class RouteQuery:
             
             parsed_response = self.parse_evaluation(llm_response)
             
-            if parsed_response['query'].lower() != query.lower():
-                logging.warning(f"LLM response query '{parsed_response['query']}' doesn't match the input query '{query}'. Using default routing.")
-                return {
-                    "query": query,
-                    "recommendation": "C",
-                    "relevance": "low",
-                    "complexity": "simple",
-                    "explanation": "Default routing due to LLM response mismatch."
-                }
-            
+            # We no longer check for query mismatch here
             return parsed_response
         except Exception as e:
             logging.error(f"Error in LLM response: {str(e)}. Using default routing.")
             return {
-                "query": query,
                 "recommendation": "C",
                 "relevance": "low",
                 "complexity": "simple",
@@ -119,9 +142,7 @@ class RouteQuery:
                 key, value = line.split(':', 1)
                 key = key.strip().lower()
                 value = value.strip()
-                if key == 'query':
-                    evaluation['query'] = value
-                elif key == 'relevance':
+                if key == 'relevance':
                     evaluation['relevance'] = 'high' if 'high' in value.lower() else 'low'
                 elif key == 'complexity':
                     evaluation['complexity'] = 'deep' if 'deep' in value.lower() else 'simple'
@@ -130,7 +151,8 @@ class RouteQuery:
                 elif key == 'explanation':
                     evaluation['explanation'] = value
 
-        for key in ['query', 'relevance', 'complexity', 'recommendation', 'explanation']:
+        # Ensure all keys are present
+        for key in ['relevance', 'complexity', 'recommendation', 'explanation']:
             if key not in evaluation:
                 evaluation[key] = 'N/A'
 
