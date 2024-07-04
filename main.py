@@ -94,7 +94,7 @@ class ERAGGUI:
         api_menu.pack(side="left", padx=5, pady=5)
 
         # Add the Route Query button
-        route_query_button = tk.Button(model_frame, text="route query", command=self.run_route_query)
+        route_query_button = tk.Button(model_frame, text="Route Query", command=self.run_route_query)
         route_query_button.pack(side="left", padx=5, pady=5)
 
     def create_doc_rag_frame(self):

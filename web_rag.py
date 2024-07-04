@@ -44,17 +44,16 @@ class WebRAG:
 
     def search_and_process(self, query):
         logging.info(f"Performing search for query: {query}")
-        self.current_query = query  # Store the current query
-        self.search_offset = 0  # Reset search offset for new query
-        self.all_search_results = []  # Reset all search results for new query
+        self.current_query = query
+        self.search_offset = 0
+        self.all_search_results = []
         search_results = self.perform_search(query)
         logging.info(f"Search returned {len(search_results)} URLs")
         
         relevant_urls = self.filter_relevant_urls(search_results, query)
         logging.info(f"Found {len(relevant_urls)} relevant URLs")
         
-        summarized_query = self.summarize_query(query)
-        self.current_question_file = f"web_rag_{summarized_query}.txt"
+        self.current_question_file = self.summarize_query(query)
         self.process_relevant_urls(relevant_urls, self.current_question_file)
         
         answer = self.generate_qa(query)
@@ -80,14 +79,15 @@ class WebRAG:
                 temperature=settings.temperature
             ).choices[0].message.content.strip()
 
+            # Remove any non-alphanumeric characters and replace spaces with underscores
             safe_filename = re.sub(r'[^a-zA-Z0-9\s]', '', response)
             safe_filename = safe_filename.replace(' ', '_').lower()
-            safe_filename = safe_filename[:50]
+            safe_filename = safe_filename[:50]  # Limit filename length
 
-            return safe_filename
+            return f"web_rag_{safe_filename}.txt"
         except Exception as e:
             logging.error(f"Error summarizing query: {str(e)}")
-            return "web_rag_query"
+            return f"web_rag_query_{hash(query) % 10000}.txt"  # Fallback filename
 
     def perform_search(self, query, offset=0):
         if offset == 0 or not self.all_search_results:
