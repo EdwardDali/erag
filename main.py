@@ -302,14 +302,15 @@ class ERAGGUI:
 
     def upload_and_chunk(self, file_type: str):
         try:
-            chunks = process_file(file_type)
-            if chunks:
-                append_to_db(chunks)
-                messagebox.showinfo("Success", f"{file_type} file content processed and appended to db.txt with overlapping chunks.")
+            content = process_file(file_type)
+            if content:
+                append_to_db(content)
+                messagebox.showinfo("Success", f"{file_type} file content processed and appended to db.txt with table of contents in db_content.txt.")
             else:
                 messagebox.showwarning("Warning", "No file selected or file was empty.")
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred while processing the file: {str(e)}")
+
 
     def execute_embeddings(self):
         try:
