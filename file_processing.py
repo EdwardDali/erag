@@ -1,65 +1,70 @@
-import docx
-import PyPDF2
 import re
+import docx
+import fitz  # PyMuPDF
 from tkinter import filedialog
 from typing import Optional, List, Tuple
 import logging
 import os
 from settings import settings
 import json
-from openai import OpenAI
-from sentence_transformers import SentenceTransformer
-from tqdm import tqdm
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class FileProcessor:
     def __init__(self):
-        self.client = self.configure_api(settings.ollama_model)
-        self.model = SentenceTransformer(settings.model_name)
+        self.toc = []
 
-    @staticmethod
-    def configure_api(model_name: str) -> OpenAI:
-        return OpenAI(base_url='http://localhost:11434/v1', api_key=model_name)
+    def extract_toc_from_text(self, text: str) -> str:
+        # Look for the "Contents" marker
+        contents_match = re.search(r'\n\s*Contents\s*\n', text, re.IGNORECASE)
+        if not contents_match:
+            return "No table of contents found"
 
-    def generate_table_of_contents(self, text: str, filename: str) -> str:
-        # Remove page numbers and ellipsis characters
-        cleaned_text = re.sub(r'\s*\d+\s*', ' ', text)  # Remove page numbers
-        cleaned_text = re.sub(r'\.{3,}', '', cleaned_text)  # Remove ellipsis
+        start_index = contents_match.end()
+        
+        # Extract lines until we hit a clear end or reach a reasonable limit
+        lines = text[start_index:].split('\n')
+        toc_lines = []
+        for line in lines:
+            stripped_line = line.strip()
+            if not stripped_line:
+                continue
+            if re.match(r'^CHAPTER [IVXLC]+\.?\s+', stripped_line, re.IGNORECASE):
+                toc_lines.append(stripped_line)
+            elif len(toc_lines) > 0 and not re.match(r'^CHAPTER', stripped_line, re.IGNORECASE):
+                # If we've already started collecting chapters and this isn't a new chapter,
+                # it might be the start of the main content
+                break
+            if len(toc_lines) >= 50:  # Reasonable limit for number of chapters
+                break
 
-        prompt = f"""
-        Generate a detailed table of contents for the following text from the file '{filename}'. 
-        Please follow these guidelines:
-        1. Identify main chapters, sections, and subsections, focusing on the core content.
-        2. Maintain the original structure and numbering of chapters and sections when present.
-        3. DO NOT include page numbers.
-        4. Preserve any detailed subheadings or bullet points that provide valuable information about the content.
-        5. Use a hierarchical structure, indenting subsections appropriately.
-        6. Include all relevant entries, even if the total number exceeds 15.
-        7. Ignore about the author info, credits, legal information, release dates, and other non-core content.
-        8. Format the table of contents to closely match the original structure, including any special formatting or symbols, but excluding ellipsis (...) characters.
-        9. DO NOT invent or add any content that is not present in the given text. If you're unsure about any part, leave it out rather than guessing.
-        10. If the text doesn't contain a clear structure or chapters, create a simple list of main topics or key points found in the text.
-        11. When a chapter or section already has a descriptive name, use it exactly as it appears in the text. DO NOT summarize or modify existing chapter/section names.
+        clean_toc = '\n'.join(toc_lines)
+        return clean_toc
 
-        Here's the text:
+    def generate_toc_docx(self, doc: docx.Document) -> List[Tuple[int, str, int]]:
+        toc = []
+        for para in doc.paragraphs:
+            if para.style.name.startswith('Heading'):
+                level = int(para.style.name[-1])
+                toc.append((level, para.text, 0))  # 0 as placeholder for page number
+        return toc
 
-        {cleaned_text[:3000]}...  
+    def generate_toc_pdf(self, pdf_path: str) -> List[Tuple[int, str, int]]:
+        with fitz.open(pdf_path) as doc:
+            toc = doc.get_toc()
+        return [(level, title, page) for level, title, page in toc]
 
-        Please provide a detailed and accurately structured table of contents based on these guidelines, using ONLY the information present in the given text.
-        """
-
-        response = self.client.chat.completions.create(
-            model=settings.ollama_model,
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant that creates detailed and accurate tables of contents, closely matching the original document structure. You never add information that isn't in the original text, and you preserve original chapter and section names exactly as they appear."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=settings.temperature
-        )
-
-        return response.choices[0].message.content
+    def generate_toc_json(self, data: dict, prefix: str = "") -> List[Tuple[int, str, int]]:
+        toc = []
+        for key, value in data.items():
+            full_key = f"{prefix}.{key}" if prefix else key
+            toc.append((1, full_key, 0))  # 0 as placeholder for page number
+            if isinstance(value, dict):
+                toc.extend(self.generate_toc_json(value, full_key))
+            elif isinstance(value, list) and value and isinstance(value[0], dict):
+                toc.append((2, f"{full_key} (list of objects)", 0))
+        return toc
 
     def upload_docx(self) -> Optional[Tuple[str, str]]:
         file_path = filedialog.askopenfilename(filetypes=[("DOCX Files", "*.docx")])
@@ -67,6 +72,7 @@ class FileProcessor:
             try:
                 doc = docx.Document(file_path)
                 text = " ".join([paragraph.text for paragraph in doc.paragraphs])
+                self.toc = self.generate_toc_docx(doc)
                 return text, os.path.basename(file_path)
             except Exception as e:
                 logging.error(f"Error processing DOCX file: {str(e)}")
@@ -76,10 +82,10 @@ class FileProcessor:
         file_path = filedialog.askopenfilename(filetypes=[("PDF Files", "*.pdf")])
         if file_path:
             try:
-                with open(file_path, 'rb') as pdf_file:
-                    pdf_reader = PyPDF2.PdfReader(pdf_file)
-                    text = " ".join([page.extract_text() for page in pdf_reader.pages])
-                    return text, os.path.basename(file_path)
+                with fitz.open(file_path) as doc:
+                    text = " ".join([page.get_text() for page in doc])
+                self.toc = self.generate_toc_pdf(file_path)
+                return text, os.path.basename(file_path)
             except Exception as e:
                 logging.error(f"Error processing PDF file: {str(e)}")
         return None, None
@@ -90,7 +96,9 @@ class FileProcessor:
             try:
                 with open(file_path, 'r', encoding="utf-8") as txt_file:
                     text = txt_file.read()
-                    return text, os.path.basename(file_path)
+                toc_text = self.extract_toc_from_text(text)
+                self.toc = [(1, line, 0) for line in toc_text.split('\n') if line.strip()]
+                return text, os.path.basename(file_path)
             except Exception as e:
                 logging.error(f"Error processing TXT file: {str(e)}")
         return None, None
@@ -101,35 +109,27 @@ class FileProcessor:
             try:
                 with open(file_path, 'r', encoding="utf-8") as json_file:
                     data = json.load(json_file)
-                    text = json.dumps(data, indent=2)  # Convert JSON to formatted string
+                    text = json.dumps(data, indent=2)
+                    self.toc = self.generate_toc_json(data)
                     return text, os.path.basename(file_path)
             except Exception as e:
                 logging.error(f"Error processing JSON file: {str(e)}")
         return None, None
 
     def handle_text_chunking(self, text: str) -> List[str]:
-        # Normalize whitespace and clean up text
         text = re.sub(r'\s+', ' ', text).strip()
-        
         chunks = []
         start = 0
-
         while start < len(text):
             end = start + settings.file_chunk_size
             chunk_text = text[start:end]
-            
-            # Ensure we don't cut words in half
             if end < len(text):
                 last_space = chunk_text.rfind(' ')
                 if last_space != -1:
                     end = start + last_space
                     chunk_text = text[start:end]
-
             chunks.append(chunk_text.strip())
-
-            # Move start for next chunk, ensuring overlap
             start = end - settings.file_overlap_size
-
         return chunks
 
     def process_file(self, file_type: str) -> Optional[List[str]]:
@@ -147,28 +147,43 @@ class FileProcessor:
         if text:
             print(f"Processing {filename}...")
             chunks = self.handle_text_chunking(text)
-            print("Generating table of contents...")
-            toc = self.generate_table_of_contents(text, filename)
+            print("Extracting or generating table of contents...")
+            
+            toc_str = self.format_toc()
+            print(f"Method: TOC generated using {file_type}-specific method")
+            
+            if not toc_str or toc_str.strip() == "":
+                print("Warning: Failed to generate a table of contents.")
+                toc_str = "No table of contents could be generated for this file."
+            
+            print("TOC content:")
+            print(toc_str)
+            
             print("Appending to db_content.txt...")
-            self.append_to_db_content(filename, toc)
+            self.append_to_db_content(filename, toc_str)
             return chunks
         return None
 
+    def format_toc(self) -> str:
+        formatted_toc = []
+        for level, title, page in self.toc:
+            indent = "  " * (level - 1)
+            formatted_toc.append(f"{indent}- {title}")
+        return '\n'.join(formatted_toc)
+
     def append_to_db_content(self, filename: str, table_of_contents: str):
         db_content_file = "db_content.txt"
-        
         with open(db_content_file, "a", encoding="utf-8") as f:
             f.write(f"\n\n--- {filename} ---\n")
             f.write("Table of Contents:\n")
             f.write(table_of_contents)
-            f.write("\n\n")  # Add some separation between files
+            f.write("\n\n")
 
     def append_to_db(self, chunks: List[str], db_file: str = "db.txt"):
         total_chunks = len(chunks)
         with open(db_file, "a", encoding="utf-8") as f:
-            for i, chunk in enumerate(tqdm(chunks, desc="Appending chunks", unit="chunk")):
+            for i, chunk in enumerate(chunks):
                 f.write(f"{chunk.strip()}\n")
-                # Update progress every 10% or for each chunk if total_chunks < 10
                 if total_chunks < 10 or (i + 1) % (total_chunks // 10) == 0:
                     print(f"Progress: {(i + 1) / total_chunks * 100:.1f}% ({i + 1}/{total_chunks} chunks)")
         print(f"Appended {total_chunks} chunks to {db_file}")
