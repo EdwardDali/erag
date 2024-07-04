@@ -36,7 +36,7 @@ git clone https://github.com/EdwardDali/erag.git && cd erag
 
 5. Run the phi3 model:
    ```
-   ollama run phi3:3.8b-mini-128k-instruct-q4_K_M
+   ollama run phi3:instruct
    ```
 
 Note: Ensure you have Python 3.7 or later installed on your system before proceeding with the installation.
