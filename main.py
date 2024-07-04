@@ -15,6 +15,7 @@ from search_utils import SearchUtils
 from create_knol import KnolCreator
 from web_sum import WebSum
 from web_rag import WebRAG
+from route_query import RouteQuery
 
 class ERAGGUI:
     def __init__(self, master: tk.Tk):
@@ -91,6 +92,10 @@ class ERAGGUI:
         api_label.pack(side="left", padx=5, pady=5)
         api_menu = tk.OptionMenu(model_frame, self.api_type_var, *api_options)
         api_menu.pack(side="left", padx=5, pady=5)
+
+        # Add the Route Query button
+        route_query_button = tk.Button(model_frame, text="route query", command=self.run_route_query)
+        route_query_button.pack(side="left", padx=5, pady=5)
 
     def create_doc_rag_frame(self):
         rag_frame = tk.LabelFrame(self.main_tab, text="Doc Rag")
@@ -263,6 +268,21 @@ class ERAGGUI:
         for key in dir(settings):
             if not key.startswith('_') and hasattr(self, f"{key}_var"):
                 getattr(self, f"{key}_var").set(str(getattr(settings, key)))
+
+    def run_route_query(self):
+        try:
+            api_type = self.api_type_var.get()
+            route_query = RouteQuery(api_type)
+            
+            # Apply settings to RouteQuery
+            settings.apply_settings()
+            
+            # Run the Route Query in a separate thread to keep the GUI responsive
+            threading.Thread(target=route_query.run, daemon=True).start()
+            
+            messagebox.showinfo("Info", f"Route Query system started with {api_type} API. Check the console for interaction.")
+        except Exception as e:
+            messagebox.showerror("Error", f"An error occurred while starting the Route Query system: {str(e)}")
 
     def create_knol(self):
         try:
