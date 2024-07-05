@@ -1,5 +1,4 @@
 import os
-import re
 import fitz  # PyMuPDF
 from typing import List
 from settings import settings
@@ -43,18 +42,20 @@ SUMMARY:"""
 
     return response.choices[0].message.content.strip()
 
-def create_final_summary(summaries: List[str], api_type: str, client) -> str:
-    combined_summaries = "\n".join(summaries)
-    prompt = f"""Create a comprehensive final summary (about 1000 characters) based on the following chunk summaries:
+def review_summaries(summary_file_path: str, api_type: str, client) -> str:
+    with open(summary_file_path, 'r', encoding='utf-8') as f:
+        combined_summaries = f.read()
+
+    prompt = f"""Review the following summaries and create a comprehensive reviewed summary (about 1000 characters) with improved narrative flow:
 
 {combined_summaries}
 
-FINAL SUMMARY:"""
+REVIEWED SUMMARY:"""
 
     response = client.chat.completions.create(
         model=settings.ollama_model if api_type == "ollama" else settings.llama_model,
         messages=[
-            {"role": "system", "content": "You are a helpful assistant that creates comprehensive final summaries."},
+            {"role": "system", "content": "You are a helpful assistant that creates comprehensive reviewed summaries with improved narrative flow."},
             {"role": "user", "content": prompt}
         ],
         temperature=settings.temperature,
@@ -78,26 +79,26 @@ def create_summary(file_path: str, api_type: str, client) -> str:
         print(f"Saved full text: {full_text_path}")
 
         chunks = split_into_chunks(full_text)
-        chunk_summaries = []
+        
+        # Create a single file for all chunk summaries
+        all_summaries_path = os.path.join(output_folder, "all_chunk_summaries.txt")
+        with open(all_summaries_path, 'w', encoding='utf-8') as f:
+            for i, chunk in enumerate(chunks, 1):
+                summary = summarize_chunk(chunk, api_type, client)
+                f.write(f"{summary}\n\n")
+                f.flush()  # Ensure the summary is written to the file immediately
+                print(f"Processed chunk {i}/{len(chunks)}")
 
-        for i, chunk in enumerate(chunks, 1):
-            summary = summarize_chunk(chunk, api_type, client)
-            chunk_summaries.append(summary)
+        print(f"All chunk summaries saved to: {all_summaries_path}")
 
-            # Save individual chunk summaries
-            summary_path = os.path.join(output_folder, f"chunk_{i:04d}_summary.txt")
-            with open(summary_path, 'w', encoding='utf-8') as f:
-                f.write(summary)
-            print(f"Saved chunk summary: {summary_path}")
+        # Create and save the reviewed summary with improved narrative flow
+        reviewed_summary = review_summaries(all_summaries_path, api_type, client)
+        reviewed_summary_path = os.path.join(output_folder, "reviewed_summary.txt")
+        with open(reviewed_summary_path, 'w', encoding='utf-8') as f:
+            f.write(reviewed_summary)
+        print(f"Reviewed summary saved to: {reviewed_summary_path}")
 
-        # Create and save the final summary
-        final_summary = create_final_summary(chunk_summaries, api_type, client)
-        final_summary_path = os.path.join(output_folder, "final_summary.txt")
-        with open(final_summary_path, 'w', encoding='utf-8') as f:
-            f.write(final_summary)
-        print(f"Final summary saved to: {final_summary_path}")
-
-        return f"Successfully processed {len(chunks)} chunks. Full text, chunk summaries, and final summary saved in folder: {output_folder}"
+        return f"Successfully processed {len(chunks)} chunks. Full text, all chunk summaries, and reviewed summary saved in folder: {output_folder}"
 
     except Exception as e:
         return f"An error occurred while processing the document: {str(e)}"
