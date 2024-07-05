@@ -1,11 +1,10 @@
-# -*- coding: utf-8 -*-
-
 import requests
 from bs4 import BeautifulSoup
 import json
 import os
 import sys
 import logging
+import re
 from urllib.parse import urljoin, quote_plus
 from settings import settings
 from talk2doc import ANSIColor
@@ -13,28 +12,21 @@ from openai import OpenAI
 import random
 import time
 from duckduckgo_search import DDGS
+from api_model import configure_api
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class WebSum:
     def __init__(self, api_type: str):
-        self.client = self.configure_api(api_type)
+        self.api_type = api_type
+        self.client = configure_api(api_type)
         self.session = requests.Session()
         self.session.headers.update({
             "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0",
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
             "Accept-Language": "en-US,en;q=0.5"
         })
-
-    @staticmethod
-    def configure_api(api_type: str) -> OpenAI:
-        if api_type == "ollama":
-            return OpenAI(base_url='http://localhost:11434/v1', api_key=settings.ollama_model)
-        elif api_type == "llama":
-            return OpenAI(base_url='http://localhost:8080/v1', api_key='sk-no-key-required')
-        else:
-            raise ValueError("Invalid API type")
 
     def search_and_process(self, query):
         logging.info(f"Performing search for query: {query}")
@@ -49,6 +41,30 @@ class WebSum:
         final_summary = self.create_final_summary(summaries, query)
         
         return final_summary
+
+    def summarize_query(self, query):
+        system_message = "You are an AI assistant tasked with summarizing a question into a short phrase suitable for a filename. Provide only the summary, no additional text. The summary should be 3-5 words long."
+        user_message = f"Summarize this question into a short phrase (3-5 words): {query}"
+
+        try:
+            model = settings.ollama_model if self.api_type == "ollama" else settings.llama_model
+            response = self.client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": system_message},
+                    {"role": "user", "content": user_message}
+                ],
+                temperature=settings.temperature
+            ).choices[0].message.content.strip()
+
+            safe_filename = re.sub(r'[^a-zA-Z0-9\s]', '', response)
+            safe_filename = safe_filename.replace(' ', '_').lower()
+            safe_filename = safe_filename[:50]  # Limit filename length
+
+            return f"web_sum_{safe_filename}.txt"
+        except Exception as e:
+            logging.error(f"Error summarizing query: {str(e)}")
+            return f"web_sum_query_{hash(query) % 10000}.txt"  # Fallback filename
 
     def perform_search(self, query):
         search_results = []
@@ -70,8 +86,9 @@ class WebSum:
         user_message = f"Query: {query}\n\nSearch Result Title: {result['title']}\nSearch Result Snippet: {result['body']}\n\nIs this search result relevant to the query?"
 
         try:
+            model = settings.ollama_model if self.api_type == "ollama" else settings.llama_model
             response = self.client.chat.completions.create(
-                model=settings.ollama_model,
+                model=model,
                 messages=[
                     {"role": "system", "content": system_message},
                     {"role": "user", "content": user_message}
@@ -89,11 +106,11 @@ class WebSum:
         for i, result in enumerate(relevant_urls, 1):
             content = self.crawl_page(result['url'])
             if content:
-                filename = f"internet_rag_{query.replace(' ', '_')}_{i}.txt"
+                filename = self.summarize_query(f"{query}_{i}")
                 self.save_content(filename, content)
                 summary = self.create_summary(content, query, i)
                 summaries.append(summary)
-                self.append_summary(f"internet_rag_{query.replace(' ', '_')}.txt", summary, i)
+                self.append_summary(f"web_sum_{query.replace(' ', '_')}.txt", summary, i)
         return summaries
 
     def crawl_page(self, url):
@@ -128,8 +145,9 @@ class WebSum:
         user_message = f"Web content:\n{content}\n\nPlease summarize this content in relation to the query: {query}"
 
         try:
+            model = settings.ollama_model if self.api_type == "ollama" else settings.llama_model
             response = self.client.chat.completions.create(
-                model=settings.ollama_model,
+                model=model,
                 messages=[
                     {"role": "system", "content": system_message},
                     {"role": "user", "content": user_message}
@@ -160,8 +178,9 @@ class WebSum:
         user_message = f"Individual summaries:\n{combined_summaries}\n\nPlease create a final comprehensive summary related to the query: {query}"
 
         try:
+            model = settings.ollama_model if self.api_type == "ollama" else settings.llama_model
             response = self.client.chat.completions.create(
-                model=settings.ollama_model,
+                model=model,
                 messages=[
                     {"role": "system", "content": system_message},
                     {"role": "user", "content": user_message}
@@ -169,7 +188,7 @@ class WebSum:
                 temperature=settings.temperature
             ).choices[0].message.content
 
-            filename = f"internet_rag_{query.replace(' ', '_')}_final.txt"
+            filename = f"web_sum_{query.replace(' ', '_')}_final.txt"
             self.save_content(filename, response)
             return response
         except Exception as e:
@@ -203,8 +222,8 @@ class WebSum:
 if __name__ == "__main__":
     if len(sys.argv) > 1:
         api_type = sys.argv[1]
-        internet_rag = InternetRAG(api_type)
-        internet_rag.run()
+        web_sum = WebSum(api_type)
+        web_sum.run()
     else:
         print("Error: No API type provided.")
         print("Usage: python web_sum.py <api_type>")

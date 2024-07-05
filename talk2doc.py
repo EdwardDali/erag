@@ -13,6 +13,7 @@ import networkx as nx
 import json
 from search_utils import SearchUtils
 from settings import settings
+from api_model import configure_api
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -26,24 +27,25 @@ class ANSIColor(Enum):
 
 class RAGSystem:
     def __init__(self, api_type: str):
-        self.client = self.configure_api(api_type)
-        self.model = SentenceTransformer(settings.model_name)
+        self.api_type = api_type
+        self.client = configure_api(api_type)
+        
+        if api_type in ["ollama", "llama"]:
+            self.model = self.client  # For LLM APIs, the client is the model
+            self.embedding_model = SentenceTransformer(settings.sentence_transformer_model)
+        elif api_type == "sentence_transformer":
+            self.model = SentenceTransformer(settings.sentence_transformer_model)
+            self.embedding_model = self.model
+        else:
+            raise ValueError(f"Unsupported API type: {api_type}")
+
         self.db_embeddings, _, _ = self.load_embeddings()
         self.db_content = self.load_db_content()
         self.conversation_history = []
         self.new_entries = []
         self.conversation_context = deque(maxlen=settings.conversation_context_size * 2)
         self.knowledge_graph = self.load_knowledge_graph()
-        self.search_utils = SearchUtils(self.model, self.db_embeddings, self.db_content, self.knowledge_graph)
-
-    @staticmethod
-    def configure_api(api_type: str) -> OpenAI:
-        if api_type == "ollama":
-            return OpenAI(base_url='http://localhost:11434/v1', api_key=settings.ollama_model)
-        elif api_type == "llama":
-            return OpenAI(base_url='http://localhost:8080/v1', api_key='sk-no-key-required')
-        else:
-            raise ValueError("Invalid API type")
+        self.search_utils = SearchUtils(self.embedding_model, self.db_embeddings, self.db_content, self.knowledge_graph)
 
     def load_embeddings(self):
         embeddings, indexes, content = load_embeddings_and_data(settings.embeddings_file_path)
@@ -108,8 +110,15 @@ Text Search Results:
         ]
 
         try:
+            if self.api_type == "ollama":
+                model_name = settings.ollama_model
+            elif self.api_type == "llama":
+                model_name = settings.llama_model
+            else:
+                raise ValueError(f"Unsupported API type for chat: {self.api_type}")
+
             response = self.client.chat.completions.create(
-                model=settings.ollama_model,
+                model=model_name,
                 messages=messages,
                 temperature=settings.temperature
             ).choices[0].message.content
@@ -121,6 +130,7 @@ Text Search Results:
         except Exception as e:
             logging.error(f"Error in API call: {str(e)}")
             return "I'm sorry, but I encountered an error while processing your request."
+
 
     def save_debug_results(self, user_input: str, lexical_context: List[str], 
                            semantic_context: List[str], 
@@ -195,7 +205,7 @@ Text Search Results:
     def update_embeddings(self):
         if len(self.new_entries) >= settings.update_threshold:
             logging.info("Updating embeddings...")
-            new_embeddings = self.model.encode(self.new_entries, convert_to_tensor=True, show_progress_bar=False)
+            new_embeddings = self.embedding_model.encode(self.new_entries, convert_to_tensor=True, show_progress_bar=False)
             self.db_embeddings = torch.cat([self.db_embeddings, new_embeddings], dim=0)
             
             # Save updated embeddings
@@ -219,6 +229,6 @@ if __name__ == "__main__":
         main(api_type)
     else:
         print("Error: No API type provided.")
-        print("Usage: python run_model.py <api_type>")
-        print("Available API types: ollama, llama")
+        print("Usage: python talk2doc.py <api_type>")
+        print("Available API types: ollama, llama, sentence_transformer")
         sys.exit(1)

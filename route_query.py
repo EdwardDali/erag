@@ -15,18 +15,9 @@ class ANSIColor(Enum):
     RESET = '\033[0m'
 
 class RouteQuery:
-    def __init__(self, api_type: str):
+    def __init__(self, api_type: str, client: OpenAI):
         self.api_type = api_type
-        self.client = self.configure_api(api_type)
-
-    @staticmethod
-    def configure_api(api_type: str) -> OpenAI:
-        if api_type == "ollama":
-            return OpenAI(base_url='http://localhost:11434/v1', api_key=settings.ollama_model)
-        elif api_type == "llama":
-            return OpenAI(base_url='http://localhost:8080/v1', api_key='sk-no-key-required')
-        else:
-            raise ValueError("Invalid API type")
+        self.client = client 
 
     def load_db_content(self):
         logging.info("Loading database content...")
@@ -121,7 +112,6 @@ First check if there is relevant information in the TOC; if yes chose A or B. If
             
             parsed_response = self.parse_evaluation(llm_response)
             
-            # We no longer check for query mismatch here
             return parsed_response
         except Exception as e:
             logging.error(f"Error in LLM response: {str(e)}. Using default routing.")
@@ -131,6 +121,7 @@ First check if there is relevant information in the TOC; if yes chose A or B. If
                 "complexity": "simple",
                 "explanation": "Default routing due to error in LLM response."
             }
+
 
     def parse_evaluation(self, response: str) -> dict:
         lines = response.split('\n')
@@ -228,7 +219,9 @@ First check if there is relevant information in the TOC; if yes chose A or B. If
 if __name__ == "__main__":
     if len(sys.argv) > 1:
         api_type = sys.argv[1]
-        route_query = RouteQuery(api_type)
+        from api_model import configure_api
+        client = configure_api(api_type)
+        route_query = RouteQuery(api_type, client)
         route_query.run()
     else:
         print("Error: No API type provided.")

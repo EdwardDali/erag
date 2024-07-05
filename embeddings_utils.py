@@ -3,40 +3,11 @@ from sentence_transformers import SentenceTransformer
 import os
 from typing import List, Tuple, Optional
 import logging
+from settings import settings
+from api_model import configure_api
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
-# Variables for settings (previously constants)
-MODEL_NAME = "all-MiniLM-L6-v2"
-DB_FILE = "db.txt"
-EMBEDDINGS_FILE = "db_embeddings.pt"
-BATCH_SIZE = 32
-
-def set_model_name(new_model_name: str):
-    global MODEL_NAME
-    MODEL_NAME = new_model_name
-    logging.info(f"Model name set to {MODEL_NAME}")
-
-def set_db_file(new_db_file: str):
-    global DB_FILE
-    DB_FILE = new_db_file
-    logging.info(f"Database file set to {DB_FILE}")
-
-def set_embeddings_file(new_embeddings_file: str):
-    global EMBEDDINGS_FILE
-    EMBEDDINGS_FILE = new_embeddings_file
-    logging.info(f"Embeddings file set to {EMBEDDINGS_FILE}")
-
-def set_batch_size(new_batch_size: int):
-    global BATCH_SIZE
-    BATCH_SIZE = new_batch_size
-    logging.info(f"Batch size set to {BATCH_SIZE}")
-
-def set_batch_size(new_batch_size: int):
-    global BATCH_SIZE
-    BATCH_SIZE = new_batch_size
-    logging.info(f"Batch size set to {BATCH_SIZE}")
 
 def load_db_content(file_path: str) -> List[str]:
     content = []
@@ -53,11 +24,11 @@ def compute_and_save_embeddings(
     try:
         logging.info(f"Computing embeddings for {len(content)} items")
         db_embeddings = []
-        for i in range(0, len(content), BATCH_SIZE):
-            batch = content[i:i+BATCH_SIZE]
+        for i in range(0, len(content), settings.batch_size):
+            batch = content[i:i+settings.batch_size]
             batch_embeddings = model.encode(batch, convert_to_tensor=True)
             db_embeddings.append(batch_embeddings)
-            logging.info(f"Processed batch {i//BATCH_SIZE + 1}/{(len(content)-1)//BATCH_SIZE + 1}")
+            logging.info(f"Processed batch {i//settings.batch_size + 1}/{(len(content)-1)//settings.batch_size + 1}")
 
         db_embeddings = torch.cat(db_embeddings, dim=0)
         logging.info(f"Final embeddings shape: {db_embeddings.shape}")
@@ -113,10 +84,11 @@ def load_or_compute_embeddings(model: SentenceTransformer, db_file: str, embeddi
 
 if __name__ == "__main__":
     try:
-        model = SentenceTransformer(MODEL_NAME)
+        # Use the configure_api function to get the appropriate model
+        model = configure_api("sentence_transformer", settings.model_name)
         
         # Process db.txt
-        embeddings, indexes, content = load_or_compute_embeddings(model, DB_FILE, EMBEDDINGS_FILE)
+        embeddings, indexes, content = load_or_compute_embeddings(model, settings.db_file_path, settings.embeddings_file_path)
         logging.info(f"DB Embeddings shape: {embeddings.shape}, Indexes shape: {indexes.shape}")
         logging.info(f"DB Content length: {len(content)}")
     except Exception as e:

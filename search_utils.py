@@ -7,6 +7,15 @@ import networkx as nx
 import spacy
 from settings import settings
 
+import re
+import torch
+from sentence_transformers import util
+import logging
+from typing import List, Tuple
+import networkx as nx
+import spacy
+from settings import settings
+
 class SearchUtils:
     def __init__(self, model, db_embeddings, db_content, knowledge_graph):
         self.model = model
@@ -34,10 +43,19 @@ class SearchUtils:
         
         if isinstance(self.db_embeddings, torch.Tensor):
             self.db_embeddings = self.db_embeddings.numpy()
-        with torch.no_grad():
-            input_embedding = self.model.encode([query], convert_to_tensor=True, show_progress_bar=False)
-        cos_scores = util.cos_sim(input_embedding, torch.from_numpy(self.db_embeddings))[0]
-        top_indices = torch.topk(cos_scores, k=min(settings.top_k, len(cos_scores)))[1].tolist()
+        
+        if hasattr(self.model, 'encode'):
+            # For SentenceTransformer models
+            with torch.no_grad():
+                input_embedding = self.model.encode([query], convert_to_tensor=True, show_progress_bar=False)
+            cos_scores = util.cos_sim(input_embedding, torch.from_numpy(self.db_embeddings))[0]
+            top_indices = torch.topk(cos_scores, k=min(settings.top_k, len(cos_scores)))[1].tolist()
+        else:
+            # For LLM models (Ollama, Llama), we'll use a simple keyword matching as a fallback
+            query_words = set(query.lower().split())
+            scores = [sum(word in content.lower() for word in query_words) for content in self.db_content]
+            top_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:settings.top_k]
+        
         return [str(self.db_content[idx].strip()) for idx in top_indices]
 
     def get_graph_context(self, query: str) -> List[str]:

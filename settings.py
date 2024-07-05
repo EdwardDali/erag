@@ -29,7 +29,6 @@ class Settings:
         self.min_entity_occurrence = 1
         self.enable_semantic_edges = True
         self.knowledge_graph_file_path = "knowledge_graph.json"
-        self.embeddings_file_path = "db_embeddings.pt"
 
         # Model Settings
         self.max_history_length = 5
@@ -38,6 +37,8 @@ class Settings:
         self.ollama_model = "phi3:instruct"
         self.temperature = 0.1
         self.model_name = "all-MiniLM-L6-v2"
+        self.sentence_transformer_model = "all-MiniLM-L6-v2"  # Add this line
+        self.llama_model = "llama-default"  # Add this line if not already present
 
         # Knol Creation Settings
         self.num_questions = 8
@@ -67,18 +68,14 @@ class Settings:
         self.enable_text_search = True
 
         # File Settings
-        self.knowledge_graph_file_path = "knowledge_graph.json"
         self.results_file_path = "results.txt"
 
-        # Other Settings (if any)
-        self.nlp_model = "en_core_web_sm"
-        self.similarity_threshold = 0.7
-        self.enable_family_extraction = True
-        self.min_entity_occurrence = 1
-        self.enable_semantic_edges = True
+        # API Settings
+        self.api_type = "ollama"  # Default API type
 
         self.config_file = "config.json"
 
+       
     def load_settings(self):
         if os.path.exists(self.config_file):
             with open(self.config_file, 'r') as f:

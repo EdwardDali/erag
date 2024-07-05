@@ -16,7 +16,8 @@ from create_knol import KnolCreator
 from web_sum import WebSum
 from web_rag import WebRAG
 from route_query import RouteQuery
-from api_model import get_available_models, update_settings
+from api_model import get_available_models, update_settings, configure_api
+
 
 class ERAGGUI:
     def __init__(self, master: tk.Tk):
@@ -114,6 +115,7 @@ class ERAGGUI:
         # Initialize model list
         self.update_model_list()
 
+
     def update_model_list(self, event=None):
         api_type = self.api_type_var.get()
         models = get_available_models(api_type)
@@ -138,7 +140,7 @@ class ERAGGUI:
         if model:
             update_settings(settings, api_type, model)
             if show_message:
-                messagebox.showinfo("Model Selected", f"Selected model: {model}")
+                messagebox.showinfo("Model Selected", f"Selected API: {api_type}, Model: {model}")
         elif show_message:
             messagebox.showwarning("Model Selection", "No model selected")
 
@@ -317,7 +319,9 @@ class ERAGGUI:
     def run_route_query(self):
         try:
             api_type = self.api_type_var.get()
-            route_query = RouteQuery(api_type)
+            model = self.model_var.get()
+            client = configure_api(api_type)
+            route_query = RouteQuery(api_type, client)
             
             # Apply settings to RouteQuery
             settings.apply_settings()
@@ -325,7 +329,7 @@ class ERAGGUI:
             # Run the Route Query in a separate thread to keep the GUI responsive
             threading.Thread(target=route_query.run, daemon=True).start()
             
-            messagebox.showinfo("Info", f"Route Query system started with {api_type} API. Check the console for interaction.")
+            messagebox.showinfo("Info", f"Route Query system started with {api_type} API and {model} model. Check the console for interaction.")
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred while starting the Route Query system: {str(e)}")
 

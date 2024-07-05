@@ -1,4 +1,6 @@
 import subprocess
+from openai import OpenAI
+from settings import settings
 
 def get_available_models(api_type):
     if api_type == "ollama":
@@ -24,3 +26,11 @@ def update_settings(settings, api_type, model):
         pass
     settings.apply_settings()
     print(f"Settings updated. Using {model} with {api_type} API.")
+
+def configure_api(api_type: str) -> OpenAI:
+    if api_type == "ollama":
+        return OpenAI(base_url='http://localhost:11434/v1', api_key=settings.ollama_model)
+    elif api_type == "llama":
+        return OpenAI(base_url='http://localhost:8080/v1', api_key='sk-no-key-required')
+    else:
+        raise ValueError("Invalid API type")

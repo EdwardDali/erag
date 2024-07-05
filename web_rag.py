@@ -10,17 +10,19 @@ import numpy as np
 from collections import deque
 from search_utils import SearchUtils
 from talk2doc import ANSIColor
+from api_model import configure_api
 
 class WebRAG:
     def __init__(self, api_type: str):
-        self.client = self.configure_api(api_type)
+        self.api_type = api_type
+        self.client = configure_api(api_type)
         self.session = requests.Session()
         self.session.headers.update({
             "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0",
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
             "Accept-Language": "en-US,en;q=0.5"
         })
-        self.model = SentenceTransformer(settings.model_name)
+        self.model = SentenceTransformer(settings.sentence_transformer_model)
         self.search_utils = None
         self.all_search_results = []
         self.conversation_history = []
@@ -32,15 +34,6 @@ class WebRAG:
         self.processed_urls = set()  # Keep track of processed URLs
         self.current_query = None  # Store the current query
         self.search_offset = 0  # New attribute to keep track of search offset
-
-    @staticmethod
-    def configure_api(api_type: str) -> OpenAI:
-        if api_type == "ollama":
-            return OpenAI(base_url='http://localhost:11434/v1', api_key=settings.ollama_model)
-        elif api_type == "llama":
-            return OpenAI(base_url='http://localhost:8080/v1', api_key='sk-no-key-required')
-        else:
-            raise ValueError("Invalid API type")
 
     def search_and_process(self, query):
         logging.info(f"Performing search for query: {query}")
@@ -71,7 +64,7 @@ class WebRAG:
 
         try:
             response = self.client.chat.completions.create(
-                model=settings.ollama_model,
+                model=settings.ollama_model if self.api_type == "ollama" else settings.llama_model,
                 messages=[
                     {"role": "system", "content": system_message},
                     {"role": "user", "content": user_message}
@@ -79,7 +72,6 @@ class WebRAG:
                 temperature=settings.temperature
             ).choices[0].message.content.strip()
 
-            # Remove any non-alphanumeric characters and replace spaces with underscores
             safe_filename = re.sub(r'[^a-zA-Z0-9\s]', '', response)
             safe_filename = safe_filename.replace(' ', '_').lower()
             safe_filename = safe_filename[:50]  # Limit filename length
@@ -93,14 +85,13 @@ class WebRAG:
         if offset == 0 or not self.all_search_results:
             self.all_search_results = []
             with DDGS() as ddgs:
-                for result in ddgs.text(query, region='wt-wt', safesearch='moderate', timelimit=None, max_results=settings.web_rag_urls_to_crawl * 5):  # Fetch more results
+                for result in ddgs.text(query, region='wt-wt', safesearch='moderate', timelimit=None, max_results=settings.web_rag_urls_to_crawl * 5):
                     self.all_search_results.append(result)
         
         start = offset
         end = offset + settings.web_rag_urls_to_crawl
         return self.all_search_results[start:end]
 
-    
     def filter_relevant_urls(self, search_results, query):
         relevant_urls = []
         for result in search_results:
@@ -114,7 +105,7 @@ class WebRAG:
 
         try:
             response = self.client.chat.completions.create(
-                model=settings.ollama_model,
+                model=settings.ollama_model if self.api_type == "ollama" else settings.llama_model,
                 messages=[
                     {"role": "system", "content": system_message},
                     {"role": "user", "content": user_message}
@@ -149,11 +140,9 @@ class WebRAG:
             print(f"{ANSIColor.PINK.value}No current query context. Please perform a search first.{ANSIColor.RESET.value}")
             return False
 
-        # Get next batch of search results
         new_search_results = self.perform_search(self.current_query, offset=self.search_offset)
-        self.search_offset += settings.web_rag_urls_to_crawl  # Increase offset for next search
+        self.search_offset += settings.web_rag_urls_to_crawl
         
-        # Filter out already processed URLs
         urls_to_process = [result for result in new_search_results if result['href'] not in self.processed_urls]
         
         if not urls_to_process:
@@ -259,7 +248,7 @@ Please provide a comprehensive and well-structured answer to the question based 
 
         try:
             response = self.client.chat.completions.create(
-                model=settings.ollama_model,
+                model=settings.ollama_model if self.api_type == "ollama" else settings.llama_model,
                 messages=[
                     {"role": "system", "content": system_message},
                     *self.conversation_history,
@@ -300,8 +289,8 @@ Please provide a comprehensive and well-structured answer to the question based 
                 self.current_query = None
                 self.context_size = settings.initial_context_size
                 self.processed_urls.clear()
-                self.search_utils = None  # Reset search utils
-                self.search_offset = 0  # Reset search offset
+                self.search_utils = None
+                self.search_offset = 0
                 print(f"{ANSIColor.CYAN.value}Conversation history, context, and processed URLs cleared.{ANSIColor.RESET.value}")
                 continue
             elif user_input.lower() == 'check':
