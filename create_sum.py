@@ -35,17 +35,8 @@ def process_pdf(pdf_path: str) -> List[Tuple[str, str]]:
     return chapters
 
 def split_into_chapters(text: str) -> List[Tuple[str, str]]:
-    chapter_patterns = [
-        r'(?:^|\n)(?:CHAPTER|Chapter)\s+(?:\d+|[IVX]+)\.?\s*(.*?)(?=\n)',
-        r'(?:^|\n)(?:SECTION|Section)\s+(?:\d+|[IVX]+)\.?\s*(.*?)(?=\n)',
-        r'(?:^|\n)(?:\d+|[IVX]+)\.?\s*(.*?)(?=\n)'
-    ]
-    
-    chapters = []
-    for pattern in chapter_patterns:
-        chapters = list(re.finditer(pattern, text, re.MULTILINE | re.IGNORECASE))
-        if chapters:
-            break
+    chapter_pattern = r'(?:^|\n)(?:CHAPTER|Chapter)\s+(?:\d+|[IVX]+)[\.:]\s*(.*?)(?=\n)'
+    chapters = list(re.finditer(chapter_pattern, text, re.MULTILINE | re.IGNORECASE))
     
     if not chapters:
         return [("Entire Document", text)]
@@ -57,8 +48,17 @@ def split_into_chapters(text: str) -> List[Tuple[str, str]]:
         end = chapters[i+1].start() if i+1 < len(chapters) else len(text)
         chapter_content = text[start:end].strip()
         
-        if len(chapter_content.split('\n')) > 5 and len(chapter_content) > 500:
-            result.append((chapter_title, chapter_content))
+        # Skip if the chapter content is too short or seems to be a TOC entry
+        if len(chapter_content.split('\n')) > 25 and len(chapter_content) > 1000:
+            # Remove page numbers and repeated chapter titles at the beginning of the content
+            lines = chapter_content.split('\n')
+            clean_lines = []
+            for line in lines:
+                if not re.match(r'^Chapter\s+\d+\s*$', line.strip()) and not re.match(r'^\d+\s*$', line.strip()):
+                    clean_lines.append(line)
+            clean_content = '\n'.join(clean_lines).strip()
+            
+            result.append((chapter_title, clean_content))
     
     return result
 
