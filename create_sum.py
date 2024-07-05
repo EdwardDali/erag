@@ -42,24 +42,21 @@ SUMMARY:"""
 
     return response.choices[0].message.content.strip()
 
-def review_summaries(summary_file_path: str, api_type: str, client) -> str:
-    with open(summary_file_path, 'r', encoding='utf-8') as f:
-        combined_summaries = f.read()
+def review_summaries(summaries: List[str], api_type: str, client) -> str:
+    prompt = f"""Summarize the following three summaries into one coherent paragraph:
 
-    prompt = f"""Review the following summaries and create a comprehensive reviewed summary (about 1000 characters) with improved narrative flow:
+{' '.join(summaries)}
 
-{combined_summaries}
-
-REVIEWED SUMMARY:"""
+SUMMARIZED PARAGRAPH:"""
 
     response = client.chat.completions.create(
         model=settings.ollama_model if api_type == "ollama" else settings.llama_model,
         messages=[
-            {"role": "system", "content": "You are a helpful assistant that creates comprehensive reviewed summaries with improved narrative flow."},
+            {"role": "system", "content": "You are a helpful assistant that combines multiple summaries into a coherent paragraph."},
             {"role": "user", "content": prompt}
         ],
         temperature=settings.temperature,
-        max_tokens=1000
+        max_tokens=300  # Slightly larger to account for combining 3 summaries
     )
 
     return response.choices[0].message.content.strip()
@@ -69,7 +66,7 @@ def create_summary(file_path: str, api_type: str, client) -> str:
         full_text = extract_text(file_path)
         
         base_name = os.path.splitext(os.path.basename(file_path))[0]
-        output_folder = os.path.join("summaries", base_name)
+        output_folder = os.path.join("output", base_name)
         os.makedirs(output_folder, exist_ok=True)
 
         # Save the full text
@@ -82,20 +79,29 @@ def create_summary(file_path: str, api_type: str, client) -> str:
         
         # Create a single file for all chunk summaries
         all_summaries_path = os.path.join(output_folder, "all_chunk_summaries.txt")
+        chunk_summaries = []
         with open(all_summaries_path, 'w', encoding='utf-8') as f:
             for i, chunk in enumerate(chunks, 1):
                 summary = summarize_chunk(chunk, api_type, client)
                 f.write(f"{summary}\n\n")
                 f.flush()  # Ensure the summary is written to the file immediately
+                chunk_summaries.append(summary)
                 print(f"Processed chunk {i}/{len(chunks)}")
 
         print(f"All chunk summaries saved to: {all_summaries_path}")
 
-        # Create and save the reviewed summary with improved narrative flow
-        reviewed_summary = review_summaries(all_summaries_path, api_type, client)
+        # Create reviewed summary by processing chunks in groups of 3
+        reviewed_summaries = []
+        for i in range(0, len(chunk_summaries), 3):
+            group = chunk_summaries[i:i+3]
+            reviewed_summary = review_summaries(group, api_type, client)
+            reviewed_summaries.append(reviewed_summary)
+
+        # Save the reviewed summary
         reviewed_summary_path = os.path.join(output_folder, "reviewed_summary.txt")
         with open(reviewed_summary_path, 'w', encoding='utf-8') as f:
-            f.write(reviewed_summary)
+            for summary in reviewed_summaries:
+                f.write(f"{summary}\n\n")
         print(f"Reviewed summary saved to: {reviewed_summary_path}")
 
         return f"Successfully processed {len(chunks)} chunks. Full text, all chunk summaries, and reviewed summary saved in folder: {output_folder}"
