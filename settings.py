@@ -67,6 +67,12 @@ class Settings:
         self.enable_graph_search = True
         self.enable_text_search = True
 
+        # New summarization settings
+        self.summarization_chunk_size: int = 3000
+        self.summarization_summary_size: int = 200
+        self.summarization_combining_number: int = 3
+        self.summarization_final_chunk_size: int = 300
+
         # File Settings
         self.results_file_path = "results.txt"
 

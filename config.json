@@ -38,6 +38,10 @@
     "enable_semantic_search": true,
     "enable_graph_search": true,
     "enable_text_search": true,
+    "summarization_chunk_size": 4000,
+    "summarization_summary_size": 100,
+    "summarization_combining_number": 5,
+    "summarization_final_chunk_size": 100,
     "results_file_path": "results.txt",
     "api_type": "ollama",
     "config_file": "config.json"

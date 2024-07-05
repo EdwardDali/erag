@@ -20,11 +20,11 @@ def process_pdf(pdf_path: str) -> str:
     doc.close()
     return full_text
 
-def split_into_chunks(text: str, chunk_size: int = 3000) -> List[str]:
-    return [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]
+def split_into_chunks(text: str) -> List[str]:
+    return [text[i:i+settings.summarization_chunk_size] for i in range(0, len(text), settings.summarization_chunk_size)]
 
 def summarize_chunk(chunk: str, api_type: str, client) -> str:
-    prompt = f"""Write a concise summary (about 200 characters) of the following text:
+    prompt = f"""Write a concise summary (about {settings.summarization_summary_size} characters) of the following text:
 
 {chunk}
 
@@ -37,13 +37,13 @@ SUMMARY:"""
             {"role": "user", "content": prompt}
         ],
         temperature=settings.temperature,
-        max_tokens=200
+        max_tokens=settings.summarization_summary_size
     )
 
     return response.choices[0].message.content.strip()
 
 def review_summaries(summaries: List[str], api_type: str, client) -> str:
-    prompt = f"""Summarize the following three summaries into one coherent paragraph:
+    prompt = f"""Summarize the following {settings.summarization_combining_number} summaries into one coherent paragraph:
 
 {' '.join(summaries)}
 
@@ -56,7 +56,7 @@ SUMMARIZED PARAGRAPH:"""
             {"role": "user", "content": prompt}
         ],
         temperature=settings.temperature,
-        max_tokens=300  # Slightly larger to account for combining 3 summaries
+        max_tokens=settings.summarization_final_chunk_size
     )
 
     return response.choices[0].message.content.strip()
@@ -90,18 +90,16 @@ def create_summary(file_path: str, api_type: str, client) -> str:
 
         print(f"All chunk summaries saved to: {all_summaries_path}")
 
-        # Create reviewed summary by processing chunks in groups of 3
-        reviewed_summaries = []
-        for i in range(0, len(chunk_summaries), 3):
-            group = chunk_summaries[i:i+3]
-            reviewed_summary = review_summaries(group, api_type, client)
-            reviewed_summaries.append(reviewed_summary)
-
-        # Save the reviewed summary
+        # Create reviewed summary by processing chunks in groups
         reviewed_summary_path = os.path.join(output_folder, "reviewed_summary.txt")
         with open(reviewed_summary_path, 'w', encoding='utf-8') as f:
-            for summary in reviewed_summaries:
-                f.write(f"{summary}\n\n")
+            for i in range(0, len(chunk_summaries), settings.summarization_combining_number):
+                group = chunk_summaries[i:i+settings.summarization_combining_number]
+                reviewed_summary = review_summaries(group, api_type, client)
+                f.write(f"{reviewed_summary}\n\n")
+                f.flush()  # Ensure the summary is written to the file immediately
+                print(f"Processed reviewed summary group {i//settings.summarization_combining_number + 1}")
+
         print(f"Reviewed summary saved to: {reviewed_summary_path}")
 
         return f"Successfully processed {len(chunks)} chunks. Full text, all chunk summaries, and reviewed summary saved in folder: {output_folder}"

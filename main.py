@@ -193,19 +193,24 @@ class ERAGGUI:
         web_rag_button.pack(side="left", padx=5, pady=5)
 
     def create_settings_tab(self):
-        # Create a main frame to hold the two columns
+        # Create a main frame to hold the three columns
         main_frame = ttk.Frame(self.settings_tab)
         main_frame.grid(row=0, column=0, sticky="nsew")
         main_frame.columnconfigure(0, weight=1)
         main_frame.columnconfigure(1, weight=1)
+        main_frame.columnconfigure(2, weight=1)
 
         # Left Column
         left_column = ttk.Frame(main_frame)
         left_column.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
 
+        # Middle Column
+        middle_column = ttk.Frame(main_frame)
+        middle_column.grid(row=0, column=1, sticky="nsew", padx=5, pady=5)
+
         # Right Column
         right_column = ttk.Frame(main_frame)
-        right_column.grid(row=0, column=1, sticky="nsew", padx=5, pady=5)
+        right_column.grid(row=0, column=2, sticky="nsew", padx=5, pady=5)
 
         # Create frames for different setting categories
         upload_frame = self.create_labelframe(left_column, "Upload Settings", 0)
@@ -213,11 +218,14 @@ class ERAGGUI:
         graph_frame = self.create_labelframe(left_column, "Graph Settings", 2)
         model_frame = self.create_labelframe(left_column, "Model Settings", 3)
 
-        knol_frame = self.create_labelframe(right_column, "Knol Creation Settings", 0)
-        search_frame = self.create_labelframe(right_column, "Search Settings", 1)
-        file_frame = self.create_labelframe(right_column, "File Settings", 2)
-        web_sum_frame = self.create_labelframe(right_column, "Web Sum Settings", 3)
-        web_rag_frame = self.create_labelframe(right_column, "Web RAG Settings", 4)
+        knol_frame = self.create_labelframe(middle_column, "Knol Creation Settings", 0)
+        search_frame = self.create_labelframe(middle_column, "Search Settings", 1)
+        file_frame = self.create_labelframe(middle_column, "File Settings", 2)
+        web_sum_frame = self.create_labelframe(middle_column, "Web Sum Settings", 3)
+
+        web_rag_frame = self.create_labelframe(right_column, "Web RAG Settings", 0)
+        summarization_frame = self.create_labelframe(right_column, "Summarization Settings", 1)
+        api_frame = self.create_labelframe(right_column, "API Settings", 2)
 
         # Create and layout settings fields
         self.create_settings_fields(upload_frame, [
@@ -291,6 +299,14 @@ class ERAGGUI:
         self.create_settings_fields(file_frame, [
             ("Results File Path", "results_file_path"),
         ])
+
+        self.create_settings_fields(summarization_frame, [
+            ("Chunk Size", "summarization_chunk_size"),
+            ("Summary Size", "summarization_summary_size"),
+            ("Combining Number", "summarization_combining_number"),
+            ("Final Chunk Size", "summarization_final_chunk_size"),
+        ])
+
 
         # Add buttons for settings management
         button_frame = ttk.Frame(self.settings_tab)
@@ -371,6 +387,9 @@ class ERAGGUI:
             api_type = self.api_type_var.get()
             model = self.model_var.get()
             client = configure_api(api_type)
+
+            # Apply settings before running the summarization
+            self.apply_settings()
 
             # Run the summarization in a separate thread
             threading.Thread(target=self._create_sum_thread, args=(file_path, api_type, client), daemon=True).start()
