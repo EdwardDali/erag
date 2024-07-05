@@ -14,7 +14,7 @@
     "max_history_length": 5,
     "conversation_context_size": 3,
     "update_threshold": 10,
-    "ollama_model": "phi3:3.8b-mini-128k-instruct-q6_K",
+    "ollama_model": "qwen2:1.5b-instruct-q8_0",
     "temperature": 0.1,
     "model_name": "all-MiniLM-L6-v2",
     "sentence_transformer_model": "all-MiniLM-L6-v2",

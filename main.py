@@ -18,6 +18,8 @@ from web_rag import WebRAG
 from route_query import RouteQuery
 from api_model import get_available_models, update_settings, configure_api
 from talk2model import Talk2Model
+from create_sum import run_create_sum
+
 
 
 class ERAGGUI:
@@ -174,6 +176,10 @@ class ERAGGUI:
 
         create_knol_button = tk.Button(rag_frame, text="Create Knol", command=self.create_knol)              
         create_knol_button.pack(side="left", padx=5, pady=5)
+
+        # Add the new Create Sum button
+        create_sum_button = tk.Button(rag_frame, text="Create Sum", command=self.run_create_sum)
+        create_sum_button.pack(side="left", padx=5, pady=5)
 
     def create_web_rag_frame(self):
 
@@ -353,6 +359,35 @@ class ERAGGUI:
             messagebox.showinfo("Info", f"Route Query system started with {api_type} API and {model} model. Check the console for interaction.")
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred while starting the Route Query system: {str(e)}")
+
+    def run_create_sum(self):
+        try:
+            file_path = filedialog.askopenfilename(title="Select a book to summarize",
+                                                   filetypes=[("Text files", "*.txt"), ("PDF files", "*.pdf"), ("All files", "*.*")])
+            if not file_path:
+                messagebox.showwarning("Warning", "No file selected.")
+                return
+
+            api_type = self.api_type_var.get()
+            model = self.model_var.get()
+            client = configure_api(api_type)
+
+            # Run the summarization in a separate thread
+            threading.Thread(target=self._create_sum_thread, args=(file_path, api_type, client), daemon=True).start()
+
+            messagebox.showinfo("Info", f"Summarization started for {os.path.basename(file_path)}. Check the console for progress.")
+        except Exception as e:
+            messagebox.showerror("Error", f"An error occurred while starting the summarization process: {str(e)}")
+
+    def _create_sum_thread(self, file_path, api_type, client):
+        try:
+            result = run_create_sum(file_path, api_type, client)
+            print(result)
+            messagebox.showinfo("Success", result)
+        except Exception as e:
+            error_message = f"An error occurred during summarization: {str(e)}"
+            print(error_message)
+            messagebox.showerror("Error", error_message)
 
     def create_knol(self):
         try:
