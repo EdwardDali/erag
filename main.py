@@ -16,13 +16,15 @@ from create_knol import KnolCreator
 from web_sum import WebSum
 from web_rag import WebRAG
 from route_query import RouteQuery
+from api_model import get_available_models, update_settings
 
 class ERAGGUI:
     def __init__(self, master: tk.Tk):
         self.master = master
         self.master.title("ERAG")
         self.api_type_var = tk.StringVar(master)
-        self.api_type_var.set("ollama")  # Default value
+        self.api_type_var.set("ollama")  # Default to ollama
+        self.model_var = tk.StringVar(master)
         self.rag_system = None
         self.model = SentenceTransformer(settings.model_name)
         self.db_embeddings = None
@@ -30,6 +32,7 @@ class ERAGGUI:
         self.db_content = None
         self.knowledge_graph = None
         self.web_rag = None
+        self.is_initializing = True  # Flag to track initialization
 
         # Create the notebook
         self.notebook = ttk.Notebook(self.master)
@@ -51,9 +54,9 @@ class ERAGGUI:
         self.create_settings_tab()
 
     def create_main_tab(self):
+        self.create_model_frame()
         self.create_upload_frame()
         self.create_embeddings_frame()
-        self.create_model_frame()
         self.create_doc_rag_frame()
         self.create_web_rag_frame()
 
@@ -84,18 +87,60 @@ class ERAGGUI:
         create_knowledge_graph_raw_button.pack(side="left", padx=5, pady=5)
 
     def create_model_frame(self):
-        model_frame = tk.LabelFrame(self.main_tab, text="Model")
+        model_frame = tk.LabelFrame(self.main_tab, text="Model Selection")
         model_frame.pack(fill="x", padx=10, pady=5)
 
-        api_options = ["ollama", "llama"]
+        # API Type selection
         api_label = tk.Label(model_frame, text="API Type:")
-        api_label.pack(side="left", padx=5, pady=5)
-        api_menu = tk.OptionMenu(model_frame, self.api_type_var, *api_options)
-        api_menu.pack(side="left", padx=5, pady=5)
+        api_label.grid(row=0, column=0, padx=5, pady=5, sticky="e")
+        
+        api_options = ["ollama", "llama"]
+        api_menu = ttk.Combobox(model_frame, textvariable=self.api_type_var, values=api_options, state="readonly")
+        api_menu.grid(row=0, column=1, padx=5, pady=5, sticky="w")
+        api_menu.bind("<<ComboboxSelected>>", self.update_model_list)
 
-        # Add the Route Query button
+        # Model selection
+        model_label = tk.Label(model_frame, text="Model:")
+        model_label.grid(row=0, column=2, padx=5, pady=5, sticky="e")
+        
+        self.model_menu = ttk.Combobox(model_frame, textvariable=self.model_var, state="readonly")
+        self.model_menu.grid(row=0, column=3, padx=5, pady=5, sticky="w")
+        self.model_menu.bind("<<ComboboxSelected>>", self.update_model_setting)
+
+        # Route Query button
         route_query_button = tk.Button(model_frame, text="Route Query", command=self.run_route_query)
-        route_query_button.pack(side="left", padx=5, pady=5)
+        route_query_button.grid(row=0, column=4, padx=5, pady=5)
+
+        # Initialize model list
+        self.update_model_list()
+
+    def update_model_list(self, event=None):
+        api_type = self.api_type_var.get()
+        models = get_available_models(api_type)
+        self.model_menu['values'] = models
+        if models:
+            if api_type == "ollama" and settings.ollama_model in models:
+                self.model_var.set(settings.ollama_model)
+            else:
+                self.model_var.set(models[0])
+            if not self.is_initializing:
+                self.update_model_setting()
+        else:
+            self.model_var.set("")
+        
+        if self.is_initializing:
+            self.is_initializing = False
+            self.update_model_setting(show_message=False)
+
+    def update_model_setting(self, event=None, show_message=True):
+        api_type = self.api_type_var.get()
+        model = self.model_var.get()
+        if model:
+            update_settings(settings, api_type, model)
+            if show_message:
+                messagebox.showinfo("Model Selected", f"Selected model: {model}")
+        elif show_message:
+            messagebox.showwarning("Model Selection", "No model selected")
 
     def create_doc_rag_frame(self):
         rag_frame = tk.LabelFrame(self.main_tab, text="Doc Rag")
