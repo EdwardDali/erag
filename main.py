@@ -20,7 +20,30 @@ from api_model import get_available_models, update_settings, configure_api
 from talk2model import Talk2Model
 from create_sum import run_create_sum
 
+class ToolTip:
+    def __init__(self, widget, text):
+        self.widget = widget
+        self.text = text
+        self.tooltip = None
+        self.widget.bind("<Enter>", self.show_tooltip)
+        self.widget.bind("<Leave>", self.hide_tooltip)
 
+    def show_tooltip(self, event=None):
+        x, y, _, _ = self.widget.bbox("insert")
+        x += self.widget.winfo_rootx() + 25
+        y += self.widget.winfo_rooty() + 25
+
+        self.tooltip = tk.Toplevel(self.widget)
+        self.tooltip.wm_overrideredirect(True)
+        self.tooltip.wm_geometry(f"+{x}+{y}")
+
+        label = tk.Label(self.tooltip, text=self.text, background="#ffffe0", relief="solid", borderwidth=1)
+        label.pack()
+
+    def hide_tooltip(self, event=None):
+        if self.tooltip:
+            self.tooltip.destroy()
+            self.tooltip = None
 
 class ERAGGUI:
     def __init__(self, master: tk.Tk):
@@ -74,6 +97,7 @@ class ERAGGUI:
             button = tk.Button(upload_frame, text=f"Upload {file_type}", 
                                command=lambda ft=file_type: self.upload_and_chunk(ft))
             button.pack(side="left", padx=5, pady=5)
+            ToolTip(button, f"Upload and process a {file_type} file")
 
     def create_embeddings_frame(self):
         embeddings_frame = tk.LabelFrame(self.main_tab, text="Embeddings and Graph")
@@ -82,14 +106,17 @@ class ERAGGUI:
         execute_embeddings_button = tk.Button(embeddings_frame, text="Execute Embeddings", 
                                               command=self.execute_embeddings)
         execute_embeddings_button.pack(side="left", padx=5, pady=5)
+        ToolTip(execute_embeddings_button, "Compute and save embeddings for uploaded documents")
 
         create_knowledge_graph_button = tk.Button(embeddings_frame, text="Create Knowledge Graph", 
                                                   command=self.create_knowledge_graph)
         create_knowledge_graph_button.pack(side="left", padx=5, pady=5)
+        ToolTip(create_knowledge_graph_button, "Create a knowledge graph from processed documents")
 
         create_knowledge_graph_raw_button = tk.Button(embeddings_frame, text="Create Knowledge Graph from Raw", 
                                                       command=self.create_knowledge_graph_from_raw)
         create_knowledge_graph_raw_button.pack(side="left", padx=5, pady=5)
+        ToolTip(create_knowledge_graph_raw_button, "Create a knowledge graph from a raw document file")
 
     def create_model_frame(self):
         model_frame = tk.LabelFrame(self.main_tab, text="Model Selection")
@@ -121,9 +148,11 @@ class ERAGGUI:
 
         talk2model_button = tk.Button(agent_frame, text="Talk2Model", command=self.run_talk2model)
         talk2model_button.pack(side="left", padx=5, pady=5)
+        ToolTip(talk2model_button, "Start a conversation with the selected model")
 
         route_query_button = tk.Button(agent_frame, text="Route Query", command=self.run_route_query)
         route_query_button.pack(side="left", padx=5, pady=5)
+        ToolTip(route_query_button, "Route a query to the appropriate system or model")
 
     def run_talk2model(self):
         try:
@@ -173,24 +202,27 @@ class ERAGGUI:
 
         talk2doc_button = tk.Button(rag_frame, text="Talk2Doc", command=self.run_model)
         talk2doc_button.pack(side="left", padx=5, pady=5)
+        ToolTip(talk2doc_button, "Start a conversation with the RAG system using uploaded documents")
 
         create_knol_button = tk.Button(rag_frame, text="Create Knol", command=self.create_knol)              
         create_knol_button.pack(side="left", padx=5, pady=5)
+        ToolTip(create_knol_button, "Create a knowledge artifact (Knol) from processed documents")
 
-        # Add the new Create Sum button
         create_sum_button = tk.Button(rag_frame, text="Create Sum", command=self.run_create_sum)
         create_sum_button.pack(side="left", padx=5, pady=5)
+        ToolTip(create_sum_button, "Create a summary of an uploaded document")
 
     def create_web_rag_frame(self):
-
         rag_frame = tk.LabelFrame(self.main_tab, text="Web Rag")
         rag_frame.pack(fill="x", padx=10, pady=5)
 
         web_sum_button = tk.Button(rag_frame, text="Web Sum", command=self.run_web_sum)
         web_sum_button.pack(side="left", padx=5, pady=5)
+        ToolTip(web_sum_button, "Summarize content from web pages")
 
         web_rag_button = tk.Button(rag_frame, text="Web Rag", command=self.run_web_rag)
         web_rag_button.pack(side="left", padx=5, pady=5)
+        ToolTip(web_rag_button, "Start a conversation with the RAG system using web content")
 
     def create_settings_tab(self):
         # Create a main frame to hold the three columns
