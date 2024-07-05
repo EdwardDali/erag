@@ -17,6 +17,7 @@ from web_sum import WebSum
 from web_rag import WebRAG
 from route_query import RouteQuery
 from api_model import get_available_models, update_settings, configure_api
+from talk2model import Talk2Model
 
 
 class ERAGGUI:
@@ -58,6 +59,7 @@ class ERAGGUI:
         self.create_model_frame()
         self.create_upload_frame()
         self.create_embeddings_frame()
+        self.create_agent_frame()  # New line
         self.create_doc_rag_frame()
         self.create_web_rag_frame()
 
@@ -108,12 +110,31 @@ class ERAGGUI:
         self.model_menu.grid(row=0, column=3, padx=5, pady=5, sticky="w")
         self.model_menu.bind("<<ComboboxSelected>>", self.update_model_setting)
 
-        # Route Query button
-        route_query_button = tk.Button(model_frame, text="Route Query", command=self.run_route_query)
-        route_query_button.grid(row=0, column=4, padx=5, pady=5)
-
         # Initialize model list
         self.update_model_list()
+
+    def create_agent_frame(self):
+        agent_frame = tk.LabelFrame(self.main_tab, text="Model and Agent")
+        agent_frame.pack(fill="x", padx=10, pady=5)
+
+        talk2model_button = tk.Button(agent_frame, text="Talk2Model", command=self.run_talk2model)
+        talk2model_button.pack(side="left", padx=5, pady=5)
+
+        route_query_button = tk.Button(agent_frame, text="Route Query", command=self.run_route_query)
+        route_query_button.pack(side="left", padx=5, pady=5)
+
+    def run_talk2model(self):
+        try:
+            api_type = self.api_type_var.get()
+            model = self.model_var.get()
+            
+            # Create and run the Talk2Model instance in a separate thread
+            talk2model = Talk2Model(api_type, model)
+            threading.Thread(target=talk2model.run, daemon=True).start()
+            
+            messagebox.showinfo("Info", f"Talk2Model started with {api_type} API and {model} model. Check the console for interaction.")
+        except Exception as e:
+            messagebox.showerror("Error", f"An error occurred while starting Talk2Model: {str(e)}")
 
 
     def update_model_list(self, event=None):
