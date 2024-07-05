@@ -35,7 +35,6 @@ def process_pdf(pdf_path: str) -> List[Tuple[str, str]]:
     return chapters
 
 def split_into_chapters(text: str) -> List[Tuple[str, str]]:
-    # Try to find chapter markers
     chapter_patterns = [
         r'(?:^|\n)(?:CHAPTER|Chapter)\s+(?:\d+|[IVX]+)\.?\s*(.*?)(?=\n)',
         r'(?:^|\n)(?:SECTION|Section)\s+(?:\d+|[IVX]+)\.?\s*(.*?)(?=\n)',
@@ -49,7 +48,6 @@ def split_into_chapters(text: str) -> List[Tuple[str, str]]:
             break
     
     if not chapters:
-        # If no chapters found, treat the whole content as one chapter
         return [("Entire Document", text)]
     
     result = []
@@ -59,7 +57,6 @@ def split_into_chapters(text: str) -> List[Tuple[str, str]]:
         end = chapters[i+1].start() if i+1 < len(chapters) else len(text)
         chapter_content = text[start:end].strip()
         
-        # Skip if the chapter seems to be part of the table of contents
         if len(chapter_content.split('\n')) > 5 and len(chapter_content) > 500:
             result.append((chapter_title, chapter_content))
     
@@ -71,7 +68,6 @@ def extract_chapters_text(file_path: str) -> List[Tuple[str, str]]:
     return split_into_chapters(content)
 
 def summarize_chapter(chapter_title: str, chapter_content: str, api_type: str, client) -> str:
-    # Prepare the prompt for summarization
     prompt = f"""Write an extensive summary of the following chapter:
 
 Chapter title: {chapter_title}
@@ -81,7 +77,6 @@ Chapter content:
 
 SUMMARY:"""
 
-    # Use the OpenAI client to generate the summary
     response = client.chat.completions.create(
         model=settings.ollama_model if api_type == "ollama" else settings.llama_model,
         messages=[
@@ -91,7 +86,6 @@ SUMMARY:"""
         temperature=settings.temperature
     )
 
-    # Extract the summary from the response
     return response.choices[0].message.content.strip()
 
 def create_summary(file_path: str, api_type: str, client) -> str:
@@ -107,9 +101,10 @@ def create_summary(file_path: str, api_type: str, client) -> str:
         all_summaries = []
 
         for i, (chapter_title, chapter_content) in enumerate(chapters, 1):
-            # Save the full chapter content
             safe_title = re.sub(r'[^\w\-_\. ]', '_', chapter_title)
             safe_title = safe_title[:50]  # Limit filename length
+            
+            # Save the full chapter content
             full_chapter_path = os.path.join(output_folder, f"{i:02d}_{safe_title}_full.txt")
             with open(full_chapter_path, 'w', encoding='utf-8') as f:
                 f.write(f"{chapter_title}\n\n")
