@@ -61,6 +61,9 @@ class ERAGGUI:
         self.web_rag = None
         self.is_initializing = True  # Flag to track initialization
 
+        # Create output folder if it doesn't exist
+        os.makedirs(settings.output_folder, exist_ok=True)
+
         # Create the notebook
         self.notebook = ttk.Notebook(self.master)
         self.notebook.pack(expand=True, fill="both", padx=10, pady=10)
@@ -490,17 +493,20 @@ class ERAGGUI:
 
     def execute_embeddings(self):
         try:
-            if not os.path.exists(settings.db_file_path):
-                messagebox.showwarning("Warning", f"{settings.db_file_path} not found. Please upload some documents first.")
+            # Ensure we're using the correct path from settings
+            db_file_path = settings.db_file_path
+            
+            if not os.path.exists(db_file_path):
+                messagebox.showwarning("Warning", f"{db_file_path} not found. Please upload some documents first.")
                 return
 
             # Process db.txt
             self.db_embeddings, self.db_indexes, self.db_content = load_or_compute_embeddings(
                 self.model, 
-                settings.db_file_path, 
+                db_file_path, 
                 settings.embeddings_file_path
             )
-            messagebox.showinfo("Success", f"Embeddings computed and saved successfully. Shape: {self.db_embeddings.shape}")
+            messagebox.showinfo("Success", f"Embeddings computed and saved successfully to {settings.embeddings_file_path}. Shape: {self.db_embeddings.shape}")
 
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred while computing embeddings: {str(e)}")

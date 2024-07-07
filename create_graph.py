@@ -9,6 +9,7 @@ from nltk.tokenize import sent_tokenize
 import nltk
 from embeddings_utils import load_embeddings_and_data
 from settings import settings
+import os
 
 nltk.download('punkt', quiet=True)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -134,20 +135,23 @@ def create_graph_from_raw(raw_documents: List[str], model: SentenceTransformer) 
 
 def save_graph_json(G: nx.Graph, file_path: str):
     graph_data = nx.node_link_data(G)
+    os.makedirs(os.path.dirname(file_path), exist_ok=True)
     with open(file_path, 'w', encoding='utf-8') as file:
         json.dump(graph_data, file, indent=2)
 
 def create_knowledge_graph():
-    embeddings, _, content = load_embeddings_and_data(settings.embeddings_file_path)
+    embeddings_file_path = os.path.join(settings.output_folder, os.path.basename(settings.embeddings_file_path))
+    embeddings, _, content = load_embeddings_and_data(embeddings_file_path)
     
     if embeddings is None or content is None:
-        logging.error(f"Failed to load data from {settings.embeddings_file_path}")
+        logging.error(f"Failed to load data from {embeddings_file_path}")
         return None
 
     G = create_networkx_graph(content, embeddings)
-    save_graph_json(G, settings.knowledge_graph_file_path)
+    knowledge_graph_file_path = os.path.join(settings.output_folder, os.path.basename(settings.knowledge_graph_file_path))
+    save_graph_json(G, knowledge_graph_file_path)
     logging.info(f"NetworkX graph created with {G.number_of_nodes()} nodes and {G.number_of_edges()} edges.")
-    logging.info(f"Graph saved as {settings.knowledge_graph_file_path}")
+    logging.info(f"Graph saved as {knowledge_graph_file_path}")
     return G
 
 def create_knowledge_graph_from_raw(raw_file_path: str):
@@ -158,9 +162,10 @@ def create_knowledge_graph_from_raw(raw_file_path: str):
         raw_documents = [doc.strip() for doc in raw_documents if doc.strip()]
     
     G = create_graph_from_raw(raw_documents, model)
-    save_graph_json(G, settings.knowledge_graph_file_path)
+    knowledge_graph_file_path = os.path.join(settings.output_folder, os.path.basename(settings.knowledge_graph_file_path))
+    save_graph_json(G, knowledge_graph_file_path)
     logging.info(f"NetworkX graph created from raw documents with {G.number_of_nodes()} nodes and {G.number_of_edges()} edges.")
-    logging.info(f"Graph saved as {settings.knowledge_graph_file_path}")
+    logging.info(f"Graph saved as {knowledge_graph_file_path}")
     return G
 
 if __name__ == "__main__":

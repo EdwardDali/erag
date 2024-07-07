@@ -14,6 +14,10 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 class FileProcessor:
     def __init__(self):
         self.toc = []
+        self.ensure_output_folder()
+
+    def ensure_output_folder(self):
+        os.makedirs(settings.output_folder, exist_ok=True)
 
     def extract_toc_from_text(self, text: str) -> str:
         # Look for the "Contents" marker
@@ -172,7 +176,7 @@ class FileProcessor:
         return '\n'.join(formatted_toc)
 
     def append_to_db_content(self, filename: str, table_of_contents: str):
-        db_content_file = "db_content.txt"
+        db_content_file = os.path.join(settings.output_folder, "db_content.txt")
         with open(db_content_file, "a", encoding="utf-8") as f:
             f.write(f"\n\n--- {filename} ---\n")
             f.write("Table of Contents:\n")
@@ -180,13 +184,14 @@ class FileProcessor:
             f.write("\n\n")
 
     def append_to_db(self, chunks: List[str], db_file: str = "db.txt"):
+        db_file_path = os.path.join(settings.output_folder, db_file)
         total_chunks = len(chunks)
-        with open(db_file, "a", encoding="utf-8") as f:
+        with open(db_file_path, "a", encoding="utf-8") as f:
             for i, chunk in enumerate(chunks):
                 f.write(f"{chunk.strip()}\n")
                 if total_chunks < 10 or (i + 1) % (total_chunks // 10) == 0:
                     print(f"Progress: {(i + 1) / total_chunks * 100:.1f}% ({i + 1}/{total_chunks} chunks)")
-        print(f"Appended {total_chunks} chunks to {db_file}")
+        print(f"Appended {total_chunks} chunks to {db_file_path}")
 
 # Create a global instance of FileProcessor
 file_processor = FileProcessor()

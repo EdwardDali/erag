@@ -6,23 +6,41 @@ from typing import List, Tuple
 import networkx as nx
 import spacy
 from settings import settings
-
-import re
-import torch
-from sentence_transformers import util
-import logging
-from typing import List, Tuple
-import networkx as nx
-import spacy
-from settings import settings
+import os
+import json
 
 class SearchUtils:
-    def __init__(self, model, db_embeddings, db_content, knowledge_graph):
+    def __init__(self, model, db_embeddings=None, db_content=None, knowledge_graph=None):
         self.model = model
-        self.db_embeddings = db_embeddings
-        self.db_content = db_content
-        self.knowledge_graph = knowledge_graph
         self.nlp = spacy.load(settings.nlp_model)
+        
+        # Load db_embeddings and db_content
+        if db_embeddings is not None and db_content is not None:
+            self.db_embeddings = db_embeddings
+            self.db_content = db_content
+        else:
+            embeddings_path = os.path.join(settings.output_folder, os.path.basename(settings.embeddings_file_path))
+            if os.path.exists(embeddings_path):
+                loaded_data = torch.load(embeddings_path)
+                self.db_embeddings = loaded_data['embeddings']
+                self.db_content = loaded_data['content']
+            else:
+                logging.error(f"Embeddings file not found: {embeddings_path}")
+                self.db_embeddings = torch.tensor([])
+                self.db_content = []
+
+        # Load knowledge graph
+        if knowledge_graph is not None:
+            self.knowledge_graph = knowledge_graph
+        else:
+            graph_path = os.path.join(settings.output_folder, os.path.basename(settings.knowledge_graph_file_path))
+            if os.path.exists(graph_path):
+                with open(graph_path, 'r') as f:
+                    graph_data = json.load(f)
+                self.knowledge_graph = nx.node_link_graph(graph_data)
+            else:
+                logging.error(f"Knowledge graph file not found: {graph_path}")
+                self.knowledge_graph = nx.Graph()
 
     def lexical_search(self, query: str) -> List[str]:
         if not settings.enable_lexical_search:
@@ -124,7 +142,7 @@ class SearchUtils:
         logging.info(f"DB Embeddings shape: {self.db_embeddings.shape if hasattr(self.db_embeddings, 'shape') else 'No shape attribute'}")
         logging.info(f"DB Content length: {len(self.db_content)}")
 
-        if isinstance(self.db_embeddings, torch.Tensor):
+        if isinstance(self.db_embeddings, torch.Tensor) and self.db_embeddings.dim() > 1:
             self.db_embeddings = self.db_embeddings.numpy()
 
         if self.db_embeddings.size == 0 or len(self.db_content) == 0:

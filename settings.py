@@ -12,14 +12,23 @@ class Settings:
         return cls._instance
 
     def _initialize(self):
+        # Output folder setting
+        self.output_folder = "output"
+
+        # Helper function to ensure correct path
+        def ensure_output_path(path):
+            if os.path.dirname(path) == self.output_folder:
+                return path
+            return os.path.join(self.output_folder, os.path.basename(path))
+
         # Upload Settings
         self.file_chunk_size: int = 500
         self.file_overlap_size: int = 200
 
         # Embeddings Settings
         self.batch_size = 32
-        self.embeddings_file_path = "db_embeddings.pt"
-        self.db_file_path = "db.txt"
+        self.embeddings_file_path = ensure_output_path("db_embeddings.pt")
+        self.db_file_path = ensure_output_path("db.txt")
 
         # Graph Settings
         self.graph_chunk_size: int = 5000
@@ -28,7 +37,7 @@ class Settings:
         self.similarity_threshold = 0.7
         self.min_entity_occurrence = 1
         self.enable_semantic_edges = True
-        self.knowledge_graph_file_path = "knowledge_graph.json"
+        self.knowledge_graph_file_path = ensure_output_path("knowledge_graph.json")
 
         # Model Settings
         self.max_history_length = 5
@@ -37,8 +46,8 @@ class Settings:
         self.ollama_model = "phi3:instruct"
         self.temperature = 0.1
         self.model_name = "all-MiniLM-L6-v2"
-        self.sentence_transformer_model = "all-MiniLM-L6-v2"  # Add this line
-        self.llama_model = "llama-default"  # Add this line if not already present
+        self.sentence_transformer_model = "all-MiniLM-L6-v2"
+        self.llama_model = "llama-default"
 
         # Knol Creation Settings
         self.num_questions = 8
@@ -51,7 +60,7 @@ class Settings:
         # Web RAG Settings
         self.web_rag_urls_to_crawl = 5
         self.initial_context_size = 5
-        self.web_rag_file = "web_rag_qa.txt"
+        self.web_rag_file = ensure_output_path("web_rag_qa.txt")
         self.web_rag_chunk_size = 500
         self.web_rag_overlap_size = 100
 
@@ -67,14 +76,14 @@ class Settings:
         self.enable_graph_search = True
         self.enable_text_search = True
 
-        # New summarization settings
+        # Summarization settings
         self.summarization_chunk_size: int = 3000
         self.summarization_summary_size: int = 200
         self.summarization_combining_number: int = 3
         self.summarization_final_chunk_size: int = 300
 
         # File Settings
-        self.results_file_path = "results.txt"
+        self.results_file_path = ensure_output_path("results.txt")
 
         # API Settings
         self.api_type = "ollama"  # Default API type

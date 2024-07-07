@@ -9,6 +9,9 @@ from api_model import configure_api
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+def ensure_output_folder():
+    os.makedirs(settings.output_folder, exist_ok=True)
+
 def load_db_content(file_path: str) -> List[str]:
     content = []
     if os.path.exists(file_path):
@@ -22,6 +25,11 @@ def compute_and_save_embeddings(
     content: List[str]
 ) -> None:
     try:
+        ensure_output_folder()
+        
+        # Ensure save_path is in the output folder
+        save_path = os.path.join(settings.output_folder, os.path.basename(save_path))
+        
         logging.info(f"Computing embeddings for {len(content)} items")
         db_embeddings = []
         for i in range(0, len(content), settings.batch_size):
@@ -54,6 +62,9 @@ def compute_and_save_embeddings(
 
 def load_embeddings_and_data(embeddings_file: str) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor], Optional[List[str]]]:
     try:
+        # Ensure embeddings_file is in the output folder
+        embeddings_file = os.path.join(settings.output_folder, os.path.basename(embeddings_file))
+        
         if os.path.exists(embeddings_file):
             data = torch.load(embeddings_file)
             embeddings = data['embeddings']
@@ -72,6 +83,10 @@ def load_embeddings_and_data(embeddings_file: str) -> Tuple[Optional[torch.Tenso
 
 def load_or_compute_embeddings(model: SentenceTransformer, db_file: str, embeddings_file: str) -> Tuple[torch.Tensor, torch.Tensor, List[str]]:
     try:
+        # Ensure db_file and embeddings_file are in the output folder
+        db_file = os.path.join(settings.output_folder, os.path.basename(db_file))
+        embeddings_file = os.path.join(settings.output_folder, os.path.basename(embeddings_file))
+        
         embeddings, indexes, content = load_embeddings_and_data(embeddings_file)
         if embeddings is None or indexes is None or content is None:
             content = load_db_content(db_file)
@@ -84,10 +99,11 @@ def load_or_compute_embeddings(model: SentenceTransformer, db_file: str, embeddi
 
 if __name__ == "__main__":
     try:
+        ensure_output_folder()
         # Use the configure_api function to get the appropriate model
         model = configure_api("sentence_transformer", settings.model_name)
         
-        # Process db.txt
+        # Process db.txt from the output folder
         embeddings, indexes, content = load_or_compute_embeddings(model, settings.db_file_path, settings.embeddings_file_path)
         logging.info(f"DB Embeddings shape: {embeddings.shape}, Indexes shape: {indexes.shape}")
         logging.info(f"DB Content length: {len(content)}")
