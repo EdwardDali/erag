@@ -1,9 +1,25 @@
 import os
 import re
 from settings import settings
+from PyPDF2 import PdfReader
 
 def chunk_text(text, chunk_size):
     return [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]
+
+def read_file_content(file_path):
+    _, file_extension = os.path.splitext(file_path)
+    if file_extension.lower() == '.pdf':
+        return read_pdf(file_path)
+    else:  # Assume it's a text file
+        with open(file_path, 'r', encoding='utf-8') as file:
+            return file.read()
+
+def read_pdf(file_path):
+    reader = PdfReader(file_path)
+    text = ""
+    for page in reader.pages:
+        text += page.extract_text() + "\n"
+    return text
 
 def generate_questions(client, api_type, chunk, question_number, total_questions, output_file, chunk_size):
     print(f"Generating questions for chunk {question_number}/{total_questions} (size: {chunk_size})")
@@ -62,8 +78,7 @@ def run_create_q(file_path, api_type, client):
     input_file_name = os.path.splitext(os.path.basename(file_path))[0]
 
     # Read the content of the file
-    with open(file_path, 'r', encoding='utf-8') as file:
-        content = file.read()
+    content = read_file_content(file_path)
 
     all_chunk_sizes = [settings.initial_question_chunk_size * (2**i) for i in range(settings.question_chunk_levels)]
     
