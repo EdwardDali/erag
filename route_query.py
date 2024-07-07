@@ -4,6 +4,7 @@ from openai import OpenAI
 from enum import Enum
 from settings import settings
 import re
+import os
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -17,18 +18,21 @@ class ANSIColor(Enum):
 class RouteQuery:
     def __init__(self, api_type: str, client: OpenAI):
         self.api_type = api_type
-        self.client = client 
+        self.client = client
+        # Ensure output folder exists
+        os.makedirs(settings.output_folder, exist_ok=True)
 
     def load_db_content(self):
         logging.info("Loading database content...")
+        db_content_path = os.path.join(settings.output_folder, 'db_content.txt')
         try:
-            with open('db_content.txt', 'r', encoding='utf-8') as f:
+            with open(db_content_path, 'r', encoding='utf-8') as f:
                 content = f.read()
-            logging.info("Successfully loaded database content from db_content.txt")
+            logging.info(f"Successfully loaded database content from {db_content_path}")
             logging.info(f"Loaded db_content (first 100 characters): {content[:100]}...")
             return content
         except FileNotFoundError:
-            logging.error("db_content.txt not found")
+            logging.error(f"{db_content_path} not found")
             return ""
 
     def evaluate_query(self, query: str) -> dict:
@@ -199,6 +203,7 @@ First check if there is relevant information in the TOC; if yes chose A or B. If
 
     def run(self):
         print(f"{ANSIColor.YELLOW.value}Welcome to the Query Routing System. Type 'exit' to quit.{ANSIColor.RESET.value}")
+        print(f"{ANSIColor.CYAN.value}Using output folder: {settings.output_folder}{ANSIColor.RESET.value}")
 
         while True:
             user_input = input(f"\n{ANSIColor.YELLOW.value}Enter your query: {ANSIColor.RESET.value}").strip()
