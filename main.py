@@ -332,8 +332,8 @@ class ERAGGUI:
 
         self.create_settings_fields(question_gen_frame, [
             ("Initial Question Chunk Size", "initial_question_chunk_size"),
-            ("Questions Per Chunk", "questions_per_chunk"),
             ("Question Chunk Levels", "question_chunk_levels"),
+            ("Excluded Question Levels", "excluded_question_levels"),
         ])
 
         # Create checkboxes for boolean settings
@@ -392,6 +392,8 @@ class ERAGGUI:
                     value = int(value)
                 elif isinstance(getattr(settings, key), float):
                     value = float(value)
+                elif key == "excluded_question_levels":
+                    value = [int(x.strip()) for x in value.split(',') if x.strip().isdigit()]
                 settings.update_setting(key, value)
         
         settings.apply_settings()

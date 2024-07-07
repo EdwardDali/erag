@@ -43,7 +43,7 @@ class Settings:
         self.max_history_length = 5
         self.conversation_context_size = 3
         self.update_threshold = 10
-        self.ollama_model = "phi3:instruct"
+        self.ollama_model = "qwen2:1.5b-instruct-q8_0"
         self.temperature = 0.1
         self.model_name = "all-MiniLM-L6-v2"
         self.sentence_transformer_model = "all-MiniLM-L6-v2"
@@ -87,8 +87,8 @@ class Settings:
 
         # Question Generation Settings
         self.initial_question_chunk_size: int = 1000
-        self.questions_per_chunk: int = 1
         self.question_chunk_levels: int = 3
+        self.excluded_question_levels: list = []  # This will be stored as a list of integers
 
         # API Settings
         self.api_type = "ollama"  # Default API type
@@ -121,6 +121,9 @@ class Settings:
 
     def update_setting(self, key: str, value: Any):
         if hasattr(self, key):
+            if key == "excluded_question_levels":
+                # Ensure excluded_question_levels is always stored as a list of integers
+                value = [int(x) for x in value if str(x).isdigit()]
             setattr(self, key, value)
             self.save_settings()
         else:
