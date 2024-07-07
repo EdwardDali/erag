@@ -89,6 +89,9 @@ class Settings:
         self.initial_question_chunk_size: int = 1000
         self.question_chunk_levels: int = 3
         self.excluded_question_levels: list = []  # This will be stored as a list of integers
+        self.questions_per_chunk: int = 3
+
+
 
         # API Settings
         self.api_type = "ollama"  # Default API type

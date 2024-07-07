@@ -334,6 +334,7 @@ class ERAGGUI:
             ("Initial Question Chunk Size", "initial_question_chunk_size"),
             ("Question Chunk Levels", "question_chunk_levels"),
             ("Excluded Question Levels", "excluded_question_levels"),
+            ("Questions Per Chunk", "questions_per_chunk"),  # New field for questions per chunk
         ])
 
         # Create checkboxes for boolean settings

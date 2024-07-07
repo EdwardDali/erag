@@ -24,12 +24,12 @@ def read_pdf(file_path):
 def generate_questions(client, api_type, chunk, question_number, total_questions, output_file, chunk_size):
     print(f"Generating questions for chunk {question_number}/{total_questions} (size: {chunk_size})")
     
-    prompt = f"""Based on the following text, generate 3 insightful questions that would test a reader's understanding of the key concepts, main ideas, or important details. The questions should be specific to the content provided. Provide only the questions, without any additional text or answers.
+    prompt = f"""Based on the following text, generate {settings.questions_per_chunk} insightful questions that would test a reader's understanding of the key concepts, main ideas, or important details. The questions should be specific to the content provided. Provide only the questions, without any additional text or answers.
 
 Text:
 {chunk}
 
-Generate 3 questions:"""
+Generate {settings.questions_per_chunk} questions:"""
 
     response = client.chat.completions.create(
         model=settings.ollama_model if api_type == 'ollama' else settings.model_name,
@@ -90,6 +90,7 @@ def run_create_q(file_path, api_type, client):
     # Calculate total number of chunks
     total_chunks = sum(len(chunk_text(content, size)) for size in chunk_sizes)
     print(f"Identified {total_chunks} chunks using {len(chunk_sizes)} levels")
+    print(f"Generating {settings.questions_per_chunk} questions per chunk")
 
     # Prepare the output file
     output_file = os.path.join(settings.output_folder, f"{input_file_name}_generated_questions.txt")
@@ -113,4 +114,4 @@ def run_create_q(file_path, api_type, client):
     extraction_message = f"{num_extracted} questions were extracted and saved to {extracted_file}"
     print(extraction_message)
     
-    return f"Generated questions for {chunk_counter - 1} chunks. {extraction_message}"
+    return f"Generated questions for {chunk_counter - 1} chunks, requesting {settings.questions_per_chunk} questions per chunk. {extraction_message}"

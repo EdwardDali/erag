@@ -44,9 +44,10 @@
     "summarization_combining_number": 3,
     "summarization_final_chunk_size": 300,
     "results_file_path": "output\\results.txt",
-    "initial_question_chunk_size": 1000,
+    "initial_question_chunk_size": 4000,
     "question_chunk_levels": 3,
     "excluded_question_levels": [],
+    "questions_per_chunk": 1,
     "api_type": "ollama",
     "config_file": "config.json"
 }
