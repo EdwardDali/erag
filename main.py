@@ -215,17 +215,22 @@ class ERAGGUI:
         create_sum_button.pack(side="left", padx=5, pady=5)
         ToolTip(create_sum_button, "Create a summary of an uploaded document")
 
+        # New button for Create Q
+        create_q_button = tk.Button(rag_frame, text="Create Q", command=self.run_create_q)
+        create_q_button.pack(side="left", padx=5, pady=5)
+        ToolTip(create_q_button, "Create questions based on an input document")
+
     def create_web_rag_frame(self):
         rag_frame = tk.LabelFrame(self.main_tab, text="Web Rag")
         rag_frame.pack(fill="x", padx=10, pady=5)
 
-        web_sum_button = tk.Button(rag_frame, text="Web Sum", command=self.run_web_sum)
-        web_sum_button.pack(side="left", padx=5, pady=5)
-        ToolTip(web_sum_button, "Summarize content from web pages")
-
         web_rag_button = tk.Button(rag_frame, text="Web Rag", command=self.run_web_rag)
         web_rag_button.pack(side="left", padx=5, pady=5)
         ToolTip(web_rag_button, "Start a conversation with the RAG system using web content")
+
+        web_sum_button = tk.Button(rag_frame, text="Web Sum", command=self.run_web_sum)
+        web_sum_button.pack(side="left", padx=5, pady=5)
+        ToolTip(web_sum_button, "Summarize content from web pages")
 
     def create_settings_tab(self):
         # Create a main frame to hold the three columns
@@ -261,6 +266,8 @@ class ERAGGUI:
         web_rag_frame = self.create_labelframe(right_column, "Web RAG Settings", 0)
         summarization_frame = self.create_labelframe(right_column, "Summarization Settings", 1)
         api_frame = self.create_labelframe(right_column, "API Settings", 2)
+        question_gen_frame = self.create_labelframe(right_column, "Question Generation Settings", 3)  # Adjust the row number as needed
+
 
         # Create and layout settings fields
         self.create_settings_fields(upload_frame, [
@@ -321,6 +328,12 @@ class ERAGGUI:
             ("Semantic Weight", "semantic_weight"),
             ("Graph Weight", "graph_weight"),
             ("Text Weight", "text_weight"),
+        ])
+
+        self.create_settings_fields(question_gen_frame, [
+            ("Initial Question Chunk Size", "initial_question_chunk_size"),
+            ("Questions Per Chunk", "questions_per_chunk"),
+            ("Question Chunk Levels", "question_chunk_levels"),
         ])
 
         # Create checkboxes for boolean settings
@@ -561,6 +574,41 @@ class ERAGGUI:
             messagebox.showinfo("Info", f"RAG system started with {api_type} API. Check the console for interaction.")
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred while starting the RAG system: {str(e)}")
+
+    def run_create_q(self):
+        try:
+            file_path = filedialog.askopenfilename(title="Select a document to create questions from",
+                                                   filetypes=[("Text files", "*.txt"), ("PDF files", "*.pdf"), ("All files", "*.*")])
+            if not file_path:
+                messagebox.showwarning("Warning", "No file selected.")
+                return
+
+            api_type = self.api_type_var.get()
+            model = self.model_var.get()
+            client = configure_api(api_type)
+
+            # Apply settings before running the question creation
+            self.apply_settings()
+
+            # Run the question creation in a separate thread
+            threading.Thread(target=self._create_q_thread, args=(file_path, api_type, client), daemon=True).start()
+
+            messagebox.showinfo("Info", f"Question creation started for {os.path.basename(file_path)}. Check the console for progress.")
+        except Exception as e:
+            messagebox.showerror("Error", f"An error occurred while starting the question creation process: {str(e)}")
+
+    def _create_q_thread(self, file_path, api_type, client):
+        try:
+            from create_q import run_create_q
+            result = run_create_q(file_path, api_type, client)
+            print(result)
+            messagebox.showinfo("Success", "Questions created successfully. Check the output file.")
+        except Exception as e:
+            error_message = f"An error occurred during question creation: {str(e)}"
+            print(error_message)
+            messagebox.showerror("Error", error_message)
+
+
 
     def run_web_sum(self):
         try:

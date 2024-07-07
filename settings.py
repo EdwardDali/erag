@@ -85,6 +85,11 @@ class Settings:
         # File Settings
         self.results_file_path = ensure_output_path("results.txt")
 
+        # Question Generation Settings
+        self.initial_question_chunk_size: int = 1000
+        self.questions_per_chunk: int = 1
+        self.question_chunk_levels: int = 3
+
         # API Settings
         self.api_type = "ollama"  # Default API type
 
