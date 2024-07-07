@@ -1,3 +1,4 @@
+
 from settings import settings
 from openai import OpenAI
 import logging
@@ -11,6 +12,9 @@ from collections import deque
 from search_utils import SearchUtils
 from talk2doc import ANSIColor
 from api_model import configure_api
+import os
+
+
 
 class WebRAG:
     def __init__(self, api_type: str):
@@ -28,12 +32,19 @@ class WebRAG:
         self.conversation_history = []
         self.conversation_context = deque(maxlen=settings.conversation_context_size * 2)
         self.current_urls = set()
-        self.web_rag_file = settings.web_rag_file
+        
+        # Correct the web_rag_file path
+        self.web_rag_file = os.path.join(settings.output_folder, os.path.basename(settings.web_rag_file))
+        
         self.current_question_file = None
         self.context_size = settings.initial_context_size
         self.processed_urls = set()  # Keep track of processed URLs
         self.current_query = None  # Store the current query
         self.search_offset = 0  # New attribute to keep track of search offset
+        
+        # Ensure output folder exists
+        os.makedirs(settings.output_folder, exist_ok=True)
+
 
     def search_and_process(self, query):
         logging.info(f"Performing search for query: {query}")
@@ -76,10 +87,10 @@ class WebRAG:
             safe_filename = safe_filename.replace(' ', '_').lower()
             safe_filename = safe_filename[:50]  # Limit filename length
 
-            return f"web_rag_{safe_filename}.txt"
+            return os.path.join(settings.output_folder, f"web_rag_{safe_filename}.txt")
         except Exception as e:
             logging.error(f"Error summarizing query: {str(e)}")
-            return f"web_rag_query_{hash(query) % 10000}.txt"  # Fallback filename
+            return os.path.join(settings.output_folder, f"web_rag_query_{hash(query) % 10000}.txt")
 
     def perform_search(self, query, offset=0):
         if offset == 0 or not self.all_search_results:
@@ -275,6 +286,7 @@ Please provide a comprehensive and well-structured answer to the question based 
 
     def run(self):
         print(f"{ANSIColor.YELLOW.value}Welcome to the Web RAG System. Type 'exit' to quit, 'clear' to clear conversation history, or 'check' to process more URLs and update the knowledge base.{ANSIColor.RESET.value}")
+        print(f"{ANSIColor.CYAN.value}All generated files will be saved in: {settings.output_folder}{ANSIColor.RESET.value}")
 
         while True:
             user_input = input(f"{ANSIColor.YELLOW.value}Enter your search query, follow-up question, or command: {ANSIColor.RESET.value}").strip()

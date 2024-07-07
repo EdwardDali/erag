@@ -27,6 +27,8 @@ class WebSum:
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
             "Accept-Language": "en-US,en;q=0.5"
         })
+        # Ensure output folder exists
+        os.makedirs(settings.output_folder, exist_ok=True)
 
     def search_and_process(self, query):
         logging.info(f"Performing search for query: {query}")
@@ -132,9 +134,10 @@ class WebSum:
 
     def save_content(self, filename, content):
         try:
-            with open(filename, "w", encoding="utf-8") as f:
+            file_path = os.path.join(settings.output_folder, filename)
+            with open(file_path, "w", encoding="utf-8") as f:
                 f.write(content)
-            logging.info(f"Content saved as {filename}")
+            logging.info(f"Content saved as {file_path}")
         except IOError as e:
             logging.error(f"Error saving content to file: {str(e)}")
 
@@ -162,9 +165,10 @@ class WebSum:
 
     def append_summary(self, filename, summary, index):
         try:
-            with open(filename, "a", encoding="utf-8") as f:
+            file_path = os.path.join(settings.output_folder, filename)
+            with open(file_path, "a", encoding="utf-8") as f:
                 f.write(summary)
-            logging.info(f"Summary {index} appended to {filename}")
+            logging.info(f"Summary {index} appended to {file_path}")
         except IOError as e:
             logging.error(f"Error appending summary to file: {str(e)}")
 
@@ -197,6 +201,7 @@ class WebSum:
 
     def run(self):
         print(f"{ANSIColor.YELLOW.value}Welcome to the Web Sum System. Type 'exit' to quit.{ANSIColor.RESET.value}")
+        print(f"{ANSIColor.CYAN.value}All generated files will be saved in: {settings.output_folder}{ANSIColor.RESET.value}")
 
         while True:
             user_input = input(f"{ANSIColor.YELLOW.value}Enter your search query: {ANSIColor.RESET.value}").strip()

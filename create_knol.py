@@ -15,13 +15,16 @@ class KnolCreator:
     def __init__(self, api_type: str):
         self.rag_system = RAGSystem(api_type)
         self.search_utils = self.rag_system.search_utils
+        # Ensure output folder exists
+        os.makedirs(settings.output_folder, exist_ok=True)
 
     def save_iteration(self, content: str, stage: str, subject: str):
         filename = f"knol_{subject.replace(' ', '_')}_{stage}.txt"
+        file_path = os.path.join(settings.output_folder, filename)
         try:
-            with open(filename, "w", encoding="utf-8") as f:
+            with open(file_path, "w", encoding="utf-8") as f:
                 f.write(content)
-            logging.info(f"Saved {stage} knol as {filename}")
+            logging.info(f"Saved {stage} knol as {file_path}")
         except IOError as e:
             logging.error(f"Error saving {stage} knol to file: {str(e)}")
 
@@ -128,24 +131,28 @@ Please provide a comprehensive answer to the question using the information from
         qa_filename = f"knol_{subject.replace(' ', '_')}_q_a.txt"
         final_knol_filename = f"knol_{subject.replace(' ', '_')}_final.txt"
 
+        improved_knol_path = os.path.join(settings.output_folder, improved_knol_filename)
+        qa_path = os.path.join(settings.output_folder, qa_filename)
+        final_knol_path = os.path.join(settings.output_folder, final_knol_filename)
+
         try:
             # Read the improved knol content
-            with open(improved_knol_filename, "r", encoding="utf-8") as f:
+            with open(improved_knol_path, "r", encoding="utf-8") as f:
                 improved_knol_content = f.read()
 
             # Read the Q&A content
-            with open(qa_filename, "r", encoding="utf-8") as f:
+            with open(qa_path, "r", encoding="utf-8") as f:
                 qa_content = f.read()
 
             # Combine the contents
             final_content = f"{improved_knol_content}\n\nQuestions and Answers:\n\n{qa_content}"
 
             # Write the final knol
-            with open(final_knol_filename, "w", encoding="utf-8") as f:
+            with open(final_knol_path, "w", encoding="utf-8") as f:
                 f.write(final_content)
 
-            logging.info(f"Created final knol as {final_knol_filename}")
-            print(f"{ANSIColor.NEON_GREEN.value}Final knol created: {final_knol_filename}{ANSIColor.RESET.value}")
+            logging.info(f"Created final knol as {final_knol_path}")
+            print(f"{ANSIColor.NEON_GREEN.value}Final knol created: {final_knol_path}{ANSIColor.RESET.value}")
 
         except IOError as e:
             logging.error(f"Error creating final knol: {str(e)}")
@@ -153,6 +160,7 @@ Please provide a comprehensive answer to the question using the information from
 
     def run_knol_creator(self):
         print(f"{ANSIColor.YELLOW.value}Welcome to the Knol Creation System. Type 'exit' to quit.{ANSIColor.RESET.value}")
+        print(f"{ANSIColor.CYAN.value}All generated files will be saved in: {settings.output_folder}{ANSIColor.RESET.value}")
 
         while True:
             user_input = input(f"{ANSIColor.YELLOW.value}Which subject do you want to create a knol about? {ANSIColor.RESET.value}").strip()
