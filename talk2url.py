@@ -5,6 +5,8 @@ from settings import settings
 from api_model import configure_api
 from talk2doc import ANSIColor
 import os
+import re
+import unicodedata
 
 class Talk2URL:
     def __init__(self, api_type: str):
@@ -18,6 +20,7 @@ class Talk2URL:
         })
         self.conversation_history = []
         self.current_urls = []
+        self.url_contents = {}
         self.output_file = os.path.join(settings.output_folder, "talk2url_output.txt")
 
     def crawl_page(self, url):
@@ -30,6 +33,10 @@ class Talk2URL:
                 script.extract()
             text_content = ' '.join(soup.stripped_strings)
             
+            # Remove non-printable characters and normalize Unicode
+            text_content = ''.join(char for char in text_content if char.isprintable())
+            text_content = unicodedata.normalize('NFKD', text_content).encode('ascii', 'ignore').decode('ascii')
+            
             logging.info(f"Successfully crawled {url}")
             return text_content
         
@@ -38,17 +45,19 @@ class Talk2URL:
             return None
 
     def process_urls(self, urls):
-        all_content = []
         for url in urls:
             content = self.crawl_page(url)
             if content:
-                all_content.append(f"Content from {url}:\n{content}\n\n")
+                self.url_contents[url] = content
                 print(f"{ANSIColor.NEON_GREEN.value}Successfully processed content from {url}{ANSIColor.RESET.value}")
             else:
                 print(f"{ANSIColor.PINK.value}Failed to process content from {url}{ANSIColor.RESET.value}")
-        return "\n".join(all_content)
+        
+        return f"Processed {len(self.url_contents)} URLs successfully."
 
-    def generate_response(self, user_input, context):
+    def generate_response(self, user_input):
+        all_content = "\n\n".join([f"Content from {url}:\n{content[:500]}..." for url, content in self.url_contents.items()])
+
         system_message = """You are an AI assistant tasked with answering questions based on the provided web content. Follow these guidelines:
 
 1. Use the given context to inform your answers.
@@ -56,10 +65,12 @@ class Talk2URL:
 3. Structure your answer in a clear, organized manner.
 4. Stay focused on the specific question asked.
 5. If asked about specific data or numbers from the web content, prioritize providing that information.
-6. Be concise but comprehensive."""
+6. Be concise but comprehensive.
+7. If information from multiple URLs is relevant, mention which URL(s) you're referring to in your answer.
+8. If you're not sure about something or if the information is not in the provided content, say so."""
 
         user_message = f"""Web Content:
-{context}
+{all_content}
 
 User Question: {user_input}
 
@@ -84,17 +95,56 @@ Please provide a comprehensive and well-structured answer to the question based 
             logging.error(f"Error generating response: {str(e)}")
             return "I'm sorry, but I encountered an error while trying to answer your question."
 
+    def extract_urls(self, text):
+        url_pattern = re.compile(r'https?://[^\s,]+')
+        urls = url_pattern.findall(text)
+        return [url.rstrip(',.') for url in urls]
+
+    def get_urls_from_user(self):
+        print(f"{ANSIColor.YELLOW.value}Enter the target URL(s) or a file path containing URLs.{ANSIColor.RESET.value}")
+        print(f"{ANSIColor.YELLOW.value}You can enter multiple URLs or paste a list of URLs.{ANSIColor.RESET.value}")
+        print(f"{ANSIColor.YELLOW.value}Type '\\' on a new line when finished.{ANSIColor.RESET.value}")
+
+        user_input = []
+        while True:
+            line = input()
+            if line.strip() == '\\':
+                break
+            user_input.append(line)
+
+        full_input = '\n'.join(user_input)
+
+        if os.path.isfile(full_input.strip()):
+            try:
+                with open(full_input.strip(), 'r') as file:
+                    file_content = file.read()
+                urls = self.extract_urls(file_content)
+                print(f"{ANSIColor.CYAN.value}Loaded {len(urls)} URLs from file.{ANSIColor.RESET.value}")
+                return urls
+            except Exception as e:
+                print(f"{ANSIColor.PINK.value}Error reading file: {str(e)}. Please try again.{ANSIColor.RESET.value}")
+                return []
+
+        urls = self.extract_urls(full_input)
+        if not urls:
+            print(f"{ANSIColor.PINK.value}No valid URLs found. Please try again.{ANSIColor.RESET.value}")
+            return []
+
+        print(f"{ANSIColor.CYAN.value}Found {len(urls)} URLs.{ANSIColor.RESET.value}")
+        return urls
+
     def run(self):
         print(f"{ANSIColor.YELLOW.value}Welcome to Talk2URLs. Type 'exit' to quit, 'clear' to clear conversation history, or 'change urls' to update the target URLs.{ANSIColor.RESET.value}")
         print(f"{ANSIColor.CYAN.value}All generated responses will be saved in: {self.output_file}{ANSIColor.RESET.value}")
 
         while True:
             if not self.current_urls:
-                urls_input = input(f"{ANSIColor.YELLOW.value}Enter the target URL(s) separated by commas: {ANSIColor.RESET.value}").strip()
-                self.current_urls = [url.strip() for url in urls_input.split(',')]
+                self.current_urls = self.get_urls_from_user()
+                if not self.current_urls:
+                    continue
                 print(f"{ANSIColor.CYAN.value}Processing URLs...{ANSIColor.RESET.value}")
-                self.context = self.process_urls(self.current_urls)
-                print(f"{ANSIColor.NEON_GREEN.value}URLs processed. You can now ask questions about the content.{ANSIColor.RESET.value}")
+                processing_result = self.process_urls(self.current_urls)
+                print(f"{ANSIColor.NEON_GREEN.value}{processing_result} You can now ask questions about the content.{ANSIColor.RESET.value}")
                 continue
 
             user_input = input(f"{ANSIColor.YELLOW.value}Enter your question or command: {ANSIColor.RESET.value}").strip()
@@ -105,17 +155,17 @@ Please provide a comprehensive and well-structured answer to the question based 
             elif user_input.lower() == 'clear':
                 self.conversation_history.clear()
                 self.current_urls.clear()
-                self.context = ""
+                self.url_contents.clear()
                 print(f"{ANSIColor.CYAN.value}Conversation history and current URLs cleared.{ANSIColor.RESET.value}")
                 continue
             elif user_input.lower() == 'change urls':
                 self.current_urls.clear()
-                self.context = ""
+                self.url_contents.clear()
                 print(f"{ANSIColor.CYAN.value}Current URLs cleared. Please enter new URLs.{ANSIColor.RESET.value}")
                 continue
 
             print(f"{ANSIColor.CYAN.value}Generating response...{ANSIColor.RESET.value}")
-            response = self.generate_response(user_input, self.context)
+            response = self.generate_response(user_input)
             print(f"\n{ANSIColor.NEON_GREEN.value}Response:{ANSIColor.RESET.value}\n{response}")
 
             with open(self.output_file, "a", encoding="utf-8") as f:
