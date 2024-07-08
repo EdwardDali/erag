@@ -19,6 +19,7 @@ from route_query import RouteQuery
 from api_model import get_available_models, update_settings, configure_api
 from talk2model import Talk2Model
 from create_sum import run_create_sum
+from talk2url import Talk2URL
 
 class ToolTip:
     def __init__(self, widget, text):
@@ -60,6 +61,7 @@ class ERAGGUI:
         self.knowledge_graph = None
         self.web_rag = None
         self.is_initializing = True  # Flag to track initialization
+        self.talk2url = None
 
         # Create output folder if it doesn't exist
         os.makedirs(settings.output_folder, exist_ok=True)
@@ -231,6 +233,11 @@ class ERAGGUI:
         web_sum_button = tk.Button(rag_frame, text="Web Sum", command=self.run_web_sum)
         web_sum_button.pack(side="left", padx=5, pady=5)
         ToolTip(web_sum_button, "Summarize content from web pages")
+
+        # Add the new Talk2URLs button
+        talk2urls_button = tk.Button(rag_frame, text="Talk2URLs", command=self.run_talk2urls)
+        talk2urls_button.pack(side="left", padx=5, pady=5)
+        ToolTip(talk2urls_button, "Use LLM to interact with content from specific URLs")
 
     def create_settings_tab(self):
         # Create a main frame to hold the three columns
@@ -577,6 +584,21 @@ class ERAGGUI:
             messagebox.showinfo("Info", f"RAG system started with {api_type} API. Check the console for interaction.")
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred while starting the RAG system: {str(e)}")
+
+    def run_talk2urls(self):
+        try:
+            api_type = self.api_type_var.get()
+            self.talk2url = Talk2URL(api_type)
+            
+            # Apply settings to Talk2URL
+            settings.apply_settings()
+            
+            # Run Talk2URL in a separate thread to keep the GUI responsive
+            threading.Thread(target=self.talk2url.run, daemon=True).start()
+            
+            messagebox.showinfo("Info", f"Talk2URLs system started with {api_type} API. Check the console for interaction.")
+        except Exception as e:
+            messagebox.showerror("Error", f"An error occurred while starting the Talk2URLs system: {str(e)}")
 
     def run_create_q(self):
         try:
