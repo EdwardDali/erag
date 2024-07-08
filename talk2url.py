@@ -56,7 +56,12 @@ class Talk2URL:
         return f"Processed {len(self.url_contents)} URLs successfully."
 
     def generate_response(self, user_input):
-        all_content = "\n\n".join([f"Content from {url}:\n{content[:500]}..." for url, content in self.url_contents.items()])
+        if settings.talk2url_limit_content_size:
+            all_content = "\n\n".join([f"Content from {url}:\n{content[:settings.talk2url_content_size_per_url]}..." 
+                                       for url, content in self.url_contents.items()])
+        else:
+            all_content = "\n\n".join([f"Content from {url}:\n{content}" 
+                                       for url, content in self.url_contents.items()])
 
         system_message = """You are an AI assistant tasked with answering questions based on the provided web content. Follow these guidelines:
 
@@ -94,6 +99,7 @@ Please provide a comprehensive and well-structured answer to the question based 
         except Exception as e:
             logging.error(f"Error generating response: {str(e)}")
             return "I'm sorry, but I encountered an error while trying to answer your question."
+
 
     def extract_urls(self, text):
         url_pattern = re.compile(r'https?://[^\s,]+')

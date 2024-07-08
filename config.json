@@ -48,6 +48,8 @@
     "question_chunk_levels": 3,
     "excluded_question_levels": [],
     "questions_per_chunk": 1,
+    "talk2url_limit_content_size": false,
+    "talk2url_content_size_per_url": 500,
     "api_type": "ollama",
     "config_file": "config.json"
 }

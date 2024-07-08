@@ -91,6 +91,10 @@ class Settings:
         self.excluded_question_levels: list = []  # This will be stored as a list of integers
         self.questions_per_chunk: int = 3
 
+         # Talk2URL Settings
+        self.talk2url_limit_content_size = True
+        self.talk2url_content_size_per_url = 500
+
 
 
         # API Settings

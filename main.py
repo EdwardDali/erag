@@ -273,7 +273,8 @@ class ERAGGUI:
         web_rag_frame = self.create_labelframe(right_column, "Web RAG Settings", 0)
         summarization_frame = self.create_labelframe(right_column, "Summarization Settings", 1)
         api_frame = self.create_labelframe(right_column, "API Settings", 2)
-        question_gen_frame = self.create_labelframe(right_column, "Question Generation Settings", 3)  # Adjust the row number as needed
+        question_gen_frame = self.create_labelframe(right_column, "Question Generation Settings", 3)
+        talk2url_frame = self.create_labelframe(right_column, "Talk2URL Settings", 4)
 
 
         # Create and layout settings fields
@@ -355,6 +356,16 @@ class ERAGGUI:
         self.create_settings_fields(file_frame, [
             ("Results File Path", "results_file_path"),
         ])
+
+        # Create checkbox for talk2url_limit_content_size
+        self.create_checkbox(talk2url_frame, "Limit Content Size", "talk2url_limit_content_size", 0, 0)
+        
+        # Create settings field for Content Size Per URL
+        ttk.Label(talk2url_frame, text="Content Size Per URL").grid(row=1, column=0, sticky="e", padx=5, pady=2)
+        content_size_var = tk.StringVar(value=str(settings.talk2url_content_size_per_url))
+        content_size_entry = ttk.Entry(talk2url_frame, textvariable=content_size_var)
+        content_size_entry.grid(row=1, column=1, sticky="w", padx=5, pady=2)
+        setattr(self, "talk2url_content_size_per_url_var", content_size_var)
 
         self.create_settings_fields(summarization_frame, [
             ("Chunk Size", "summarization_chunk_size"),
