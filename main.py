@@ -1,3 +1,10 @@
+import sys
+from pathlib import Path
+
+# Add the project root directory to the Python path
+project_root = Path(__file__).parent
+sys.path.append(str(project_root))
+
 import warnings
 warnings.filterwarnings("ignore", category=FutureWarning, module="huggingface_hub.file_download")
 
@@ -5,22 +12,23 @@ import tkinter as tk
 from tkinter import messagebox, ttk, filedialog
 import threading
 import os
-from file_processing import process_file, append_to_db
-from talk2doc import RAGSystem
-from embeddings_utils import compute_and_save_embeddings, load_or_compute_embeddings
+from src.file_processing import process_file, append_to_db
+from src.talk2doc import RAGSystem
+from src.embeddings_utils import compute_and_save_embeddings, load_or_compute_embeddings
 from sentence_transformers import SentenceTransformer
-from create_graph import create_knowledge_graph, create_knowledge_graph_from_raw
-from settings import settings
-from search_utils import SearchUtils
-from create_knol import KnolCreator
-from web_sum import WebSum
-from web_rag import WebRAG
-from route_query import RouteQuery
-from api_model import get_available_models, update_settings, configure_api
-from talk2model import Talk2Model
-from create_sum import run_create_sum
-from talk2url import Talk2URL
-from talk2git import Talk2Git
+from src.create_graph import create_knowledge_graph, create_knowledge_graph_from_raw
+from src.settings import settings
+from src.search_utils import SearchUtils
+from src.create_knol import KnolCreator
+from src.web_sum import WebSum
+from src.web_rag import WebRAG
+from src.route_query import RouteQuery
+from src.api_model import get_available_models, update_settings, configure_api
+from src.talk2model import Talk2Model
+from src.create_sum import run_create_sum
+from src.talk2url import Talk2URL
+from src.talk2git import Talk2Git
+from src.create_q import run_create_q
 
 class ToolTip:
     def __init__(self, widget, text):
@@ -667,7 +675,6 @@ class ERAGGUI:
 
     def _create_q_thread(self, file_path, api_type, client):
         try:
-            from create_q import run_create_q
             result = run_create_q(file_path, api_type, client)
             print(result)
             messagebox.showinfo("Success", "Questions created successfully. Check the output file.")
