@@ -3,7 +3,9 @@
 This RAG (Retrieval-Augmented Generation) tool is a sophisticated system that combines lexical, semantic, text, and knowledge graph searches with conversation context to provide accurate and contextually relevant responses. The tool processes various document types, creates embeddings, builds a knowledge graph, and uses this information to answer user queries intelligently.
 
 
-![Alt text](https://github.com/EdwardDali/e-rag/blob/main/docs/gui.PNG)
+![Alt text](https://github.com/EdwardDali/e-rag/blob/main/docs/gui1.PNG)
+![Alt text](https://github.com/EdwardDali/e-rag/blob/main/docs/gui2.PNG)
+![Alt text](https://github.com/EdwardDali/e-rag/blob/main/docs/gui3.PNG)
 ![Alt text](https://github.com/EdwardDali/e-rag/blob/main/docs/logical.PNG)
 ![Alt text](https://github.com/EdwardDali/e-rag/blob/main/docs/user_flow1.PNG)
 ![Alt text](https://github.com/EdwardDali/e-rag/blob/main/docs/user_flow2.PNG)
