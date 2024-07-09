@@ -20,6 +20,7 @@ from api_model import get_available_models, update_settings, configure_api
 from talk2model import Talk2Model
 from create_sum import run_create_sum
 from talk2url import Talk2URL
+from talk2git import Talk2Git
 
 class ToolTip:
     def __init__(self, widget, text):
@@ -234,10 +235,14 @@ class ERAGGUI:
         web_sum_button.pack(side="left", padx=5, pady=5)
         ToolTip(web_sum_button, "Summarize content from web pages")
 
-        # Add the new Talk2URLs button
         talk2urls_button = tk.Button(rag_frame, text="Talk2URLs", command=self.run_talk2urls)
         talk2urls_button.pack(side="left", padx=5, pady=5)
         ToolTip(talk2urls_button, "Use LLM to interact with content from specific URLs")
+
+        # Add the new Talk2Git button
+        talk2git_button = tk.Button(rag_frame, text="Talk2Git", command=self.run_talk2git)
+        talk2git_button.pack(side="left", padx=5, pady=5)
+        ToolTip(talk2git_button, "Interact with content from a GitHub repository")
 
     def create_settings_tab(self):
         # Create a main frame to hold the three columns
@@ -610,6 +615,21 @@ class ERAGGUI:
             messagebox.showinfo("Info", f"Talk2URLs system started with {api_type} API. Check the console for interaction.")
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred while starting the Talk2URLs system: {str(e)}")
+
+    def run_talk2git(self):
+        try:
+            api_type = self.api_type_var.get()
+            self.talk2git = Talk2Git(api_type)
+            
+            # Apply settings to Talk2Git
+            settings.apply_settings()
+            
+            # Run Talk2Git in a separate thread to keep the GUI responsive
+            threading.Thread(target=self.talk2git.run, daemon=True).start()
+            
+            messagebox.showinfo("Info", f"Talk2Git system started with {api_type} API. Check the console for interaction.")
+        except Exception as e:
+            messagebox.showerror("Error", f"An error occurred while starting the Talk2Git system: {str(e)}")
 
     def run_create_q(self):
         try:
