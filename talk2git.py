@@ -4,14 +4,16 @@ import requests
 from urllib.parse import urlparse
 from settings import settings
 from api_model import configure_api
-from talk2doc import ANSIColor
-import base64
-import torch
+from talk2doc import ANSIColor, SearchUtils
 from sentence_transformers import SentenceTransformer, util
-from typing import List, Tuple
+import torch
+import base64
+from typing import List, Dict, Tuple
+import time
+from collections import deque
 
 class Talk2Git:
-    def __init__(self, api_type: str):
+    def __init__(self, api_type: str, github_token: str = ""):
         self.api_type = api_type
         self.client = configure_api(api_type)
         self.session = requests.Session()
@@ -19,14 +21,18 @@ class Talk2Git:
             "User-Agent": "Talk2Git/1.0",
             "Accept": "application/vnd.github.v3+json"
         })
+        if github_token:
+            self.session.headers["Authorization"] = f"token {github_token}"
         self.conversation_history = []
         self.repo_url = ""
         self.repo_contents = {}
-        self.output_file = os.path.join(settings.output_folder, "talk2git_output.txt")
         self.github_api_url = "https://api.github.com"
         self.model = SentenceTransformer(settings.model_name)
         self.db_embeddings = None
         self.db_content = None
+        self.project_name = ""
+        self.conversation_context = deque(maxlen=settings.conversation_context_size * 2)
+        self.search_utils = None
 
     def parse_github_url(self, url):
         parsed = urlparse(url)
@@ -34,23 +40,34 @@ class Talk2Git:
         if len(path_parts) < 2:
             raise ValueError("Invalid GitHub repository URL")
         owner, repo = path_parts[:2]
+        self.project_name = repo
         return owner, repo
 
     def fetch_repo_contents(self, owner, repo, path=""):
         url = f"{self.github_api_url}/repos/{owner}/{repo}/contents/{path}"
-        response = self.session.get(url)
-        response.raise_for_status()
-        return response.json()
+        return self.make_github_request(url)
 
     def fetch_file_content(self, url):
-        response = self.session.get(url)
-        response.raise_for_status()
-        content = response.json()['content']
+        response = self.make_github_request(url)
+        content = response['content']
         decoded_content = base64.b64decode(content)
         try:
             return decoded_content.decode('utf-8')
         except UnicodeDecodeError:
             return f"[Binary content, size: {len(decoded_content)} bytes]"
+
+    def make_github_request(self, url):
+        while True:
+            response = self.session.get(url)
+            if response.status_code == 200:
+                return response.json()
+            elif response.status_code == 403 and 'rate limit exceeded' in response.text:
+                reset_time = int(response.headers.get('X-RateLimit-Reset', 0))
+                wait_time = max(reset_time - int(time.time()), 0) + 1
+                print(f"{ANSIColor.YELLOW.value}Rate limit exceeded. Waiting for {wait_time} seconds...{ANSIColor.RESET.value}")
+                time.sleep(wait_time)
+            else:
+                response.raise_for_status()
 
     def process_repo(self, repo_url):
         self.repo_url = repo_url
@@ -72,7 +89,7 @@ class Talk2Git:
                 self.traverse_repo(owner, repo, item['path'])
 
     def create_repo_file(self):
-        repo_file_path = os.path.join(settings.output_folder, "repo_contents.txt")
+        repo_file_path = os.path.join(settings.output_folder, f"{self.project_name}_contents.txt")
         with open(repo_file_path, "w", encoding="utf-8") as f:
             for file_path, content in self.repo_contents.items():
                 f.write(f"File: {file_path}\n\n")
@@ -83,19 +100,31 @@ class Talk2Git:
     def compute_embeddings(self):
         self.db_content = list(self.repo_contents.values())
         self.db_embeddings = self.model.encode(self.db_content, convert_to_tensor=True)
-        embeddings_file = os.path.join(settings.output_folder, "repo_embeddings.pt")
+        embeddings_file = os.path.join(settings.output_folder, f"{self.project_name}_embeddings.pt")
         torch.save({"embeddings": self.db_embeddings, "content": self.db_content}, embeddings_file)
         print(f"{ANSIColor.NEON_GREEN.value}Embeddings saved to {embeddings_file}{ANSIColor.RESET.value}")
+        
+        # Initialize SearchUtils after computing embeddings
+        self.search_utils = SearchUtils(self.model, self.db_embeddings, self.db_content, None)
 
-    def semantic_search(self, query: str, top_k: int = 3) -> List[Tuple[str, float]]:
-        query_embedding = self.model.encode(query, convert_to_tensor=True)
-        cos_scores = util.cos_sim(query_embedding, self.db_embeddings)[0]
-        top_results = torch.topk(cos_scores, k=min(top_k, len(cos_scores)))
-        return [(self.db_content[idx], score.item()) for idx, score in zip(top_results.indices, top_results.values)]
+    def generate_response(self, user_input: str) -> str:
+        lexical_context, semantic_context, graph_context, text_context = self.search_utils.get_relevant_context(user_input, list(self.conversation_context))
+        
+        lexical_str = "\n".join(lexical_context)
+        semantic_str = "\n".join(semantic_context)
+        graph_str = "\n".join(graph_context)
+        text_str = "\n".join(text_context)
 
-    def generate_response(self, user_input):
-        relevant_content = self.semantic_search(user_input)
-        context = "\n\n".join([f"Relevance {score:.2f}:\n{content}" for content, score in relevant_content])
+        combined_context = f"""Conversation Context:\n{' '.join(self.conversation_context)}
+
+Lexical Search Results:
+{lexical_str}
+
+Semantic Search Results:
+{semantic_str}
+
+Text Search Results:
+{text_str}"""
 
         system_message = """You are an AI assistant tasked with answering questions about a GitHub repository. Follow these guidelines:
 1. Use the provided repository content to inform your answers.
@@ -105,35 +134,30 @@ class Talk2Git:
 5. Be concise but comprehensive.
 6. If you're not sure about something or if the information is not in the provided content, say so."""
 
-        user_message = f"""GitHub Repository Content:
-{context}
-
-User Question: {user_input}
-
-Please provide a comprehensive and well-structured answer to the question based on the given repository content. Include relevant code snippets or explanations of code structure when appropriate."""
+        messages = [
+            {"role": "system", "content": system_message},
+            *self.conversation_history,
+            {"role": "user", "content": f"Context:\n{combined_context}\n\nQuestion: {user_input}\n\nPlease prioritize the Conversation Context when answering, followed by the most relevant information from either the lexical, semantic, or text search results. If none of the provided context is relevant, you can answer based on your general knowledge about software development and GitHub repositories."}
+        ]
 
         try:
             response = self.client.chat.completions.create(
                 model=settings.ollama_model if self.api_type == "ollama" else settings.llama_model,
-                messages=[
-                    {"role": "system", "content": system_message},
-                    *self.conversation_history,
-                    {"role": "user", "content": user_message}
-                ],
+                messages=messages,
                 temperature=settings.temperature
             ).choices[0].message.content
-
-            self.conversation_history.append({"role": "user", "content": user_input})
-            self.conversation_history.append({"role": "assistant", "content": response})
 
             return response
         except Exception as e:
             logging.error(f"Error generating response: {str(e)}")
             return "I'm sorry, but I encountered an error while trying to answer your question."
 
+    def update_conversation_context(self, user_input: str, assistant_response: str):
+        self.conversation_context.append(user_input)
+        self.conversation_context.append(assistant_response)
+
     def run(self):
         print(f"{ANSIColor.YELLOW.value}Welcome to Talk2Git. Type 'exit' to quit, 'clear' to clear conversation history, or 'change repo' to analyze a different repository.{ANSIColor.RESET.value}")
-        print(f"{ANSIColor.CYAN.value}All generated responses will be saved in: {self.output_file}{ANSIColor.RESET.value}")
 
         while True:
             if not self.repo_url:
@@ -152,8 +176,7 @@ Please provide a comprehensive and well-structured answer to the question based 
                 break
             elif user_input.lower() == 'clear':
                 self.conversation_history.clear()
-                self.repo_url = ""
-                self.repo_contents.clear()
+                self.conversation_context.clear()
                 print(f"{ANSIColor.CYAN.value}Conversation history and current repository cleared.{ANSIColor.RESET.value}")
                 continue
             elif user_input.lower() == 'change repo':
@@ -161,6 +184,9 @@ Please provide a comprehensive and well-structured answer to the question based 
                 self.repo_contents.clear()
                 self.db_embeddings = None
                 self.db_content = None
+                self.conversation_history.clear()
+                self.conversation_context.clear()
+                self.search_utils = None
                 print(f"{ANSIColor.CYAN.value}Current repository cleared. Please enter a new repository URL.{ANSIColor.RESET.value}")
                 continue
 
@@ -168,18 +194,24 @@ Please provide a comprehensive and well-structured answer to the question based 
             response = self.generate_response(user_input)
             print(f"\n{ANSIColor.NEON_GREEN.value}Response:{ANSIColor.RESET.value}\n{response}")
 
-            with open(self.output_file, "a", encoding="utf-8") as f:
+            self.conversation_history.append({"role": "user", "content": user_input})
+            self.conversation_history.append({"role": "assistant", "content": response})
+            self.update_conversation_context(user_input, response)
+
+            output_file = os.path.join(settings.output_folder, f"{self.project_name}_talk2git_output.txt")
+            with open(output_file, "a", encoding="utf-8") as f:
                 f.write(f"Question: {user_input}\n\n")
                 f.write(f"Response: {response}\n\n")
                 f.write("-" * 50 + "\n\n")
 
-            print(f"{ANSIColor.NEON_GREEN.value}Response saved to {self.output_file}{ANSIColor.RESET.value}")
+            print(f"{ANSIColor.NEON_GREEN.value}Response saved to {output_file}{ANSIColor.RESET.value}")
 
 if __name__ == "__main__":
     import sys
     if len(sys.argv) > 1:
         api_type = sys.argv[1]
-        talk2git = Talk2Git(api_type)
+        github_token = settings.github_token  # Get the GitHub token from settings
+        talk2git = Talk2Git(api_type, github_token)
         talk2git.run()
     else:
         print("Error: No API type provided.")

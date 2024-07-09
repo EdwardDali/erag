@@ -280,6 +280,8 @@ class ERAGGUI:
         api_frame = self.create_labelframe(right_column, "API Settings", 2)
         question_gen_frame = self.create_labelframe(right_column, "Question Generation Settings", 3)
         talk2url_frame = self.create_labelframe(right_column, "Talk2URL Settings", 4)
+        github_frame = self.create_labelframe(right_column, "GitHub Settings", 5)
+        
 
 
         # Create and layout settings fields
@@ -379,6 +381,11 @@ class ERAGGUI:
             ("Final Chunk Size", "summarization_final_chunk_size"),
         ])
 
+        self.create_settings_fields(github_frame, [
+            ("GitHub Token", "github_token"),
+        ])
+
+
 
         # Add buttons for settings management
         button_frame = ttk.Frame(self.settings_tab)
@@ -397,7 +404,10 @@ class ERAGGUI:
             ttk.Label(parent, text=label).grid(row=i, column=0, sticky="e", padx=5, pady=2)
             value = getattr(settings, key)
             var = tk.StringVar(value=str(value))
-            entry = ttk.Entry(parent, textvariable=var)
+            if key == "github_token":
+                entry = ttk.Entry(parent, textvariable=var, show="*")  # Use show="*" to hide the token
+            else:
+                entry = ttk.Entry(parent, textvariable=var)
             entry.grid(row=i, column=1, sticky="w", padx=5, pady=2)
             setattr(self, f"{key}_var", var)
 
@@ -619,7 +629,8 @@ class ERAGGUI:
     def run_talk2git(self):
         try:
             api_type = self.api_type_var.get()
-            self.talk2git = Talk2Git(api_type)
+            github_token = settings.github_token  # Get the GitHub token from settings
+            self.talk2git = Talk2Git(api_type, github_token)
             
             # Apply settings to Talk2Git
             settings.apply_settings()

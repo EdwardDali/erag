@@ -95,6 +95,9 @@ class Settings:
         self.talk2url_limit_content_size = True
         self.talk2url_content_size_per_url = 500
 
+        # GitHub Settings
+        self.github_token = ""  # New setting for GitHub token
+
 
 
         # API Settings
