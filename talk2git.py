@@ -33,6 +33,7 @@ class Talk2Git:
         self.project_name = ""
         self.conversation_context = deque(maxlen=settings.conversation_context_size * 2)
         self.search_utils = None
+        self.file_index = {}  # New attribute to store file names without extensions
 
     def parse_github_url(self, url):
         parsed = urlparse(url)
@@ -84,6 +85,9 @@ class Talk2Git:
                 file_content = self.fetch_file_content(item['url'])
                 file_path = item['path']
                 self.repo_contents[file_path] = file_content
+                # Add file to index without extension
+                file_name = os.path.splitext(os.path.basename(file_path))[0]
+                self.file_index[file_name] = file_path
                 print(f"{ANSIColor.NEON_GREEN.value}Successfully processed {file_path}{ANSIColor.RESET.value}")
             elif item['type'] == 'dir':
                 self.traverse_repo(owner, repo, item['path'])
@@ -108,6 +112,10 @@ class Talk2Git:
         self.search_utils = SearchUtils(self.model, self.db_embeddings, self.db_content, None)
 
     def generate_response(self, user_input: str) -> str:
+        # Check if the user is asking about a specific file
+        for file_name in self.file_index:
+            if file_name.lower() in user_input.lower():
+                user_input = user_input.replace(file_name, self.file_index[file_name])
         lexical_context, semantic_context, graph_context, text_context = self.search_utils.get_relevant_context(user_input, list(self.conversation_context))
         
         lexical_str = "\n".join(lexical_context)
@@ -156,8 +164,52 @@ Text Search Results:
         self.conversation_context.append(user_input)
         self.conversation_context.append(assistant_response)
 
+    def static_code_analysis(self):
+        analysis_results = []
+        for file_path, content in self.repo_contents.items():
+            print(f"{ANSIColor.CYAN.value}Analyzing {file_path}...{ANSIColor.RESET.value}")
+            
+            # Prepare the prompt for the LLM
+            prompt = f"""Perform a static code analysis on the following file:
+
+File: {file_path}
+
+Content:
+{content[:1000]}  # Limit content to first 1000 characters to avoid token limits
+
+Please provide a brief analysis covering the following aspects:
+1. Code structure and organization
+2. Potential bugs or issues
+3. Adherence to best practices
+4. Suggestions for improvements
+
+Your analysis should be concise but informative."""
+
+            try:
+                response = self.client.chat.completions.create(
+                    model=settings.ollama_model if self.api_type == "ollama" else settings.llama_model,
+                    messages=[
+                        {"role": "system", "content": "You are an expert code reviewer performing static code analysis."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.2  # Lower temperature for more focused responses
+                ).choices[0].message.content
+
+                analysis_results.append(f"Analysis for {file_path}:\n\n{response}\n\n{'='*50}\n")
+                print(f"{ANSIColor.NEON_GREEN.value}Analysis complete for {file_path}{ANSIColor.RESET.value}")
+            except Exception as e:
+                logging.error(f"Error analyzing {file_path}: {str(e)}")
+                analysis_results.append(f"Error analyzing {file_path}: {str(e)}\n\n{'='*50}\n")
+
+        # Save analysis results
+        analysis_file = os.path.join(settings.output_folder, f"{self.project_name}_static_analysis.txt")
+        with open(analysis_file, "w", encoding="utf-8") as f:
+            f.write("\n".join(analysis_results))
+        
+        print(f"{ANSIColor.NEON_GREEN.value}Static code analysis completed. Results saved to {analysis_file}{ANSIColor.RESET.value}")
+
     def run(self):
-        print(f"{ANSIColor.YELLOW.value}Welcome to Talk2Git. Type 'exit' to quit, 'clear' to clear conversation history, or 'change repo' to analyze a different repository.{ANSIColor.RESET.value}")
+        print(f"{ANSIColor.YELLOW.value}Welcome to Talk2Git. Type 'exit' to quit, 'clear' to clear conversation history, 'change repo' to analyze a different repository, or 'analyze' to perform static code analysis.{ANSIColor.RESET.value}")
 
         while True:
             if not self.repo_url:
@@ -166,7 +218,7 @@ Text Search Results:
                     continue
                 print(f"{ANSIColor.CYAN.value}Processing repository...{ANSIColor.RESET.value}")
                 processing_result = self.process_repo(repo_url)
-                print(f"{ANSIColor.NEON_GREEN.value}{processing_result} You can now ask questions about the repository.{ANSIColor.RESET.value}")
+                print(f"{ANSIColor.NEON_GREEN.value}{processing_result} You can now ask questions about the repository or perform static code analysis.{ANSIColor.RESET.value}")
                 continue
 
             user_input = input(f"{ANSIColor.YELLOW.value}Enter your question or command: {ANSIColor.RESET.value}").strip()
@@ -187,7 +239,11 @@ Text Search Results:
                 self.conversation_history.clear()
                 self.conversation_context.clear()
                 self.search_utils = None
+                self.file_index.clear()
                 print(f"{ANSIColor.CYAN.value}Current repository cleared. Please enter a new repository URL.{ANSIColor.RESET.value}")
+                continue
+            elif user_input.lower() == 'analyze':
+                self.static_code_analysis()
                 continue
 
             print(f"{ANSIColor.CYAN.value}Generating response...{ANSIColor.RESET.value}")
