@@ -4,13 +4,9 @@ import requests
 from urllib.parse import urlparse
 from settings import settings
 from api_model import configure_api
-from talk2doc import ANSIColor, SearchUtils
-from sentence_transformers import SentenceTransformer, util
-import torch
+from talk2doc import ANSIColor
 import base64
-from typing import List, Dict, Tuple
 import time
-from collections import deque
 
 class Talk2Git:
     def __init__(self, api_type: str, github_token: str = ""):
@@ -23,17 +19,10 @@ class Talk2Git:
         })
         if github_token:
             self.session.headers["Authorization"] = f"token {github_token}"
-        self.conversation_history = []
         self.repo_url = ""
         self.repo_contents = {}
         self.github_api_url = "https://api.github.com"
-        self.model = SentenceTransformer(settings.model_name)
-        self.db_embeddings = None
-        self.db_content = None
         self.project_name = ""
-        self.conversation_context = deque(maxlen=settings.conversation_context_size * 2)
-        self.search_utils = None
-        self.file_index = {}  # New attribute to store file names without extensions
 
     def parse_github_url(self, url):
         parsed = urlparse(url)
@@ -75,7 +64,6 @@ class Talk2Git:
         owner, repo = self.parse_github_url(repo_url)
         self.traverse_repo(owner, repo)
         self.create_repo_file()
-        self.compute_embeddings()
         return f"Processed {len(self.repo_contents)} files from the repository."
 
     def traverse_repo(self, owner, repo, path=""):
@@ -85,9 +73,6 @@ class Talk2Git:
                 file_content = self.fetch_file_content(item['url'])
                 file_path = item['path']
                 self.repo_contents[file_path] = file_content
-                # Add file to index without extension
-                file_name = os.path.splitext(os.path.basename(file_path))[0]
-                self.file_index[file_name] = file_path
                 print(f"{ANSIColor.NEON_GREEN.value}Successfully processed {file_path}{ANSIColor.RESET.value}")
             elif item['type'] == 'dir':
                 self.traverse_repo(owner, repo, item['path'])
@@ -101,87 +86,24 @@ class Talk2Git:
                 f.write("\n\n" + "="*50 + "\n\n")
         print(f"{ANSIColor.NEON_GREEN.value}Repository contents saved to {repo_file_path}{ANSIColor.RESET.value}")
 
-    def compute_embeddings(self):
-        self.db_content = list(self.repo_contents.values())
-        self.db_embeddings = self.model.encode(self.db_content, convert_to_tensor=True)
-        embeddings_file = os.path.join(settings.output_folder, f"{self.project_name}_embeddings.pt")
-        torch.save({"embeddings": self.db_embeddings, "content": self.db_content}, embeddings_file)
-        print(f"{ANSIColor.NEON_GREEN.value}Embeddings saved to {embeddings_file}{ANSIColor.RESET.value}")
-        
-        # Initialize SearchUtils after computing embeddings
-        self.search_utils = SearchUtils(self.model, self.db_embeddings, self.db_content, None)
-
-    def generate_response(self, user_input: str) -> str:
-        # Check if the user is asking about a specific file
-        for file_name in self.file_index:
-            if file_name.lower() in user_input.lower():
-                user_input = user_input.replace(file_name, self.file_index[file_name])
-        lexical_context, semantic_context, graph_context, text_context = self.search_utils.get_relevant_context(user_input, list(self.conversation_context))
-        
-        lexical_str = "\n".join(lexical_context)
-        semantic_str = "\n".join(semantic_context)
-        graph_str = "\n".join(graph_context)
-        text_str = "\n".join(text_context)
-
-        combined_context = f"""Conversation Context:\n{' '.join(self.conversation_context)}
-
-Lexical Search Results:
-{lexical_str}
-
-Semantic Search Results:
-{semantic_str}
-
-Text Search Results:
-{text_str}"""
-
-        system_message = """You are an AI assistant tasked with answering questions about a GitHub repository. Follow these guidelines:
-1. Use the provided repository content to inform your answers.
-2. If asked about specific code or files, provide relevant code snippets or explain the code structure.
-3. Structure your answer in a clear, organized manner.
-4. Stay focused on the specific question asked.
-5. Be concise but comprehensive.
-6. If you're not sure about something or if the information is not in the provided content, say so."""
-
-        messages = [
-            {"role": "system", "content": system_message},
-            *self.conversation_history,
-            {"role": "user", "content": f"Context:\n{combined_context}\n\nQuestion: {user_input}\n\nPlease prioritize the Conversation Context when answering, followed by the most relevant information from either the lexical, semantic, or text search results. If none of the provided context is relevant, you can answer based on your general knowledge about software development and GitHub repositories."}
-        ]
-
-        try:
-            response = self.client.chat.completions.create(
-                model=settings.ollama_model if self.api_type == "ollama" else settings.llama_model,
-                messages=messages,
-                temperature=settings.temperature
-            ).choices[0].message.content
-
-            return response
-        except Exception as e:
-            logging.error(f"Error generating response: {str(e)}")
-            return "I'm sorry, but I encountered an error while trying to answer your question."
-
-    def update_conversation_context(self, user_input: str, assistant_response: str):
-        self.conversation_context.append(user_input)
-        self.conversation_context.append(assistant_response)
-
     def static_code_analysis(self):
         analysis_results = []
         for file_path, content in self.repo_contents.items():
             print(f"{ANSIColor.CYAN.value}Analyzing {file_path}...{ANSIColor.RESET.value}")
             
-            # Prepare the prompt for the LLM
             prompt = f"""Perform a static code analysis on the following file:
 
 File: {file_path}
 
 Content:
-{content[:1000]}  # Limit content to first 1000 characters to avoid token limits
+{content[:settings.file_analysis_limit]}  # Use the file_analysis_limit setting
 
 Please provide a brief analysis covering the following aspects:
 1. Code structure and organization
 2. Potential bugs or issues
 3. Adherence to best practices
 4. Suggestions for improvements
+5. Any security concerns
 
 Your analysis should be concise but informative."""
 
@@ -192,7 +114,7 @@ Your analysis should be concise but informative."""
                         {"role": "system", "content": "You are an expert code reviewer performing static code analysis."},
                         {"role": "user", "content": prompt}
                     ],
-                    temperature=0.2  # Lower temperature for more focused responses
+                    temperature=0.2
                 ).choices[0].message.content
 
                 analysis_results.append(f"Analysis for {file_path}:\n\n{response}\n\n{'='*50}\n")
@@ -201,15 +123,83 @@ Your analysis should be concise but informative."""
                 logging.error(f"Error analyzing {file_path}: {str(e)}")
                 analysis_results.append(f"Error analyzing {file_path}: {str(e)}\n\n{'='*50}\n")
 
-        # Save analysis results
         analysis_file = os.path.join(settings.output_folder, f"{self.project_name}_static_analysis.txt")
         with open(analysis_file, "w", encoding="utf-8") as f:
             f.write("\n".join(analysis_results))
         
         print(f"{ANSIColor.NEON_GREEN.value}Static code analysis completed. Results saved to {analysis_file}{ANSIColor.RESET.value}")
 
+    def summarize_project(self):
+        file_summaries = {}
+        for file_path, content in self.repo_contents.items():
+            print(f"{ANSIColor.CYAN.value}Summarizing {file_path}...{ANSIColor.RESET.value}")
+            
+            prompt = f"""Summarize the purpose and main functionality of the following file:
+
+File: {file_path}
+
+Content:
+{content[:settings.file_analysis_limit]}  # Use the file_analysis_limit setting
+
+Please provide a concise summary (2-3 sentences) describing the file's main purpose and functionality."""
+
+            try:
+                response = self.client.chat.completions.create(
+                    model=settings.ollama_model if self.api_type == "ollama" else settings.llama_model,
+                    messages=[
+                        {"role": "system", "content": "You are an expert programmer summarizing code files."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.2
+                ).choices[0].message.content
+
+                file_summaries[file_path] = response
+                print(f"{ANSIColor.NEON_GREEN.value}Summary complete for {file_path}{ANSIColor.RESET.value}")
+            except Exception as e:
+                logging.error(f"Error summarizing {file_path}: {str(e)}")
+                file_summaries[file_path] = f"Error summarizing file: {str(e)}"
+
+        # Create overall project summary
+        project_summary_prompt = f"""Based on the following file summaries, provide an overall summary of the project:
+
+{chr(10).join([f"{path}: {summary}" for path, summary in file_summaries.items()])}
+
+Please provide a concise summary (3-5 sentences) describing the overall purpose and functionality of the project."""
+
+        try:
+            project_summary = self.client.chat.completions.create(
+                model=settings.ollama_model if self.api_type == "ollama" else settings.llama_model,
+                messages=[
+                    {"role": "system", "content": "You are an expert programmer summarizing software projects."},
+                    {"role": "user", "content": project_summary_prompt}
+                ],
+                temperature=0.2
+            ).choices[0].message.content
+        except Exception as e:
+            logging.error(f"Error creating project summary: {str(e)}")
+            project_summary = f"Error creating project summary: {str(e)}"
+
+        summary_file = os.path.join(settings.output_folder, f"{self.project_name}_summary.txt")
+        with open(summary_file, "w", encoding="utf-8") as f:
+            f.write("Project Summary:\n")
+            f.write(project_summary)
+            f.write("\n\n" + "="*50 + "\n\n")
+            f.write("File Summaries:\n\n")
+            for file_path, summary in file_summaries.items():
+                f.write(f"File: {file_path}\n")
+                f.write(f"Summary: {summary}\n\n")
+
+        print(f"{ANSIColor.NEON_GREEN.value}Project summarization completed. Results saved to {summary_file}{ANSIColor.RESET.value}")
+
+    def display_menu(self):
+        print(f"\n{ANSIColor.YELLOW.value}Talk2Git Menu:{ANSIColor.RESET.value}")
+        print("1. Analyze repository")
+        print("2. Summarize project")
+        print("3. Change repository")
+        print("4. Exit")
+
     def run(self):
-        print(f"{ANSIColor.YELLOW.value}Welcome to Talk2Git. Type 'exit' to quit, 'clear' to clear conversation history, 'change repo' to analyze a different repository, or 'analyze' to perform static code analysis.{ANSIColor.RESET.value}")
+        print(f"{ANSIColor.YELLOW.value}Welcome to Talk2Git.{ANSIColor.RESET.value}")
 
         while True:
             if not self.repo_url:
@@ -218,49 +208,24 @@ Your analysis should be concise but informative."""
                     continue
                 print(f"{ANSIColor.CYAN.value}Processing repository...{ANSIColor.RESET.value}")
                 processing_result = self.process_repo(repo_url)
-                print(f"{ANSIColor.NEON_GREEN.value}{processing_result} You can now ask questions about the repository or perform static code analysis.{ANSIColor.RESET.value}")
-                continue
+                print(f"{ANSIColor.NEON_GREEN.value}{processing_result}{ANSIColor.RESET.value}")
 
-            user_input = input(f"{ANSIColor.YELLOW.value}Enter your question or command: {ANSIColor.RESET.value}").strip()
+            self.display_menu()
+            choice = input(f"{ANSIColor.YELLOW.value}Enter your choice (1-4): {ANSIColor.RESET.value}").strip()
 
-            if user_input.lower() == 'exit':
-                print(f"{ANSIColor.NEON_GREEN.value}Thank you for using Talk2Git. Goodbye!{ANSIColor.RESET.value}")
-                break
-            elif user_input.lower() == 'clear':
-                self.conversation_history.clear()
-                self.conversation_context.clear()
-                print(f"{ANSIColor.CYAN.value}Conversation history and current repository cleared.{ANSIColor.RESET.value}")
-                continue
-            elif user_input.lower() == 'change repo':
+            if choice == '1':
+                self.static_code_analysis()
+            elif choice == '2':
+                self.summarize_project()
+            elif choice == '3':
                 self.repo_url = ""
                 self.repo_contents.clear()
-                self.db_embeddings = None
-                self.db_content = None
-                self.conversation_history.clear()
-                self.conversation_context.clear()
-                self.search_utils = None
-                self.file_index.clear()
                 print(f"{ANSIColor.CYAN.value}Current repository cleared. Please enter a new repository URL.{ANSIColor.RESET.value}")
-                continue
-            elif user_input.lower() == 'analyze':
-                self.static_code_analysis()
-                continue
-
-            print(f"{ANSIColor.CYAN.value}Generating response...{ANSIColor.RESET.value}")
-            response = self.generate_response(user_input)
-            print(f"\n{ANSIColor.NEON_GREEN.value}Response:{ANSIColor.RESET.value}\n{response}")
-
-            self.conversation_history.append({"role": "user", "content": user_input})
-            self.conversation_history.append({"role": "assistant", "content": response})
-            self.update_conversation_context(user_input, response)
-
-            output_file = os.path.join(settings.output_folder, f"{self.project_name}_talk2git_output.txt")
-            with open(output_file, "a", encoding="utf-8") as f:
-                f.write(f"Question: {user_input}\n\n")
-                f.write(f"Response: {response}\n\n")
-                f.write("-" * 50 + "\n\n")
-
-            print(f"{ANSIColor.NEON_GREEN.value}Response saved to {output_file}{ANSIColor.RESET.value}")
+            elif choice == '4':
+                print(f"{ANSIColor.NEON_GREEN.value}Thank you for using Talk2Git. Goodbye!{ANSIColor.RESET.value}")
+                break
+            else:
+                print(f"{ANSIColor.PINK.value}Invalid choice. Please enter a number between 1 and 4.{ANSIColor.RESET.value}")
 
 if __name__ == "__main__":
     import sys

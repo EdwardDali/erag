@@ -97,6 +97,7 @@ class Settings:
 
         # GitHub Settings
         self.github_token = ""  # New setting for GitHub token
+        self.file_analysis_limit = 2000
 
 
 

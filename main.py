@@ -383,6 +383,7 @@ class ERAGGUI:
 
         self.create_settings_fields(github_frame, [
             ("GitHub Token", "github_token"),
+            ("File Analysis Limit", "file_analysis_limit"),
         ])
 
 
