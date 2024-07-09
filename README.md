@@ -6,7 +6,9 @@ This RAG (Retrieval-Augmented Generation) tool is a sophisticated system that co
 ![Alt text](https://github.com/EdwardDali/e-rag/blob/main/docs/gui1.PNG)
 ![Alt text](https://github.com/EdwardDali/e-rag/blob/main/docs/gui2.PNG)
 ![Alt text](https://github.com/EdwardDali/e-rag/blob/main/docs/gui3.PNG)
-
+![Alt text](https://github.com/EdwardDali/e-rag/blob/main/docs/logical.PNG)
+![Alt text](https://github.com/EdwardDali/e-rag/blob/main/docs/user_flow1.PNG)
+![Alt text](https://github.com/EdwardDali/e-rag/blob/main/docs/user_flow2.PNG)
 
 ## Installation
 
@@ -37,8 +39,6 @@ git clone https://github.com/EdwardDali/erag.git && cd erag
 5. Run the phi3 model:
    ```
    ollama run phi3:instruct
-
-  6. run main.py
    ```
 
 Note: Ensure you have Python 3.7 or later installed on your system before proceeding with the installation.
@@ -65,41 +65,6 @@ Note: Ensure you have Python 3.7 or later installed on your system before procee
 This RAG (Retrieval-Augmented Generation) tool is a sophisticated system that combines lexical, semantic, text, and knowledge graph searches with conversation context to provide accurate and contextually relevant responses. The tool processes various document types, creates embeddings, builds a knowledge graph, and uses this information to answer user queries intelligently.
 ERAG (Embeddings and Retrieval-Augmented Generation) is a system designed to process documents, generate embeddings, create knowledge graphs, and perform retrieval-augmented generation tasks. This document outlines the main components and their functionalities within the ERAG system.
 The ERAG system provides a comprehensive solution for document processing, embedding generation, knowledge graph creation, and retrieval-augmented generation. By leveraging these components, users can enhance their document understanding and question-answering capabilities.
-
-
-1. main.py: The central script that initializes the GUI and orchestrates the overall functionality of the ERAG system.
-
-2. settings.py: Manages and stores all configurable parameters and settings for the ERAG system.
-
-3. file_processing.py: Handles the uploading, parsing, and initial processing of various document types (DOCX, JSON, PDF, Text).
-
-4. embeddings_utils.py: Provides utilities for creating, storing, and managing text embeddings using sentence transformers.
-
-5. create_graph.py: Constructs and manages the knowledge graph based on processed documents and their relationships.
-
-6. search_utils.py: Implements various search algorithms (lexical, semantic, graph-based, text) for retrieving relevant information.
-
-7. talk2doc.py: Facilitates interactive conversations with documents using the RAG (Retrieval-Augmented Generation) system.
-
-8. create_knol.py: Generates comprehensive knowledge artifacts (Knols) from processed documents and user queries.
-
-9. create_sum.py: Produces summaries of documents or sets of documents using the chosen language model.
-
-10. create_q.py: Generates insightful questions based on the content of processed documents.
-
-11. web_rag.py: Extends the RAG system to work with web content, allowing queries against information from the internet.
-
-12. web_sum.py: Summarizes content from web pages, providing concise overviews of online information.
-
-13. talk2url.py: Enables direct interaction with content from specific URLs, allowing focused queries on web resources.
-
-14. talk2git.py: Facilitates interaction with GitHub repositories, enabling queries and analysis of code and documentation.
-
-15. talk2model.py: Provides a direct interface for conversing with the selected language model without additional context.
-
-16. route_query.py: Intelligently directs user queries to the most appropriate subsystem based on the query's nature and available information.
-
-17. api_model.py: Manages the integration and configuration of different API types (e.g., Ollama, Llama) for language model interactions.
 
 # ERAG System Features
 

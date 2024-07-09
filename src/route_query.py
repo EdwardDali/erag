@@ -33,6 +33,11 @@ class RouteQuery:
             return content
         except FileNotFoundError:
             logging.error(f"{db_content_path} not found")
+            print(f"\n{ANSIColor.PINK.value}Warning: db_content.txt not found. Please upload and process documents first.{ANSIColor.RESET.value}")
+            print("You can do this by:")
+            print("1. Using the 'Upload' buttons in the main tab to process documents")
+            print("2. Clicking 'Execute Embeddings' to generate the necessary files for using Doc RAG")
+            print("3. Optionally, creating a knowledge graph using 'Create Knowledge Graph'")
             return ""
 
     def evaluate_query(self, query: str) -> dict:
@@ -204,6 +209,12 @@ First check if there is relevant information in the TOC; if yes chose A or B. If
     def run(self):
         print(f"{ANSIColor.YELLOW.value}Welcome to the Query Routing System. Type 'exit' to quit.{ANSIColor.RESET.value}")
         print(f"{ANSIColor.CYAN.value}Using output folder: {settings.output_folder}{ANSIColor.RESET.value}")
+
+        # Check if db_content.txt exists and is not empty
+        db_content = self.load_db_content()
+        if not db_content:
+            print(f"{ANSIColor.PINK.value}Error: Cannot start the Query Routing System. Please upload and process documents first.{ANSIColor.RESET.value}")
+            return
 
         while True:
             user_input = input(f"\n{ANSIColor.YELLOW.value}Enter your query: {ANSIColor.RESET.value}").strip()
