@@ -6,6 +6,9 @@ from settings import settings
 from api_model import configure_api
 from talk2doc import ANSIColor
 import base64
+import torch
+from sentence_transformers import SentenceTransformer, util
+from typing import List, Tuple
 
 class Talk2Git:
     def __init__(self, api_type: str):
@@ -21,6 +24,9 @@ class Talk2Git:
         self.repo_contents = {}
         self.output_file = os.path.join(settings.output_folder, "talk2git_output.txt")
         self.github_api_url = "https://api.github.com"
+        self.model = SentenceTransformer(settings.model_name)
+        self.db_embeddings = None
+        self.db_content = None
 
     def parse_github_url(self, url):
         parsed = urlparse(url)
@@ -50,6 +56,8 @@ class Talk2Git:
         self.repo_url = repo_url
         owner, repo = self.parse_github_url(repo_url)
         self.traverse_repo(owner, repo)
+        self.create_repo_file()
+        self.compute_embeddings()
         return f"Processed {len(self.repo_contents)} files from the repository."
 
     def traverse_repo(self, owner, repo, path=""):
@@ -63,27 +71,46 @@ class Talk2Git:
             elif item['type'] == 'dir':
                 self.traverse_repo(owner, repo, item['path'])
 
+    def create_repo_file(self):
+        repo_file_path = os.path.join(settings.output_folder, "repo_contents.txt")
+        with open(repo_file_path, "w", encoding="utf-8") as f:
+            for file_path, content in self.repo_contents.items():
+                f.write(f"File: {file_path}\n\n")
+                f.write(content)
+                f.write("\n\n" + "="*50 + "\n\n")
+        print(f"{ANSIColor.NEON_GREEN.value}Repository contents saved to {repo_file_path}{ANSIColor.RESET.value}")
+
+    def compute_embeddings(self):
+        self.db_content = list(self.repo_contents.values())
+        self.db_embeddings = self.model.encode(self.db_content, convert_to_tensor=True)
+        embeddings_file = os.path.join(settings.output_folder, "repo_embeddings.pt")
+        torch.save({"embeddings": self.db_embeddings, "content": self.db_content}, embeddings_file)
+        print(f"{ANSIColor.NEON_GREEN.value}Embeddings saved to {embeddings_file}{ANSIColor.RESET.value}")
+
+    def semantic_search(self, query: str, top_k: int = 3) -> List[Tuple[str, float]]:
+        query_embedding = self.model.encode(query, convert_to_tensor=True)
+        cos_scores = util.cos_sim(query_embedding, self.db_embeddings)[0]
+        top_results = torch.topk(cos_scores, k=min(top_k, len(cos_scores)))
+        return [(self.db_content[idx], score.item()) for idx, score in zip(top_results.indices, top_results.values)]
+
     def generate_response(self, user_input):
-        all_content = "\n\n".join([f"Content of {file_path}:\n{content[:1000]}..." 
-                                   for file_path, content in self.repo_contents.items()])
+        relevant_content = self.semantic_search(user_input)
+        context = "\n\n".join([f"Relevance {score:.2f}:\n{content}" for content, score in relevant_content])
 
         system_message = """You are an AI assistant tasked with answering questions about a GitHub repository. Follow these guidelines:
-
 1. Use the provided repository content to inform your answers.
-2. If the content doesn't provide a suitable answer, rely on your general knowledge about software development and GitHub repositories.
+2. If asked about specific code or files, provide relevant code snippets or explain the code structure.
 3. Structure your answer in a clear, organized manner.
 4. Stay focused on the specific question asked.
-5. If asked about specific code or files, prioritize providing that information.
-6. Be concise but comprehensive.
-7. If information from multiple files is relevant, mention which file(s) you're referring to in your answer.
-8. If you're not sure about something or if the information is not in the provided content, say so."""
+5. Be concise but comprehensive.
+6. If you're not sure about something or if the information is not in the provided content, say so."""
 
         user_message = f"""GitHub Repository Content:
-{all_content}
+{context}
 
 User Question: {user_input}
 
-Please provide a comprehensive and well-structured answer to the question based on the given repository content. If the content doesn't contain relevant information, you can answer based on your general knowledge about software development and GitHub repositories."""
+Please provide a comprehensive and well-structured answer to the question based on the given repository content. Include relevant code snippets or explanations of code structure when appropriate."""
 
         try:
             response = self.client.chat.completions.create(
@@ -132,6 +159,8 @@ Please provide a comprehensive and well-structured answer to the question based 
             elif user_input.lower() == 'change repo':
                 self.repo_url = ""
                 self.repo_contents.clear()
+                self.db_embeddings = None
+                self.db_content = None
                 print(f"{ANSIColor.CYAN.value}Current repository cleared. Please enter a new repository URL.{ANSIColor.RESET.value}")
                 continue
 
