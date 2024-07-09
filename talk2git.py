@@ -191,12 +191,112 @@ Please provide a concise summary (3-5 sentences) describing the overall purpose 
 
         print(f"{ANSIColor.NEON_GREEN.value}Project summarization completed. Results saved to {summary_file}{ANSIColor.RESET.value}")
 
+    def analyze_dependencies(self):
+        dependency_files = [file for file in self.repo_contents.keys() if file.endswith(('requirements.txt', 'package.json', 'pom.xml'))]
+        
+        if not dependency_files:
+            print(f"{ANSIColor.YELLOW.value}No dependency files found in the repository.{ANSIColor.RESET.value}")
+            return
+
+        analysis_results = []
+        for file in dependency_files:
+            content = self.repo_contents[file][:settings.file_analysis_limit]  # Use settings directly
+            print(f"{ANSIColor.CYAN.value}Analyzing dependencies in {file}...{ANSIColor.RESET.value}")
+            
+            prompt = f"""Analyze the dependencies in the following file:
+
+File: {file}
+
+Content:
+{content}
+
+Please provide a brief analysis covering the following aspects:
+1. List of main dependencies and their versions
+2. Potential outdated dependencies
+3. Possible security vulnerabilities (based on known common vulnerabilities)
+4. Suggestions for dependency updates or replacements
+
+Your analysis should be concise but informative."""
+
+            try:
+                response = self.client.chat.completions.create(
+                    model=settings.ollama_model if self.api_type == "ollama" else settings.llama_model,
+                    messages=[
+                        {"role": "system", "content": "You are an expert in software dependencies and security analysis."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.2
+                ).choices[0].message.content
+
+                analysis_results.append(f"Analysis for {file}:\n\n{response}\n\n{'='*50}\n")
+                print(f"{ANSIColor.NEON_GREEN.value}Analysis complete for {file}{ANSIColor.RESET.value}")
+            except Exception as e:
+                logging.error(f"Error analyzing dependencies in {file}: {str(e)}")
+                analysis_results.append(f"Error analyzing dependencies in {file}: {str(e)}\n\n{'='*50}\n")
+
+        analysis_file = os.path.join(settings.output_folder, f"{self.project_name}_dependency_analysis.txt")
+        with open(analysis_file, "w", encoding="utf-8") as f:
+            f.write("\n".join(analysis_results))
+        
+        print(f"{ANSIColor.NEON_GREEN.value}Dependency analysis completed. Results saved to {analysis_file}{ANSIColor.RESET.value}")
+
+    def detect_code_smells(self):
+        code_files = [file for file in self.repo_contents.keys() if file.endswith(('.py', '.js', '.java', '.cpp', '.c', '.h', '.cs'))]
+        
+        if not code_files:
+            print(f"{ANSIColor.YELLOW.value}No supported code files found in the repository.{ANSIColor.RESET.value}")
+            return
+
+        analysis_results = []
+        for file in code_files:
+            content = self.repo_contents[file][:settings.file_analysis_limit]  # Use settings directly
+            print(f"{ANSIColor.CYAN.value}Detecting code smells in {file}...{ANSIColor.RESET.value}")
+            
+            prompt = f"""Analyze the following code for potential code smells:
+
+File: {file}
+
+Content:
+{content}
+
+Please provide a brief analysis covering the following aspects:
+1. Identify any common code smells (e.g., long methods, large classes, duplicate code)
+2. Highlight areas of the code that might be difficult to understand or maintain
+3. Suggest potential refactoring opportunities
+4. Comment on the overall code quality and structure
+
+Your analysis should be concise but informative."""
+
+            try:
+                response = self.client.chat.completions.create(
+                    model=settings.ollama_model if self.api_type == "ollama" else settings.llama_model,
+                    messages=[
+                        {"role": "system", "content": "You are an expert code reviewer specializing in identifying code smells and suggesting improvements."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.2
+                ).choices[0].message.content
+
+                analysis_results.append(f"Analysis for {file}:\n\n{response}\n\n{'='*50}\n")
+                print(f"{ANSIColor.NEON_GREEN.value}Analysis complete for {file}{ANSIColor.RESET.value}")
+            except Exception as e:
+                logging.error(f"Error detecting code smells in {file}: {str(e)}")
+                analysis_results.append(f"Error detecting code smells in {file}: {str(e)}\n\n{'='*50}\n")
+
+        analysis_file = os.path.join(settings.output_folder, f"{self.project_name}_code_smell_analysis.txt")
+        with open(analysis_file, "w", encoding="utf-8") as f:
+            f.write("\n".join(analysis_results))
+        
+        print(f"{ANSIColor.NEON_GREEN.value}Code smell detection completed. Results saved to {analysis_file}{ANSIColor.RESET.value}")
+
     def display_menu(self):
         print(f"\n{ANSIColor.YELLOW.value}Talk2Git Menu:{ANSIColor.RESET.value}")
         print("1. Analyze repository")
         print("2. Summarize project")
-        print("3. Change repository")
-        print("4. Exit")
+        print("3. Analyze dependencies")
+        print("4. Detect code smells")
+        print("5. Change repository")
+        print("6. Exit")
 
     def run(self):
         print(f"{ANSIColor.YELLOW.value}Welcome to Talk2Git.{ANSIColor.RESET.value}")
@@ -211,21 +311,25 @@ Please provide a concise summary (3-5 sentences) describing the overall purpose 
                 print(f"{ANSIColor.NEON_GREEN.value}{processing_result}{ANSIColor.RESET.value}")
 
             self.display_menu()
-            choice = input(f"{ANSIColor.YELLOW.value}Enter your choice (1-4): {ANSIColor.RESET.value}").strip()
+            choice = input(f"{ANSIColor.YELLOW.value}Enter your choice (1-6): {ANSIColor.RESET.value}").strip()
 
             if choice == '1':
                 self.static_code_analysis()
             elif choice == '2':
                 self.summarize_project()
             elif choice == '3':
+                self.analyze_dependencies()
+            elif choice == '4':
+                self.detect_code_smells()
+            elif choice == '5':
                 self.repo_url = ""
                 self.repo_contents.clear()
                 print(f"{ANSIColor.CYAN.value}Current repository cleared. Please enter a new repository URL.{ANSIColor.RESET.value}")
-            elif choice == '4':
+            elif choice == '6':
                 print(f"{ANSIColor.NEON_GREEN.value}Thank you for using Talk2Git. Goodbye!{ANSIColor.RESET.value}")
                 break
             else:
-                print(f"{ANSIColor.PINK.value}Invalid choice. Please enter a number between 1 and 4.{ANSIColor.RESET.value}")
+                print(f"{ANSIColor.PINK.value}Invalid choice. Please enter a number between 1 and 6.{ANSIColor.RESET.value}")
 
 if __name__ == "__main__":
     import sys
