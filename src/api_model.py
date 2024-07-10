@@ -21,7 +21,7 @@ def get_available_models(api_type):
 def update_settings(settings, api_type, model):
     if api_type == "ollama":
         settings.update_setting("ollama_model", model)
-    elif api_type == "llama":
+    elif api_type == "llama.cpp server":
         # TODO: Update settings for llama API
         pass
     settings.apply_settings()
@@ -30,7 +30,7 @@ def update_settings(settings, api_type, model):
 def configure_api(api_type: str) -> OpenAI:
     if api_type == "ollama":
         return OpenAI(base_url='http://localhost:11434/v1', api_key=settings.ollama_model)
-    elif api_type == "llama":
+    elif api_type == "llama.cpp server":
         return OpenAI(base_url='http://localhost:8080/v1', api_key='sk-no-key-required')
     else:
         raise ValueError("Invalid API type")

@@ -29,6 +29,7 @@ from src.create_sum import run_create_sum
 from src.talk2url import Talk2URL
 from src.talk2git import Talk2Git
 from src.create_q import run_create_q
+from src.server import ServerManager
 
 class ToolTip:
     def __init__(self, widget, text):
@@ -71,6 +72,8 @@ class ERAGGUI:
         self.web_rag = None
         self.is_initializing = True  # Flag to track initialization
         self.talk2url = None
+        self.server_manager = ServerManager()  # Initialize the ServerManager
+        self.project_root = project_root
 
         # Create output folder if it doesn't exist
         os.makedirs(settings.output_folder, exist_ok=True)
@@ -91,8 +94,12 @@ class ERAGGUI:
         self.settings_tab = ttk.Frame(self.notebook)
         self.notebook.add(self.settings_tab, text="Settings")
 
+        self.server_tab = ttk.Frame(self.notebook)
+        self.notebook.add(self.server_tab, text="Llama.cpp Server")  # Renamed tab
+
         self.create_main_tab()
         self.create_settings_tab()
+        self.create_server_tab() 
 
     def create_main_tab(self):
         self.create_model_frame()
@@ -140,7 +147,7 @@ class ERAGGUI:
         api_label = tk.Label(model_frame, text="API Type:")
         api_label.grid(row=0, column=0, padx=5, pady=5, sticky="e")
         
-        api_options = ["ollama", "llama"]
+        api_options = ["ollama", "llama.cpp server"]
         api_menu = ttk.Combobox(model_frame, textvariable=self.api_type_var, values=api_options, state="readonly")
         api_menu.grid(row=0, column=1, padx=5, pady=5, sticky="w")
         api_menu.bind("<<ComboboxSelected>>", self.update_model_list)
@@ -184,11 +191,19 @@ class ERAGGUI:
 
     def update_model_list(self, event=None):
         api_type = self.api_type_var.get()
-        models = get_available_models(api_type)
+        if api_type == "ollama":
+            models = get_available_models(api_type)
+        elif api_type == "llama.cpp server":
+            models = self.server_manager.get_gguf_models()
+        else:
+            models = []
+
         self.model_menu['values'] = models
         if models:
             if api_type == "ollama" and settings.ollama_model in models:
                 self.model_var.set(settings.ollama_model)
+            elif api_type == "llama.cpp server" and self.server_manager.current_model in models:
+                self.model_var.set(self.server_manager.current_model)
             else:
                 self.model_var.set(models[0])
             if not self.is_initializing:
@@ -205,6 +220,8 @@ class ERAGGUI:
         model = self.model_var.get()
         if model:
             update_settings(settings, api_type, model)
+            if api_type == "llama.cpp server":
+                self.server_manager.set_current_model(model)
             if show_message:
                 messagebox.showinfo("Model Selected", f"Selected API: {api_type}, Model: {model}")
         elif show_message:
@@ -412,9 +429,12 @@ class ERAGGUI:
         for i, (label, key) in enumerate(fields):
             ttk.Label(parent, text=label).grid(row=i, column=0, sticky="e", padx=5, pady=2)
             value = getattr(settings, key)
+            if isinstance(value, str) and value.startswith(str(self.project_root)):
+                # Convert absolute path to relative path for display
+                value = os.path.relpath(value, self.project_root)
             var = tk.StringVar(value=str(value))
             if key == "github_token":
-                entry = ttk.Entry(parent, textvariable=var, show="*")  # Use show="*" to hide the token
+                entry = ttk.Entry(parent, textvariable=var, show="*")
             else:
                 entry = ttk.Entry(parent, textvariable=var)
             entry.grid(row=i, column=1, sticky="w", padx=5, pady=2)
@@ -437,6 +457,9 @@ class ERAGGUI:
                     value = float(value)
                 elif key == "excluded_question_levels":
                     value = [int(x.strip()) for x in value.split(',') if x.strip().isdigit()]
+                elif isinstance(getattr(settings, key), str) and value.startswith(('output', 'Output')):
+                    # Convert relative path back to absolute path
+                    value = os.path.join(self.project_root, value)
                 settings.update_setting(key, value)
         
         settings.apply_settings()
@@ -715,13 +738,133 @@ class ERAGGUI:
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred while starting the Web RAG system: {str(e)}")
 
+    def create_server_tab(self):
+        # Enable/Disable on start
+        enable_frame = ttk.Frame(self.server_tab)
+        enable_frame.pack(fill="x", padx=10, pady=5)
+        self.enable_var = tk.BooleanVar(value=self.server_manager.enable_on_start)
+        ttk.Checkbutton(enable_frame, text="Enable server on start", variable=self.enable_var, 
+                        command=self.toggle_server_on_start).pack(side="left")
+
+        # Server executable location
+        exe_frame = ttk.Frame(self.server_tab)
+        exe_frame.pack(fill="x", padx=10, pady=5)
+        ttk.Label(exe_frame, text="Server Executable:").pack(side="left")
+        self.exe_var = tk.StringVar(value=self.server_manager.server_executable)
+        ttk.Entry(exe_frame, textvariable=self.exe_var).pack(side="left", expand=True, fill="x")
+        ttk.Button(exe_frame, text="Browse", command=self.browse_server_exe).pack(side="left")
+
+        # Model folder selection
+        folder_frame = ttk.Frame(self.server_tab)
+        folder_frame.pack(fill="x", padx=10, pady=5)
+        ttk.Label(folder_frame, text="Model Folder:").pack(side="left")
+        self.folder_var = tk.StringVar(value=self.server_manager.model_folder)
+        ttk.Entry(folder_frame, textvariable=self.folder_var).pack(side="left", expand=True, fill="x")
+        ttk.Button(folder_frame, text="Browse", command=self.browse_model_folder).pack(side="left")
+
+        # Additional arguments
+        args_frame = ttk.Frame(self.server_tab)
+        args_frame.pack(fill="x", padx=10, pady=5)
+        ttk.Label(args_frame, text="Additional Arguments:").pack(side="left")
+        self.args_var = tk.StringVar(value=self.server_manager.additional_args)
+        ttk.Entry(args_frame, textvariable=self.args_var).pack(side="left", expand=True, fill="x")
+
+        # Output mode selection
+        output_frame = ttk.Frame(self.server_tab)
+        output_frame.pack(fill="x", padx=10, pady=5)
+        ttk.Label(output_frame, text="Output Mode:").pack(side="left")
+        self.output_mode_var = tk.StringVar(value=self.server_manager.output_mode)
+        ttk.Radiobutton(output_frame, text="File", variable=self.output_mode_var, value="file", command=self.set_output_mode).pack(side="left")
+        ttk.Radiobutton(output_frame, text="Window", variable=self.output_mode_var, value="window", command=self.set_output_mode).pack(side="left")
+
+        # Restart server button
+        ttk.Button(self.server_tab, text="Restart Server", command=self.restart_server).pack(pady=10)
+
+    def toggle_server_on_start(self):
+        self.server_manager.enable_on_start = self.enable_var.get()
+        self.server_manager.save_config()
+        self.check_server_status()
+
+    def check_server_status(self):
+        if self.server_manager.enable_on_start:
+            if (self.server_manager.server_executable and
+                self.server_manager.model_folder and
+                self.server_manager.get_gguf_models()):
+                # All conditions met, server can be started
+                messagebox.showinfo("Server Status", "Server will start automatically on next launch.")
+            else:
+                # Missing required settings
+                messagebox.showwarning("Server Status", "Cannot enable server start. Please ensure server executable, model folder, and at least one model are set.")
+                self.enable_var.set(False)
+                self.server_manager.enable_on_start = False
+                self.server_manager.save_config()
+
+    def browse_server_exe(self):
+        path = filedialog.askopenfilename(title="Select server executable", 
+                                          filetypes=[("Executable files", "*.exe")])
+        if path:
+            self.exe_var.set(path)
+            self.server_manager.server_executable = path
+            self.server_manager.save_config()
+
+    def browse_model_folder(self):
+        folder = filedialog.askdirectory(title="Select model folder")
+        if folder:
+            self.folder_var.set(folder)
+            self.server_manager.set_model_folder(folder)
+            self.update_model_list()  # Update both main and server model lists
+
+    def set_output_mode(self):
+        self.server_manager.set_output_mode(self.output_mode_var.get())
+
+    def restart_server(self):
+        self.server_manager.server_executable = self.exe_var.get()
+        self.server_manager.additional_args = self.args_var.get()
+        self.server_manager.save_config()
+        self.server_manager.restart_server()
+
     def on_closing(self):
         settings.save_settings()
+        self.server_manager.stop_server()
         self.master.destroy()
+
+    def run_model(self):
+        try:
+            api_type = self.api_type_var.get()
+            model = self.model_var.get()
+            
+            if api_type == "ollama":
+                self.rag_system = RAGSystem(api_type)
+                # Apply settings to RAGSystem
+                settings.apply_settings()
+                # Run the CLI in a separate thread to keep the GUI responsive
+                threading.Thread(target=self.rag_system.run, daemon=True).start()
+            elif api_type == "llama.cpp server":
+                # Ensure the server is running with the selected model
+                self.server_manager.set_current_model(model)
+                self.server_manager.restart_server()
+                # Start the llama.cpp client (you'll need to implement this)
+                threading.Thread(target=self.run_llama_client, daemon=True).start()
+            
+            messagebox.showinfo("Info", f"System started with {api_type} API and model: {model}. Check the console for interaction.")
+        except Exception as e:
+            messagebox.showerror("Error", f"An error occurred while starting the system: {str(e)}")
+
+    def run_llama_client(self):
+        # Implement the llama.cpp client interaction here
+        # This method should handle the communication with the llama.cpp server
+        pass
 
 def main():
     root = tk.Tk()
-    ERAGGUI(root)
+    gui = ERAGGUI(root)
+    if gui.server_manager.enable_on_start:
+        if (gui.server_manager.server_executable and
+            gui.server_manager.model_folder and
+            gui.server_manager.get_gguf_models()):
+            gui.server_manager.start_server()
+        else:
+            messagebox.showwarning("Server Start Failed", "Cannot start server. Please check server settings.")
     root.mainloop()
 
 if __name__ == "__main__":
