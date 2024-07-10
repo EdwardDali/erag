@@ -9,8 +9,9 @@ from nltk.tokenize import sent_tokenize
 import nltk
 from src.embeddings_utils import load_embeddings_and_data
 from src.settings import settings
-from src.api_model import configure_api, LlamaClient  # Add this import
+from src.api_model import configure_api, LlamaClient
 import os
+from tqdm import tqdm
 
 nltk.download('punkt', quiet=True)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -63,7 +64,8 @@ def create_networkx_graph(data: List[str], embeddings: torch.Tensor) -> nx.Graph
     G = nx.Graph()
     entity_count = {}
     
-    for doc_idx, document in enumerate(data):
+    # Use tqdm for the main document processing loop
+    for doc_idx, document in tqdm(enumerate(data), total=len(data), desc="Processing documents"):
         doc_node = f"doc_{doc_idx}"
         G.add_node(doc_node, type='document', text=document)
         
@@ -84,12 +86,15 @@ def create_networkx_graph(data: List[str], embeddings: torch.Tensor) -> nx.Graph
     if settings.enable_semantic_edges:
         # Add semantic similarity edges between document nodes
         doc_nodes = [n for n, d in G.nodes(data=True) if d['type'] == 'document']
-        for i, node1 in enumerate(doc_nodes):
-            for j in range(i+1, len(doc_nodes)):
-                node2 = doc_nodes[j]
-                similarity = util.pytorch_cos_sim(embeddings[i], embeddings[j]).item()
-                if similarity > settings.similarity_threshold:
-                    G.add_edge(node1, node2, relation='similar', weight=similarity, confidence=similarity)
+        total_comparisons = len(doc_nodes) * (len(doc_nodes) - 1) // 2
+        with tqdm(total=total_comparisons, desc="Creating semantic edges") as pbar:
+            for i, node1 in enumerate(doc_nodes):
+                for j in range(i+1, len(doc_nodes)):
+                    node2 = doc_nodes[j]
+                    similarity = util.pytorch_cos_sim(embeddings[i], embeddings[j]).item()
+                    if similarity > settings.similarity_threshold:
+                        G.add_edge(node1, node2, relation='similar', weight=similarity, confidence=similarity)
+                    pbar.update(1)
     
     return G
 
@@ -103,7 +108,8 @@ def create_graph_from_raw(raw_documents: List[str], model: SentenceTransformer) 
     entity_count = {}
     all_chunk_embeddings = []
     
-    for doc_idx, document in enumerate(raw_documents):
+    # Use tqdm for the main document processing loop
+    for doc_idx, document in tqdm(enumerate(raw_documents), total=len(raw_documents), desc="Processing raw documents"):
         doc_node = f"doc_{doc_idx}"
         G.add_node(doc_node, type='document', text=document[:1000])  # Store first 1000 chars as preview
         
@@ -126,13 +132,17 @@ def create_graph_from_raw(raw_documents: List[str], model: SentenceTransformer) 
     if settings.enable_semantic_edges:
         # Add semantic similarity edges between document nodes
         doc_embeddings = torch.stack([torch.mean(emb, dim=0) for emb in all_chunk_embeddings])
-        for i in range(len(raw_documents)):
-            for j in range(i+1, len(raw_documents)):
-                similarity = util.pytorch_cos_sim(doc_embeddings[i], doc_embeddings[j]).item()
-                if similarity > settings.similarity_threshold:
-                    G.add_edge(f"doc_{i}", f"doc_{j}", relation='similar', weight=similarity, confidence=similarity)
+        total_comparisons = len(raw_documents) * (len(raw_documents) - 1) // 2
+        with tqdm(total=total_comparisons, desc="Creating semantic edges") as pbar:
+            for i in range(len(raw_documents)):
+                for j in range(i+1, len(raw_documents)):
+                    similarity = util.pytorch_cos_sim(doc_embeddings[i], doc_embeddings[j]).item()
+                    if similarity > settings.similarity_threshold:
+                        G.add_edge(f"doc_{i}", f"doc_{j}", relation='similar', weight=similarity, confidence=similarity)
+                    pbar.update(1)
     
     return G
+
 
 def save_graph_json(G: nx.Graph, file_path: str):
     graph_data = nx.node_link_data(G)
