@@ -3,16 +3,22 @@
 import sys
 import os
 import logging
-from src.talk2doc import RAGSystem, ANSIColor  # Updated import
-from src.search_utils import SearchUtils  # Updated import
+from src.talk2doc import RAGSystem, ANSIColor
+from src.search_utils import SearchUtils
 from sentence_transformers import SentenceTransformer
-from src.embeddings_utils import load_embeddings_and_data  # Updated import
-from src.settings import settings  # Updated import
+from src.embeddings_utils import load_embeddings_and_data
+from src.settings import settings
+from src.api_model import configure_api, LlamaClient
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class KnolCreator:
     def __init__(self, api_type: str):
+        self.api_type = api_type
+        if api_type == "llama":
+            self.client = LlamaClient()
+        else:
+            self.client = configure_api(api_type)
         self.rag_system = RAGSystem(api_type)
         self.search_utils = self.rag_system.search_utils
         # Ensure output folder exists
@@ -55,7 +61,15 @@ Ensure that the structure is consistent and the information is detailed and accu
 
         user_input = f"Create a structured, comprehensive knowledge entry about {subject}. Include main topics, subtopics, and at least 5 key points with detailed information for each subtopic. Focus exclusively on {subject}."
 
-        content = self.rag_system.ollama_chat(user_input, system_message)
+        if self.api_type == "llama":
+            messages = [
+                {"role": "system", "content": system_message},
+                {"role": "user", "content": user_input}
+            ]
+            content = self.client.chat(messages, temperature=settings.temperature)
+        else:
+            content = self.rag_system.ollama_chat(user_input, system_message)
+        
         self.save_iteration(content, "initial", subject)
         return content
 
@@ -78,7 +92,15 @@ Feel free to add new topics, subtopics, or points, and reorganize the structure 
 
         user_input = f"Improve and expand the following knol about {subject} by adding more details, ensuring at least 7 points per subtopic, and restructuring if necessary. Focus exclusively on {subject}:\n\n{knol}"
 
-        improved_content = self.rag_system.ollama_chat(user_input, system_message)
+        if self.api_type == "llama":
+            messages = [
+                {"role": "system", "content": system_message},
+                {"role": "user", "content": user_input}
+            ]
+            improved_content = self.client.chat(messages, temperature=settings.temperature)
+        else:
+            improved_content = self.rag_system.ollama_chat(user_input, system_message)
+
         self.save_iteration(improved_content, "improved", subject)
         return improved_content
 
@@ -98,7 +120,15 @@ Please provide {settings.num_questions} questions that:
 
 Format the output as a numbered list of questions."""
 
-        questions = self.rag_system.ollama_chat(user_input, system_message)
+        if self.api_type == "llama":
+            messages = [
+                {"role": "system", "content": system_message},
+                {"role": "user", "content": user_input}
+            ]
+            questions = self.client.chat(messages, temperature=settings.temperature)
+        else:
+            questions = self.rag_system.ollama_chat(user_input, system_message)
+
         self.save_iteration(questions, "q", subject)
         return questions
 
@@ -119,7 +149,15 @@ Knol Content:
 
 Please provide a comprehensive answer to the question using the information from the knol and any additional context provided. If you can't find relevant information to answer the question accurately, please state so."""
 
-                answer = self.rag_system.ollama_chat(user_input, system_message)
+                if self.api_type == "llama":
+                    messages = [
+                        {"role": "system", "content": system_message},
+                        {"role": "user", "content": user_input}
+                    ]
+                    answer = self.client.chat(messages, temperature=settings.temperature)
+                else:
+                    answer = self.rag_system.ollama_chat(user_input, system_message)
+
                 answers.append(f"Q: {question}\nA: {answer}\n")
 
         full_qa = "\n".join(answers)

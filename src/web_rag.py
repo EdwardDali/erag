@@ -1,5 +1,5 @@
 
-from src.settings import settings  # Updated import
+from src.settings import settings
 from openai import OpenAI
 import logging
 from bs4 import BeautifulSoup
@@ -9,17 +9,18 @@ import re
 from sentence_transformers import SentenceTransformer
 import numpy as np
 from collections import deque
-from src.search_utils import SearchUtils  # Updated import
-from src.talk2doc import ANSIColor  # Updated import
-from src.api_model import configure_api  # Updated import
+from src.search_utils import SearchUtils
+from src.talk2doc import ANSIColor
+from src.api_model import configure_api, LlamaClient
 import os
-
-
 
 class WebRAG:
     def __init__(self, api_type: str):
         self.api_type = api_type
-        self.client = configure_api(api_type)
+        if api_type == "llama":
+            self.client = LlamaClient()
+        else:
+            self.client = configure_api(api_type)
         self.session = requests.Session()
         self.session.headers.update({
             "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0",
@@ -74,16 +75,22 @@ class WebRAG:
         user_message = f"Summarize this question into a short phrase (3-5 words): {query}"
 
         try:
-            response = self.client.chat.completions.create(
-                model=settings.ollama_model if self.api_type == "ollama" else settings.llama_model,
-                messages=[
+            if self.api_type == "llama":
+                response = self.client.chat([
                     {"role": "system", "content": system_message},
                     {"role": "user", "content": user_message}
-                ],
-                temperature=settings.temperature
-            ).choices[0].message.content.strip()
+                ], temperature=settings.temperature)
+            else:
+                response = self.client.chat.completions.create(
+                    model=settings.ollama_model,
+                    messages=[
+                        {"role": "system", "content": system_message},
+                        {"role": "user", "content": user_message}
+                    ],
+                    temperature=settings.temperature
+                ).choices[0].message.content
 
-            safe_filename = re.sub(r'[^a-zA-Z0-9\s]', '', response)
+            safe_filename = re.sub(r'[^a-zA-Z0-9\s]', '', response.strip())
             safe_filename = safe_filename.replace(' ', '_').lower()
             safe_filename = safe_filename[:50]  # Limit filename length
 
@@ -115,16 +122,22 @@ class WebRAG:
         user_message = f"Query: {query}\n\nSearch Result Title: {result.get('title', 'No title')}\nSearch Result Snippet: {result.get('body', 'No snippet')}\n\nIs this search result relevant to the query?"
 
         try:
-            response = self.client.chat.completions.create(
-                model=settings.ollama_model if self.api_type == "ollama" else settings.llama_model,
-                messages=[
+            if self.api_type == "llama":
+                response = self.client.chat([
                     {"role": "system", "content": system_message},
                     {"role": "user", "content": user_message}
-                ],
-                temperature=0.1
-            ).choices[0].message.content.strip().lower()
+                ], temperature=0.1)
+            else:
+                response = self.client.chat.completions.create(
+                    model=settings.ollama_model,
+                    messages=[
+                        {"role": "system", "content": system_message},
+                        {"role": "user", "content": user_message}
+                    ],
+                    temperature=0.1
+                ).choices[0].message.content
 
-            return response == 'yes'
+            return response.strip().lower() == 'yes'
         except Exception as e:
             logging.error(f"Error checking URL relevance: {str(e)}")
             return False
@@ -258,15 +271,22 @@ Question: {query}
 Please provide a comprehensive and well-structured answer to the question based on the given context and conversation history. Prioritize the Conversation Context when answering, followed by the most relevant information from the Search Context. If none of the provided context is relevant, you can answer based on your general knowledge."""
 
         try:
-            response = self.client.chat.completions.create(
-                model=settings.ollama_model if self.api_type == "ollama" else settings.llama_model,
-                messages=[
+            if self.api_type == "llama":
+                response = self.client.chat([
                     {"role": "system", "content": system_message},
                     *self.conversation_history,
                     {"role": "user", "content": user_message}
-                ],
-                temperature=settings.temperature
-            ).choices[0].message.content
+                ], temperature=settings.temperature)
+            else:
+                response = self.client.chat.completions.create(
+                    model=settings.ollama_model,
+                    messages=[
+                        {"role": "system", "content": system_message},
+                        *self.conversation_history,
+                        {"role": "user", "content": user_message}
+                    ],
+                    temperature=settings.temperature
+                ).choices[0].message.content
 
             self.update_conversation_history(query, response)
 

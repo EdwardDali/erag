@@ -2,6 +2,7 @@ import os
 import re
 from src.settings import settings
 from PyPDF2 import PdfReader
+from src.api_model import configure_api, LlamaClient
 
 def chunk_text(text, chunk_size):
     return [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]
@@ -31,16 +32,22 @@ Text:
 
 Generate {settings.questions_per_chunk} questions:"""
 
-    response = client.chat.completions.create(
-        model=settings.ollama_model if api_type == 'ollama' else settings.model_name,
-        messages=[
+    if api_type == "llama":
+        response = client.chat([
             {"role": "system", "content": "You are a helpful assistant that generates insightful questions based on given text."},
             {"role": "user", "content": prompt}
-        ],
-        temperature=settings.temperature
-    )
+        ], temperature=settings.temperature)
+    else:
+        response = client.chat.completions.create(
+            model=settings.ollama_model,
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant that generates insightful questions based on given text."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=settings.temperature
+        ).choices[0].message.content
 
-    questions = response.choices[0].message.content.strip().split('\n')
+    questions = response.strip().split('\n')
     
     # Write questions to file immediately
     with open(output_file, 'a', encoding='utf-8') as file:
@@ -74,6 +81,10 @@ def extract_questions(input_file, output_file):
     return len(extracted_questions)
 
 def run_create_q(file_path, api_type, client):
+    # If api_type is "llama" and client is not a LlamaClient, create a new LlamaClient
+    if api_type == "llama" and not isinstance(client, LlamaClient):
+        client = LlamaClient()
+
     # Get the base name of the input file
     input_file_name = os.path.splitext(os.path.basename(file_path))[0]
 

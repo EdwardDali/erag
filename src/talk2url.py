@@ -1,9 +1,9 @@
 import logging
 from bs4 import BeautifulSoup
 import requests
-from src.settings import settings  # Updated import
-from src.api_model import configure_api  # Updated import
-from src.talk2doc import ANSIColor  # Updated import
+from src.settings import settings
+from src.api_model import configure_api, LlamaClient
+from src.talk2doc import ANSIColor
 import os
 import re
 import unicodedata
@@ -11,7 +11,10 @@ import unicodedata
 class Talk2URL:
     def __init__(self, api_type: str):
         self.api_type = api_type
-        self.client = configure_api(api_type)
+        if api_type == "llama":
+            self.client = LlamaClient()
+        else:
+            self.client = configure_api(api_type)
         self.session = requests.Session()
         self.session.headers.update({
             "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0",
@@ -82,15 +85,22 @@ User Question: {user_input}
 Please provide a comprehensive and well-structured answer to the question based on the given web content. If the content doesn't contain relevant information, you can answer based on your general knowledge."""
 
         try:
-            response = self.client.chat.completions.create(
-                model=settings.ollama_model if self.api_type == "ollama" else settings.llama_model,
-                messages=[
+            if self.api_type == "llama":
+                response = self.client.chat([
                     {"role": "system", "content": system_message},
                     *self.conversation_history,
                     {"role": "user", "content": user_message}
-                ],
-                temperature=settings.temperature
-            ).choices[0].message.content
+                ], temperature=settings.temperature)
+            else:
+                response = self.client.chat.completions.create(
+                    model=settings.ollama_model,
+                    messages=[
+                        {"role": "system", "content": system_message},
+                        *self.conversation_history,
+                        {"role": "user", "content": user_message}
+                    ],
+                    temperature=settings.temperature
+                ).choices[0].message.content
 
             self.conversation_history.append({"role": "user", "content": user_input})
             self.conversation_history.append({"role": "assistant", "content": response})

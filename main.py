@@ -95,7 +95,7 @@ class ERAGGUI:
         self.notebook.add(self.settings_tab, text="Settings")
 
         self.server_tab = ttk.Frame(self.notebook)
-        self.notebook.add(self.server_tab, text="Llama.cpp Server")  # Renamed tab
+        self.notebook.add(self.server_tab, text="llama.cpp server")  # Renamed tab
 
         self.create_main_tab()
         self.create_settings_tab()
@@ -147,7 +147,7 @@ class ERAGGUI:
         api_label = tk.Label(model_frame, text="API Type:")
         api_label.grid(row=0, column=0, padx=5, pady=5, sticky="e")
         
-        api_options = ["ollama", "llama.cpp server"]
+        api_options = ["ollama", "llama"]
         api_menu = ttk.Combobox(model_frame, textvariable=self.api_type_var, values=api_options, state="readonly")
         api_menu.grid(row=0, column=1, padx=5, pady=5, sticky="w")
         api_menu.bind("<<ComboboxSelected>>", self.update_model_list)
@@ -193,7 +193,7 @@ class ERAGGUI:
         api_type = self.api_type_var.get()
         if api_type == "ollama":
             models = get_available_models(api_type)
-        elif api_type == "llama.cpp server":
+        elif api_type == "llama":
             models = self.server_manager.get_gguf_models()
         else:
             models = []
@@ -202,7 +202,7 @@ class ERAGGUI:
         if models:
             if api_type == "ollama" and settings.ollama_model in models:
                 self.model_var.set(settings.ollama_model)
-            elif api_type == "llama.cpp server" and self.server_manager.current_model in models:
+            elif api_type == "llama" and self.server_manager.current_model in models:
                 self.model_var.set(self.server_manager.current_model)
             else:
                 self.model_var.set(models[0])
@@ -220,7 +220,7 @@ class ERAGGUI:
         model = self.model_var.get()
         if model:
             update_settings(settings, api_type, model)
-            if api_type == "llama.cpp server":
+            if api_type == "llama":
                 self.server_manager.set_current_model(model)
             if show_message:
                 messagebox.showinfo("Model Selected", f"Selected API: {api_type}, Model: {model}")
@@ -479,8 +479,9 @@ class ERAGGUI:
         try:
             api_type = self.api_type_var.get()
             model = self.model_var.get()
-            client = configure_api(api_type)
-            route_query = RouteQuery(api_type, client)
+            
+            # Create the RouteQuery instance with just the api_type
+            route_query = RouteQuery(api_type)
             
             # Apply settings to RouteQuery
             settings.apply_settings()
@@ -839,7 +840,7 @@ class ERAGGUI:
                 settings.apply_settings()
                 # Run the CLI in a separate thread to keep the GUI responsive
                 threading.Thread(target=self.rag_system.run, daemon=True).start()
-            elif api_type == "llama.cpp server":
+            elif api_type == "llama":
                 # Ensure the server is running with the selected model
                 self.server_manager.set_current_model(model)
                 self.server_manager.restart_server()
@@ -851,9 +852,12 @@ class ERAGGUI:
             messagebox.showerror("Error", f"An error occurred while starting the system: {str(e)}")
 
     def run_llama_client(self):
-        # Implement the llama.cpp client interaction here
-        # This method should handle the communication with the llama.cpp server
-        pass
+        try:
+            from src.talk2doc import RAGSystem
+            rag_system = RAGSystem("llama")
+            rag_system.run()
+        except Exception as e:
+            print(f"An error occurred while running the llama.cpp client: {str(e)}")
 
 def main():
     root = tk.Tk()

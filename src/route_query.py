@@ -1,11 +1,12 @@
 import sys
 import logging
-from openai import OpenAI
 from enum import Enum
 from src.settings import settings
 import re
 import os
+from src.api_model import configure_api, LlamaClient
 
+# Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class ANSIColor(Enum):
@@ -16,9 +17,12 @@ class ANSIColor(Enum):
     RESET = '\033[0m'
 
 class RouteQuery:
-    def __init__(self, api_type: str, client: OpenAI):
+    def __init__(self, api_type: str):
         self.api_type = api_type
-        self.client = client
+        if api_type == "llama":
+            self.client = LlamaClient()
+        else:
+            self.client = configure_api(api_type)
         # Ensure output folder exists
         os.makedirs(settings.output_folder, exist_ok=True)
 
@@ -74,15 +78,10 @@ First check if there is relevant information in the TOC; if yes chose A or B. If
               - in TOC: no
               - simple: yes
 
-
            D. web_sum (WebSum):
               - in TOC: no
               - simple: no
 
-
-              
-
-              
         5. Provide a detailed explanation for your recommendation, referencing specific parts of the query or TOC that influenced your decision. Consider the unique capabilities of each system in your reasoning.
 
         Format your response as follows:
@@ -100,20 +99,23 @@ First check if there is relevant information in the TOC; if yes chose A or B. If
         
         logging.info(f"User message sent to LLM: {user_message[:100]}...")  # Log the first 100 characters of the user message
 
-        messages = [
-            {"role": "system", "content": system_message},
-            {"role": "user", "content": user_message}
-        ]
-
         try:
             logging.info("Sending request to LLM...")
-            response = self.client.chat.completions.create(
-                model=settings.ollama_model,
-                messages=messages,
-                temperature=settings.temperature
-            )
-            
-            llm_response = response.choices[0].message.content
+            if self.api_type == "llama":
+                llm_response = self.client.chat([
+                    {"role": "system", "content": system_message},
+                    {"role": "user", "content": user_message}
+                ], temperature=settings.temperature)
+            else:
+                response = self.client.chat.completions.create(
+                    model=settings.ollama_model,
+                    messages=[
+                        {"role": "system", "content": system_message},
+                        {"role": "user", "content": user_message}
+                    ],
+                    temperature=settings.temperature
+                )
+                llm_response = response.choices[0].message.content
             
             print(f"\n{ANSIColor.CYAN.value}LLM-generated response:{ANSIColor.RESET.value}")
             print(llm_response)
@@ -128,9 +130,8 @@ First check if there is relevant information in the TOC; if yes chose A or B. If
                 "recommendation": "C",
                 "relevance": "low",
                 "complexity": "simple",
-                "explanation": "Default routing due to error in LLM response."
+                "explanation": f"Default routing due to error in LLM response: {str(e)}"
             }
-
 
     def parse_evaluation(self, response: str) -> dict:
         lines = response.split('\n')
@@ -161,16 +162,16 @@ First check if there is relevant information in the TOC; if yes chose A or B. If
     def load_component(self, component_name: str):
         logging.info(f"Loading component: {component_name}")
         if component_name == 'talk2doc':
-            from src.talk2doc import RAGSystem  # Updated import
+            from src.talk2doc import RAGSystem
             return RAGSystem(self.api_type)
         elif component_name == 'create_knol':
-            from src.create_knol import KnolCreator  # Updated import
+            from src.create_knol import KnolCreator
             return KnolCreator(self.api_type)
         elif component_name == 'web_rag':
-            from src.web_rag import WebRAG  # Updated import
+            from src.web_rag import WebRAG
             return WebRAG(self.api_type)
         elif component_name == 'web_sum':
-            from src.web_sum import WebSum  # Updated import
+            from src.web_sum import WebSum
             return WebSum(self.api_type)
         else:
             raise ValueError(f"Unknown component: {component_name}")
@@ -232,15 +233,16 @@ First check if there is relevant information in the TOC; if yes chose A or B. If
 
             self.route_query(user_input, evaluation)
 
+def main(api_type: str):
+    route_query = RouteQuery(api_type)
+    route_query.run()
+
 if __name__ == "__main__":
     if len(sys.argv) > 1:
         api_type = sys.argv[1]
-        from src.api_model import configure_api  # Updated import
-        client = configure_api(api_type)
-        route_query = RouteQuery(api_type, client)
-        route_query.run()
+        main(api_type)
     else:
         print("Error: No API type provided.")
-        print("Usage: python src/route_query.py <api_type>")  # Updated usage instruction
+        print("Usage: python src/route_query.py <api_type>")
         print("Available API types: ollama, llama")
         sys.exit(1)

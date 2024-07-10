@@ -2,6 +2,7 @@ import os
 import fitz  # PyMuPDF
 from typing import List
 from src.settings import settings
+from src.api_model import configure_api, LlamaClient
 
 def extract_text(file_path: str) -> str:
     _, file_extension = os.path.splitext(file_path)
@@ -30,17 +31,23 @@ def summarize_chunk(chunk: str, api_type: str, client) -> str:
 
 SUMMARY:"""
 
-    response = client.chat.completions.create(
-        model=settings.ollama_model if api_type == "ollama" else settings.llama_model,
-        messages=[
+    if api_type == "llama":
+        response = client.chat([
             {"role": "system", "content": "You are a helpful assistant that creates concise summaries."},
             {"role": "user", "content": prompt}
-        ],
-        temperature=settings.temperature,
-        max_tokens=settings.summarization_summary_size
-    )
-
-    return response.choices[0].message.content.strip()
+        ], temperature=settings.temperature)
+        return response.strip()
+    else:
+        response = client.chat.completions.create(
+            model=settings.ollama_model,
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant that creates concise summaries."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=settings.temperature,
+            max_tokens=settings.summarization_summary_size
+        )
+        return response.choices[0].message.content.strip()
 
 def review_summaries(summaries: List[str], api_type: str, client) -> str:
     prompt = f"""Summarize the following {settings.summarization_combining_number} summaries into one coherent paragraph:
@@ -49,17 +56,23 @@ def review_summaries(summaries: List[str], api_type: str, client) -> str:
 
 SUMMARIZED PARAGRAPH:"""
 
-    response = client.chat.completions.create(
-        model=settings.ollama_model if api_type == "ollama" else settings.llama_model,
-        messages=[
+    if api_type == "llama":
+        response = client.chat([
             {"role": "system", "content": "You are a helpful assistant that combines multiple summaries into a coherent paragraph."},
             {"role": "user", "content": prompt}
-        ],
-        temperature=settings.temperature,
-        max_tokens=settings.summarization_final_chunk_size
-    )
-
-    return response.choices[0].message.content.strip()
+        ], temperature=settings.temperature)
+        return response.strip()
+    else:
+        response = client.chat.completions.create(
+            model=settings.ollama_model,
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant that combines multiple summaries into a coherent paragraph."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=settings.temperature,
+            max_tokens=settings.summarization_final_chunk_size
+        )
+        return response.choices[0].message.content.strip()
 
 def create_summary(file_path: str, api_type: str, client) -> str:
     try:
@@ -108,4 +121,6 @@ def create_summary(file_path: str, api_type: str, client) -> str:
         return f"An error occurred while processing the document: {str(e)}"
 
 def run_create_sum(file_path: str, api_type: str, client) -> str:
+    if api_type == "llama" and not isinstance(client, LlamaClient):
+        client = LlamaClient()  # Create a new LlamaClient instance if it's not already
     return create_summary(file_path, api_type, client)

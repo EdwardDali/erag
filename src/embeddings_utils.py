@@ -4,7 +4,7 @@ import os
 from typing import List, Tuple, Optional
 import logging
 from src.settings import settings
-from src.api_model import configure_api
+from src.api_model import configure_api, LlamaClient
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -101,7 +101,10 @@ if __name__ == "__main__":
     try:
         ensure_output_folder()
         # Use the configure_api function to get the appropriate model
-        model = configure_api("sentence_transformer", settings.model_name)
+        if settings.api_type == "llama":
+            model = LlamaClient()
+        else:
+            model = configure_api("sentence_transformer", settings.model_name)
         
         # Process db.txt from the output folder
         embeddings, indexes, content = load_or_compute_embeddings(model, settings.db_file_path, settings.embeddings_file_path)

@@ -9,6 +9,7 @@ from nltk.tokenize import sent_tokenize
 import nltk
 from src.embeddings_utils import load_embeddings_and_data
 from src.settings import settings
+from src.api_model import configure_api, LlamaClient  # Add this import
 import os
 
 nltk.download('punkt', quiet=True)

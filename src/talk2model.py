@@ -1,12 +1,15 @@
-from src.api_model import configure_api  # Updated import
-from src.settings import settings  # Updated import
-from src.talk2doc import ANSIColor  # Updated import
+from src.api_model import configure_api, LlamaClient
+from src.settings import settings
+from src.talk2doc import ANSIColor
 
 class Talk2Model:
     def __init__(self, api_type, model):
         self.api_type = api_type
         self.model = model
-        self.client = configure_api(api_type)
+        if api_type == "llama":
+            self.client = LlamaClient()
+        else:
+            self.client = configure_api(api_type)
 
     def run(self):
         print(f"{ANSIColor.YELLOW.value}Talking to {self.model} using {self.api_type} API. Type 'exit' to end the conversation.{ANSIColor.RESET.value}")
@@ -22,14 +25,20 @@ class Talk2Model:
 
     def get_model_response(self, user_input):
         try:
-            response = self.client.chat.completions.create(
-                model=settings.ollama_model if self.api_type == "ollama" else settings.llama_model,
-                messages=[
+            if self.api_type == "llama":
+                response = self.client.chat([
                     {"role": "system", "content": "You are a helpful AI assistant."},
                     {"role": "user", "content": user_input}
-                ],
-                temperature=settings.temperature
-            ).choices[0].message.content
+                ], temperature=settings.temperature)
+            else:
+                response = self.client.chat.completions.create(
+                    model=settings.ollama_model if self.api_type == "ollama" else settings.llama_model,
+                    messages=[
+                        {"role": "system", "content": "You are a helpful AI assistant."},
+                        {"role": "user", "content": user_input}
+                    ],
+                    temperature=settings.temperature
+                ).choices[0].message.content
             return response
         except Exception as e:
             return f"An error occurred: {str(e)}"

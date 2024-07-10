@@ -112,8 +112,15 @@ Text Search Results:
         try:
             if self.api_type == "ollama":
                 model_name = settings.ollama_model
+                response = self.client.chat.completions.create(
+                    model=model_name,
+                    messages=messages,
+                    temperature=settings.temperature
+                ).choices[0].message.content
             elif self.api_type == "llama":
-                model_name = settings.llama_model
+                # For llama.cpp server, we need to format the messages differently
+                formatted_prompt = self.format_messages_for_llama(messages)
+                response = self.client.complete(formatted_prompt, temperature=settings.temperature)
             else:
                 raise ValueError(f"Unsupported API type for chat: {self.api_type}")
 
@@ -154,6 +161,18 @@ Text Search Results:
             f.write("\nCombined Response:\n")
             f.write(f"{response}\n")
             f.write("\n" + "="*50 + "\n\n")
+
+    def format_messages_for_llama(self, messages):
+        formatted_prompt = ""
+        for message in messages:
+            if message['role'] == 'system':
+                formatted_prompt += f"System: {message['content']}\n\n"
+            elif message['role'] == 'user':
+                formatted_prompt += f"Human: {message['content']}\n"
+            elif message['role'] == 'assistant':
+                formatted_prompt += f"Assistant: {message['content']}\n"
+        formatted_prompt += "Assistant: "
+        return formatted_prompt
 
     def run(self):
         system_message = "You are a helpful assistant that is an expert at extracting the most useful information from a given text. Prioritize the most recent conversation context when answering questions, but also consider other relevant information if necessary. If the given context doesn't provide a suitable answer, rely on your general knowledge."

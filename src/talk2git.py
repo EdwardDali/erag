@@ -2,16 +2,19 @@ import logging
 import os
 import requests
 from urllib.parse import urlparse
-from src.settings import settings  # Updated import
-from src.api_model import configure_api  # Updated import
-from src.talk2doc import ANSIColor  # Updated import
+from src.settings import settings
+from src.api_model import configure_api, LlamaClient
+from src.talk2doc import ANSIColor
 import base64
 import time
 
 class Talk2Git:
     def __init__(self, api_type: str, github_token: str = ""):
         self.api_type = api_type
-        self.client = configure_api(api_type)
+        if api_type == "llama":
+            self.client = LlamaClient()
+        else:
+            self.client = configure_api(api_type)
         self.session = requests.Session()
         self.session.headers.update({
             "User-Agent": "Talk2Git/1.0",
@@ -108,14 +111,20 @@ Please provide a brief analysis covering the following aspects:
 Your analysis should be concise but informative."""
 
             try:
-                response = self.client.chat.completions.create(
-                    model=settings.ollama_model if self.api_type == "ollama" else settings.llama_model,
-                    messages=[
+                if self.api_type == "llama":
+                    response = self.client.chat([
                         {"role": "system", "content": "You are an expert code reviewer performing static code analysis."},
                         {"role": "user", "content": prompt}
-                    ],
-                    temperature=0.2
-                ).choices[0].message.content
+                    ], temperature=0.2)
+                else:
+                    response = self.client.chat.completions.create(
+                        model=settings.ollama_model,
+                        messages=[
+                            {"role": "system", "content": "You are an expert code reviewer performing static code analysis."},
+                            {"role": "user", "content": prompt}
+                        ],
+                        temperature=0.2
+                    ).choices[0].message.content
 
                 analysis_results.append(f"Analysis for {file_path}:\n\n{response}\n\n{'='*50}\n")
                 print(f"{ANSIColor.NEON_GREEN.value}Analysis complete for {file_path}{ANSIColor.RESET.value}")
@@ -144,14 +153,20 @@ Content:
 Please provide a concise summary (2-3 sentences) describing the file's main purpose and functionality."""
 
             try:
-                response = self.client.chat.completions.create(
-                    model=settings.ollama_model if self.api_type == "ollama" else settings.llama_model,
-                    messages=[
+                if self.api_type == "llama":
+                    response = self.client.chat([
                         {"role": "system", "content": "You are an expert programmer summarizing code files."},
                         {"role": "user", "content": prompt}
-                    ],
-                    temperature=0.2
-                ).choices[0].message.content
+                    ], temperature=0.2)
+                else:
+                    response = self.client.chat.completions.create(
+                        model=settings.ollama_model,
+                        messages=[
+                            {"role": "system", "content": "You are an expert programmer summarizing code files."},
+                            {"role": "user", "content": prompt}
+                        ],
+                        temperature=0.2
+                    ).choices[0].message.content
 
                 file_summaries[file_path] = response
                 print(f"{ANSIColor.NEON_GREEN.value}Summary complete for {file_path}{ANSIColor.RESET.value}")
@@ -167,14 +182,20 @@ Please provide a concise summary (2-3 sentences) describing the file's main purp
 Please provide a concise summary (3-5 sentences) describing the overall purpose and functionality of the project."""
 
         try:
-            project_summary = self.client.chat.completions.create(
-                model=settings.ollama_model if self.api_type == "ollama" else settings.llama_model,
-                messages=[
+            if self.api_type == "llama":
+                project_summary = self.client.chat([
                     {"role": "system", "content": "You are an expert programmer summarizing software projects."},
                     {"role": "user", "content": project_summary_prompt}
-                ],
-                temperature=0.2
-            ).choices[0].message.content
+                ], temperature=0.2)
+            else:
+                project_summary = self.client.chat.completions.create(
+                    model=settings.ollama_model,
+                    messages=[
+                        {"role": "system", "content": "You are an expert programmer summarizing software projects."},
+                        {"role": "user", "content": project_summary_prompt}
+                    ],
+                    temperature=0.2
+                ).choices[0].message.content
         except Exception as e:
             logging.error(f"Error creating project summary: {str(e)}")
             project_summary = f"Error creating project summary: {str(e)}"
@@ -191,7 +212,7 @@ Please provide a concise summary (3-5 sentences) describing the overall purpose 
 
         print(f"{ANSIColor.NEON_GREEN.value}Project summarization completed. Results saved to {summary_file}{ANSIColor.RESET.value}")
 
-    def analyze_dependencies(self):
+     def analyze_dependencies(self):
         dependency_files = [file for file in self.repo_contents.keys() if file.endswith(('requirements.txt', 'package.json', 'pom.xml'))]
         
         if not dependency_files:
@@ -219,14 +240,20 @@ Please provide a brief analysis covering the following aspects:
 Your analysis should be concise but informative."""
 
             try:
-                response = self.client.chat.completions.create(
-                    model=settings.ollama_model if self.api_type == "ollama" else settings.llama_model,
-                    messages=[
+                if self.api_type == "llama":
+                    response = self.client.chat([
                         {"role": "system", "content": "You are an expert in software dependencies and security analysis."},
                         {"role": "user", "content": prompt}
-                    ],
-                    temperature=0.2
-                ).choices[0].message.content
+                    ], temperature=0.2)
+                else:
+                    response = self.client.chat.completions.create(
+                        model=settings.ollama_model,
+                        messages=[
+                            {"role": "system", "content": "You are an expert in software dependencies and security analysis."},
+                            {"role": "user", "content": prompt}
+                        ],
+                        temperature=0.2
+                    ).choices[0].message.content
 
                 analysis_results.append(f"Analysis for {file}:\n\n{response}\n\n{'='*50}\n")
                 print(f"{ANSIColor.NEON_GREEN.value}Analysis complete for {file}{ANSIColor.RESET.value}")
@@ -268,14 +295,20 @@ Please provide a brief analysis covering the following aspects:
 Your analysis should be concise but informative."""
 
             try:
-                response = self.client.chat.completions.create(
-                    model=settings.ollama_model if self.api_type == "ollama" else settings.llama_model,
-                    messages=[
+                if self.api_type == "llama":
+                    response = self.client.chat([
                         {"role": "system", "content": "You are an expert code reviewer specializing in identifying code smells and suggesting improvements."},
                         {"role": "user", "content": prompt}
-                    ],
-                    temperature=0.2
-                ).choices[0].message.content
+                    ], temperature=0.2)
+                else:
+                    response = self.client.chat.completions.create(
+                        model=settings.ollama_model,
+                        messages=[
+                            {"role": "system", "content": "You are an expert code reviewer specializing in identifying code smells and suggesting improvements."},
+                            {"role": "user", "content": prompt}
+                        ],
+                        temperature=0.2
+                    ).choices[0].message.content
 
                 analysis_results.append(f"Analysis for {file}:\n\n{response}\n\n{'='*50}\n")
                 print(f"{ANSIColor.NEON_GREEN.value}Analysis complete for {file}{ANSIColor.RESET.value}")
