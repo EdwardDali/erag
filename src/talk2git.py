@@ -212,7 +212,7 @@ Please provide a concise summary (3-5 sentences) describing the overall purpose 
 
         print(f"{ANSIColor.NEON_GREEN.value}Project summarization completed. Results saved to {summary_file}{ANSIColor.RESET.value}")
 
-     def analyze_dependencies(self):
+    def analyze_dependencies(self):
         dependency_files = [file for file in self.repo_contents.keys() if file.endswith(('requirements.txt', 'package.json', 'pom.xml'))]
         
         if not dependency_files:
