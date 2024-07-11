@@ -1,6 +1,10 @@
 from src.api_model import configure_api, LlamaClient
 from src.settings import settings
-from src.talk2doc import ANSIColor
+from src.color_scheme import Colors, colorize
+import colorama
+
+# Initialize colorama
+colorama.init(autoreset=True)
 
 class Talk2Model:
     def __init__(self, api_type, model):
@@ -12,16 +16,16 @@ class Talk2Model:
             self.client = configure_api(api_type)
 
     def run(self):
-        print(f"{ANSIColor.YELLOW.value}Talking to {self.model} using {self.api_type} API. Type 'exit' to end the conversation.{ANSIColor.RESET.value}")
+        print(colorize(f"Talking to {self.model} using {self.api_type} API. Type 'exit' to end the conversation.", Colors.INFO))
         
         while True:
-            user_input = input(f"{ANSIColor.YELLOW.value}You: {ANSIColor.RESET.value}").strip()
+            user_input = input(colorize("You: ", Colors.INFO)).strip()
             if user_input.lower() == 'exit':
-                print(f"{ANSIColor.NEON_GREEN.value}Thank you for using Talk2Model. Goodbye!{ANSIColor.RESET.value}")
+                print(colorize("Thank you for using Talk2Model. Goodbye!", Colors.SUCCESS))
                 break
             
             response = self.get_model_response(user_input)
-            print(f"{ANSIColor.NEON_GREEN.value}Model: {response}{ANSIColor.RESET.value}")
+            print(colorize("Model: ", Colors.SUCCESS) + response)
 
     def get_model_response(self, user_input):
         try:
@@ -46,7 +50,7 @@ class Talk2Model:
 if __name__ == "__main__":
     import sys
     if len(sys.argv) != 3:
-        print("Usage: python src/talk2model.py <api_type> <model>")  # Updated usage instruction
+        print(colorize("Usage: python src/talk2model.py <api_type> <model>", Colors.ERROR))
         sys.exit(1)
     
     api_type = sys.argv[1]

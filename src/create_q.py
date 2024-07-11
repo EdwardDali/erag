@@ -3,6 +3,11 @@ import re
 from src.settings import settings
 from PyPDF2 import PdfReader
 from src.api_model import configure_api, LlamaClient
+from src.color_scheme import Colors, colorize
+import colorama
+
+# Initialize colorama
+colorama.init(autoreset=True)
 
 def chunk_text(text, chunk_size):
     return [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]
@@ -23,7 +28,7 @@ def read_pdf(file_path):
     return text
 
 def generate_questions(client, api_type, chunk, question_number, total_questions, output_file, chunk_size):
-    print(f"Generating questions for chunk {question_number}/{total_questions} (size: {chunk_size})")
+    print(colorize(f"Generating questions for chunk {question_number}/{total_questions} (size: {chunk_size})", Colors.INFO))
     
     prompt = f"""Based on the following text, generate {settings.questions_per_chunk} insightful questions that would test a reader's understanding of the key concepts, main ideas, or important details. The questions should be specific to the content provided. Provide only the questions, without any additional text or answers.
 
@@ -100,8 +105,8 @@ def run_create_q(file_path, api_type, client):
     
     # Calculate total number of chunks
     total_chunks = sum(len(chunk_text(content, size)) for size in chunk_sizes)
-    print(f"Identified {total_chunks} chunks using {len(chunk_sizes)} levels")
-    print(f"Generating {settings.questions_per_chunk} questions per chunk")
+    print(colorize(f"Identified {total_chunks} chunks using {len(chunk_sizes)} levels", Colors.INFO))
+    print(colorize(f"Generating {settings.questions_per_chunk} questions per chunk", Colors.INFO))
 
     # Prepare the output file
     output_file = os.path.join(settings.output_folder, f"{input_file_name}_generated_questions.txt")
@@ -116,17 +121,16 @@ def run_create_q(file_path, api_type, client):
             questions = generate_questions(client, api_type, chunk, chunk_counter, total_chunks, output_file, chunk_size)
             chunk_counter += 1
 
-    print(f"Generated questions for {chunk_counter - 1} chunks and saved to {output_file}")
+    print(colorize(f"Generated questions for {chunk_counter - 1} chunks and saved to {output_file}", Colors.SUCCESS))
 
     # Extract questions
     extracted_file = os.path.join(settings.output_folder, f"{input_file_name}_extracted_questions.txt")
     num_extracted = extract_questions(output_file, extracted_file)
     
     extraction_message = f"{num_extracted} questions were extracted and saved to {extracted_file}"
-    print(extraction_message)
+    print(colorize(extraction_message, Colors.SUCCESS))
     
-    return f"Generated questions for {chunk_counter - 1} chunks, requesting {settings.questions_per_chunk} questions per chunk. {extraction_message}"
+    return colorize(f"Generated questions for {chunk_counter - 1} chunks, requesting {settings.questions_per_chunk} questions per chunk. {extraction_message}", Colors.SUCCESS)
 
-# This block is not necessary for a module, but can be useful for testing
 if __name__ == "__main__":
-    print("This module is not meant to be run directly. Import and use run_create_q function in your main script.")
+    print(colorize("This module is not meant to be run directly. Import and use run_create_q function in your main script.", Colors.WARNING))

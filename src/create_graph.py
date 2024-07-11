@@ -12,6 +12,11 @@ from src.settings import settings
 from src.api_model import configure_api, LlamaClient
 import os
 from tqdm import tqdm
+from src.color_scheme import Colors, colorize
+import colorama
+
+# Initialize colorama
+colorama.init(autoreset=True)
 
 nltk.download('punkt', quiet=True)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -24,12 +29,15 @@ def set_nlp_model(new_model: str):
     settings.nlp_model = new_model
     nlp = spacy.load(settings.nlp_model)
     logging.info(f"NLP model set to {settings.nlp_model}")
+    print(colorize(f"NLP model set to {settings.nlp_model}", Colors.INFO))
 
 def set_graph_settings(similarity_threshold: float, min_entity_occurrence: int):
     settings.similarity_threshold = similarity_threshold
     settings.min_entity_occurrence = min_entity_occurrence
     logging.info(f"Graph settings updated: Similarity Threshold={settings.similarity_threshold}, "
                  f"Min Entity Occurrence={settings.min_entity_occurrence}")
+    print(colorize(f"Graph settings updated: Similarity Threshold={settings.similarity_threshold}, "
+                   f"Min Entity Occurrence={settings.min_entity_occurrence}", Colors.INFO))
 
 def preprocess_text(text: str) -> str:
     return ' '.join(text.split())
@@ -65,7 +73,7 @@ def create_networkx_graph(data: List[str], embeddings: torch.Tensor) -> nx.Graph
     entity_count = {}
     
     # Use tqdm for the main document processing loop
-    for doc_idx, document in tqdm(enumerate(data), total=len(data), desc="Processing documents"):
+    for doc_idx, document in tqdm(enumerate(data), total=len(data), desc=colorize("Processing documents", Colors.INFO)):
         doc_node = f"doc_{doc_idx}"
         G.add_node(doc_node, type='document', text=document)
         
@@ -87,7 +95,7 @@ def create_networkx_graph(data: List[str], embeddings: torch.Tensor) -> nx.Graph
         # Add semantic similarity edges between document nodes
         doc_nodes = [n for n, d in G.nodes(data=True) if d['type'] == 'document']
         total_comparisons = len(doc_nodes) * (len(doc_nodes) - 1) // 2
-        with tqdm(total=total_comparisons, desc="Creating semantic edges") as pbar:
+        with tqdm(total=total_comparisons, desc=colorize("Creating semantic edges", Colors.INFO)) as pbar:
             for i, node1 in enumerate(doc_nodes):
                 for j in range(i+1, len(doc_nodes)):
                     node2 = doc_nodes[j]
@@ -109,7 +117,7 @@ def create_graph_from_raw(raw_documents: List[str], model: SentenceTransformer) 
     all_chunk_embeddings = []
     
     # Use tqdm for the main document processing loop
-    for doc_idx, document in tqdm(enumerate(raw_documents), total=len(raw_documents), desc="Processing raw documents"):
+    for doc_idx, document in tqdm(enumerate(raw_documents), total=len(raw_documents), desc=colorize("Processing raw documents", Colors.INFO)):
         doc_node = f"doc_{doc_idx}"
         G.add_node(doc_node, type='document', text=document[:1000])  # Store first 1000 chars as preview
         
@@ -133,7 +141,7 @@ def create_graph_from_raw(raw_documents: List[str], model: SentenceTransformer) 
         # Add semantic similarity edges between document nodes
         doc_embeddings = torch.stack([torch.mean(emb, dim=0) for emb in all_chunk_embeddings])
         total_comparisons = len(raw_documents) * (len(raw_documents) - 1) // 2
-        with tqdm(total=total_comparisons, desc="Creating semantic edges") as pbar:
+        with tqdm(total=total_comparisons, desc=colorize("Creating semantic edges", Colors.INFO)) as pbar:
             for i in range(len(raw_documents)):
                 for j in range(i+1, len(raw_documents)):
                     similarity = util.pytorch_cos_sim(doc_embeddings[i], doc_embeddings[j]).item()
@@ -143,12 +151,12 @@ def create_graph_from_raw(raw_documents: List[str], model: SentenceTransformer) 
     
     return G
 
-
 def save_graph_json(G: nx.Graph, file_path: str):
     graph_data = nx.node_link_data(G)
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
     with open(file_path, 'w', encoding='utf-8') as file:
         json.dump(graph_data, file, indent=2)
+    print(colorize(f"Graph saved as {file_path}", Colors.SUCCESS))
 
 def create_knowledge_graph():
     embeddings_file_path = os.path.join(settings.output_folder, os.path.basename(settings.embeddings_file_path))
@@ -156,6 +164,7 @@ def create_knowledge_graph():
     
     if embeddings is None or content is None:
         logging.error(f"Failed to load data from {embeddings_file_path}")
+        print(colorize(f"Failed to load data from {embeddings_file_path}", Colors.ERROR))
         return None
 
     G = create_networkx_graph(content, embeddings)
@@ -163,6 +172,7 @@ def create_knowledge_graph():
     save_graph_json(G, knowledge_graph_file_path)
     logging.info(f"NetworkX graph created with {G.number_of_nodes()} nodes and {G.number_of_edges()} edges.")
     logging.info(f"Graph saved as {knowledge_graph_file_path}")
+    print(colorize(f"NetworkX graph created with {G.number_of_nodes()} nodes and {G.number_of_edges()} edges.", Colors.SUCCESS))
     return G
 
 def create_knowledge_graph_from_raw(raw_file_path: str):
@@ -177,7 +187,10 @@ def create_knowledge_graph_from_raw(raw_file_path: str):
     save_graph_json(G, knowledge_graph_file_path)
     logging.info(f"NetworkX graph created from raw documents with {G.number_of_nodes()} nodes and {G.number_of_edges()} edges.")
     logging.info(f"Graph saved as {knowledge_graph_file_path}")
+    print(colorize(f"NetworkX graph created from raw documents with {G.number_of_nodes()} nodes and {G.number_of_edges()} edges.", Colors.SUCCESS))
     return G
 
 if __name__ == "__main__":
+    print(colorize("Creating knowledge graph...", Colors.INFO))
     create_knowledge_graph()
+    print(colorize("Knowledge graph creation completed.", Colors.SUCCESS))

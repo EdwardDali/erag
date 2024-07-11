@@ -4,11 +4,11 @@ from src.settings import settings
 from src.api_model import configure_api, LlamaClient
 from src.talk2doc import RAGSystem
 from src.web_rag import WebRAG
-from colorama import Fore, Style, init
-from tqdm import tqdm
+from src.color_scheme import Colors, colorize
+import colorama
 
 # Initialize colorama
-init(autoreset=True)
+colorama.init(autoreset=True)
 
 def read_questions(file_path):
     with open(file_path, 'r', encoding='utf-8') as file:
@@ -66,7 +66,7 @@ def run_gen_a(questions_file, gen_method, api_type, client):
         web_rag = WebRAG(api_type)
     
     with open(output_file, 'w', encoding='utf-8') as f:
-        for i, question in enumerate(tqdm(questions, desc="Generating Answers", bar_format="{l_bar}%s{bar}%s{r_bar}" % (Fore.GREEN, Fore.RESET))):
+        for i, question in enumerate(tqdm(questions, desc="Generating Answers", bar_format="{l_bar}%s{bar}%s{r_bar}" % (Colors.INFO, Colors.RESET))):
             if gen_method == "talk2doc":
                 answer = generate_answer_talk2doc(rag_system, question)
             elif gen_method == "web_rag":
@@ -80,9 +80,9 @@ def run_gen_a(questions_file, gen_method, api_type, client):
             f.write("-" * 50 + "\n\n")
             f.flush()  # Ensure the content is written to the file immediately
             
-            print(f"\n{Fore.CYAN}Processed question {i+1}/{len(questions)}{Style.RESET_ALL}")
+            print(colorize(f"\nProcessed question {i+1}/{len(questions)}", Colors.INFO))
 
-    return f"{Fore.GREEN}Generated answers for {len(questions)} questions using {gen_method} method. Saved to {output_file}{Style.RESET_ALL}"
+    return colorize(f"Generated answers for {len(questions)} questions using {gen_method} method. Saved to {output_file}", Colors.SUCCESS)
 
 if __name__ == "__main__":
-    print(f"{Fore.YELLOW}This module is not meant to be run directly. Import and use run_gen_a function in your main script.{Style.RESET_ALL}")
+    print(colorize("This module is not meant to be run directly. Import and use run_gen_a function in your main script.", Colors.WARNING))

@@ -14,20 +14,14 @@ import json
 from src.search_utils import SearchUtils
 from src.settings import settings
 from src.api_model import configure_api
-from colorama import Fore, Style, init
+from src.color_scheme import Colors, colorize
+import colorama
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Initialize colorama
-init(autoreset=True)
-
-class ANSIColor(Enum):
-    PINK = '\033[95m'
-    CYAN = '\033[96m'
-    YELLOW = '\033[93m'
-    NEON_GREEN = '\033[92m'
-    RESET = '\033[0m'
+colorama.init(autoreset=True)
 
 class RAGSystem:
     def __init__(self, api_type: str):
@@ -181,27 +175,28 @@ Text Search Results:
     def run(self):
         system_message = "You are a helpful assistant that is an expert at extracting the most useful information from a given text. Prioritize the most recent conversation context when answering questions, but also consider other relevant information if necessary. If the given context doesn't provide a suitable answer, rely on your general knowledge."
 
-        print(f"{Fore.YELLOW}Welcome to the RAG system. Type 'exit' to quit or 'clear' to clear conversation history.{Style.RESET_ALL}")
+        print(colorize("Welcome to the RAG system. Type 'exit' to quit or 'clear' to clear conversation history.", Colors.INFO))
 
         while True:
-            user_input = input(f"{Fore.GREEN}Ask a question about your documents: {Style.RESET_ALL}").strip()
+            user_input = input(colorize("Ask a question about your documents: ", Colors.INFO)).strip()
 
             if user_input.lower() == 'exit':
-                print(f"{Fore.YELLOW}Thank you for using the RAG system. Goodbye!{Style.RESET_ALL}")
+                print(colorize("Thank you for using the RAG system. Goodbye!", Colors.SUCCESS))
                 self.update_embeddings()
                 break
             elif user_input.lower() == 'clear':
                 self.conversation_history.clear()
                 self.conversation_context.clear()
-                print(f"{Fore.CYAN}Conversation history and context cleared.{Style.RESET_ALL}")
+                print(colorize("Conversation history and context cleared.", Colors.SUCCESS))
                 continue
 
             if not user_input:
-                print(f"{Fore.RED}Please enter a valid question.{Style.RESET_ALL}")
+                print(colorize("Please enter a valid question.", Colors.ERROR))
                 continue
 
             response = self.get_response(user_input)
-            print(f"{Fore.MAGENTA}Response: \n\n{response}{Style.RESET_ALL}")
+            print(colorize("Response: \n\n", Colors.SUCCESS) + response)
+
 
             self.conversation_history.append({"role": "user", "content": user_input})
             self.conversation_history.append({"role": "assistant", "content": response})
@@ -267,7 +262,7 @@ Knowledge Graph Context:
 Text Search Results:
 {text_str}"""
 
-        print(f"{Fore.CYAN}Combined context pulled: {combined_context[:200]}...{Style.RESET_ALL}")
+        print(colorize(f"Combined context pulled: {combined_context[:200]}...", Colors.INFO))
 
         messages = [
             {"role": "system", "content": system_message},
@@ -288,14 +283,14 @@ Text Search Results:
             else:
                 raise ValueError(f"Unsupported API type for chat: {self.api_type}")
 
-            print(f"{Fore.GREEN}Generated response for query: {query[:50]}...{Style.RESET_ALL}")
+            print(colorize(f"Generated response for query: {query[:50]}...", Colors.SUCCESS))
 
             self.save_debug_results(query, lexical_context, semantic_context, graph_context, text_context, response)
 
             return response
         except Exception as e:
             error_message = f"Error in API call: {str(e)}"
-            print(f"{Fore.RED}{error_message}{Style.RESET_ALL}")
+            print(colorize(error_message, Colors.ERROR))
             logging.error(error_message)
             return f"I'm sorry, but I encountered an error while processing your request: {str(e)}"
 
@@ -339,7 +334,7 @@ if __name__ == "__main__":
         api_type = sys.argv[1]
         main(api_type)
     else:
-        print("Error: No API type provided.")
-        print("Usage: python src/talk2doc.py <api_type>")  # Updated usage instruction
-        print("Available API types: ollama, llama, sentence_transformer")
+        print(colorize("Error: No API type provided.", Colors.ERROR))
+        print(colorize("Usage: python src/talk2doc.py <api_type>", Colors.INFO))
+        print(colorize("Available API types: ollama, llama, sentence_transformer", Colors.INFO))
         sys.exit(1)

@@ -1,20 +1,17 @@
 import sys
 import logging
-from enum import Enum
 from src.settings import settings
 import re
 import os
 from src.api_model import configure_api, LlamaClient
+from src.color_scheme import Colors, colorize
+import colorama
+
+# Initialize colorama
+colorama.init(autoreset=True)
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
-class ANSIColor(Enum):
-    PINK = '\033[95m'
-    CYAN = '\033[96m'
-    YELLOW = '\033[93m'
-    NEON_GREEN = '\033[92m'
-    RESET = '\033[0m'
 
 class RouteQuery:
     def __init__(self, api_type: str):
@@ -37,7 +34,7 @@ class RouteQuery:
             return content
         except FileNotFoundError:
             logging.error(f"{db_content_path} not found")
-            print(f"\n{ANSIColor.PINK.value}Warning: db_content.txt not found. Please upload and process documents first.{ANSIColor.RESET.value}")
+            print(colorize("\nWarning: db_content.txt not found. Please upload and process documents first.", Colors.WARNING))
             print("You can do this by:")
             print("1. Using the 'Upload' buttons in the main tab to process documents")
             print("2. Clicking 'Execute Embeddings' to generate the necessary files for using Doc RAG")
@@ -117,9 +114,9 @@ First check if there is relevant information in the TOC; if yes chose A or B. If
                 )
                 llm_response = response.choices[0].message.content
             
-            print(f"\n{ANSIColor.CYAN.value}LLM-generated response:{ANSIColor.RESET.value}")
+            print(colorize("LLM-generated response:", Colors.INFO))
             print(llm_response)
-            print(f"\n{ANSIColor.YELLOW.value}Parsing LLM response...{ANSIColor.RESET.value}")
+            print(colorize("Parsing LLM response...", Colors.INFO))
             
             parsed_response = self.parse_evaluation(llm_response)
             
@@ -177,7 +174,7 @@ First check if there is relevant information in the TOC; if yes chose A or B. If
             raise ValueError(f"Unknown component: {component_name}")
 
     def route_query(self, query: str, evaluation: dict):
-        print(f"{ANSIColor.CYAN.value}Routing decision:{ANSIColor.RESET.value}")
+        print(colorize("Routing decision:", Colors.INFO))
         print(f"Relevance: {evaluation['relevance']}")
         print(f"Complexity: {evaluation['complexity']}")
         print(f"Recommendation: {evaluation['recommendation']}")
@@ -190,9 +187,9 @@ First check if there is relevant information in the TOC; if yes chose A or B. If
             'D': 'web_sum'
         }.get(evaluation['recommendation'], 'web_rag')
 
-        print(f"\n{ANSIColor.YELLOW.value}Loading system: {system_to_load}{ANSIColor.RESET.value}")
+        print(colorize(f"\nLoading system: {system_to_load}", Colors.INFO))
         component = self.load_component(system_to_load)
-        print(f"{ANSIColor.NEON_GREEN.value}System loaded: {system_to_load}{ANSIColor.RESET.value}")
+        print(colorize(f"System loaded: {system_to_load}", Colors.SUCCESS))
 
         if system_to_load == 'talk2doc':
             response = component.ollama_chat(query, "You are a helpful assistant. Please respond to the user's query based on the available context.")
@@ -204,31 +201,31 @@ First check if there is relevant information in the TOC; if yes chose A or B. If
         else:
             response = "Error: Invalid system selected."
 
-        print(f"\n{ANSIColor.NEON_GREEN.value}Response:{ANSIColor.RESET.value}")
+        print(colorize("\nResponse:", Colors.SUCCESS))
         print(response)
 
     def run(self):
-        print(f"{ANSIColor.YELLOW.value}Welcome to the Query Routing System. Type 'exit' to quit.{ANSIColor.RESET.value}")
-        print(f"{ANSIColor.CYAN.value}Using output folder: {settings.output_folder}{ANSIColor.RESET.value}")
+        print(colorize("Welcome to the Query Routing System. Type 'exit' to quit.", Colors.INFO))
+        print(colorize(f"Using output folder: {settings.output_folder}", Colors.INFO))
 
         # Check if db_content.txt exists and is not empty
         db_content = self.load_db_content()
         if not db_content:
-            print(f"{ANSIColor.PINK.value}Error: Cannot start the Query Routing System. Please upload and process documents first.{ANSIColor.RESET.value}")
+            print(colorize("Error: Cannot start the Query Routing System. Please upload and process documents first.", Colors.ERROR))
             return
 
         while True:
-            user_input = input(f"\n{ANSIColor.YELLOW.value}Enter your query: {ANSIColor.RESET.value}").strip()
+            user_input = input(colorize("\nEnter your query: ", Colors.INFO)).strip()
 
             if user_input.lower() == 'exit':
-                print(f"{ANSIColor.NEON_GREEN.value}Thank you for using the Query Routing System. Goodbye!{ANSIColor.RESET.value}")
+                print(colorize("Thank you for using the Query Routing System. Goodbye!", Colors.SUCCESS))
                 break
 
             if not user_input:
-                print(f"{ANSIColor.PINK.value}Please enter a valid query.{ANSIColor.RESET.value}")
+                print(colorize("Please enter a valid query.", Colors.ERROR))
                 continue
 
-            print(f"{ANSIColor.CYAN.value}Evaluating your query...{ANSIColor.RESET.value}")
+            print(colorize("Evaluating your query...", Colors.INFO))
             evaluation = self.evaluate_query(user_input)
 
             self.route_query(user_input, evaluation)
@@ -242,7 +239,7 @@ if __name__ == "__main__":
         api_type = sys.argv[1]
         main(api_type)
     else:
-        print("Error: No API type provided.")
-        print("Usage: python src/route_query.py <api_type>")
-        print("Available API types: ollama, llama")
+        print(colorize("Error: No API type provided.", Colors.ERROR))
+        print(colorize("Usage: python src/route_query.py <api_type>", Colors.INFO))
+        print(colorize("Available API types: ollama, llama", Colors.INFO))
         sys.exit(1)
