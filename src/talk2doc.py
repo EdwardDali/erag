@@ -14,9 +14,13 @@ import json
 from src.search_utils import SearchUtils
 from src.settings import settings
 from src.api_model import configure_api
+from colorama import Fore, Style, init
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# Initialize colorama
+init(autoreset=True)
 
 class ANSIColor(Enum):
     PINK = '\033[95m'
@@ -177,27 +181,27 @@ Text Search Results:
     def run(self):
         system_message = "You are a helpful assistant that is an expert at extracting the most useful information from a given text. Prioritize the most recent conversation context when answering questions, but also consider other relevant information if necessary. If the given context doesn't provide a suitable answer, rely on your general knowledge."
 
-        print(f"{ANSIColor.YELLOW.value}Welcome to the RAG system. Type 'exit' to quit or 'clear' to clear conversation history.{ANSIColor.RESET.value}")
+        print(f"{Fore.YELLOW}Welcome to the RAG system. Type 'exit' to quit or 'clear' to clear conversation history.{Style.RESET_ALL}")
 
         while True:
-            user_input = input(f"{ANSIColor.YELLOW.value}Ask a question about your documents: {ANSIColor.RESET.value}").strip()
+            user_input = input(f"{Fore.GREEN}Ask a question about your documents: {Style.RESET_ALL}").strip()
 
             if user_input.lower() == 'exit':
-                print(f"{ANSIColor.NEON_GREEN.value}Thank you for using the RAG system. Goodbye!{ANSIColor.RESET.value}")
+                print(f"{Fore.YELLOW}Thank you for using the RAG system. Goodbye!{Style.RESET_ALL}")
                 self.update_embeddings()
                 break
             elif user_input.lower() == 'clear':
                 self.conversation_history.clear()
                 self.conversation_context.clear()
-                print(f"{ANSIColor.CYAN.value}Conversation history and context cleared.{ANSIColor.RESET.value}")
+                print(f"{Fore.CYAN}Conversation history and context cleared.{Style.RESET_ALL}")
                 continue
 
             if not user_input:
-                print(f"{ANSIColor.PINK.value}Please enter a valid question.{ANSIColor.RESET.value}")
+                print(f"{Fore.RED}Please enter a valid question.{Style.RESET_ALL}")
                 continue
 
-            response = self.ollama_chat(user_input, system_message)
-            print(f"{ANSIColor.NEON_GREEN.value}Response: \n\n{response}{ANSIColor.RESET.value}")
+            response = self.get_response(user_input)
+            print(f"{Fore.MAGENTA}Response: \n\n{response}{Style.RESET_ALL}")
 
             self.conversation_history.append({"role": "user", "content": user_input})
             self.conversation_history.append({"role": "assistant", "content": response})
@@ -263,7 +267,7 @@ Knowledge Graph Context:
 Text Search Results:
 {text_str}"""
 
-        logging.info(f"Combined context pulled: {combined_context[:200]}...")
+        print(f"{Fore.CYAN}Combined context pulled: {combined_context[:200]}...{Style.RESET_ALL}")
 
         messages = [
             {"role": "system", "content": system_message},
@@ -284,11 +288,15 @@ Text Search Results:
             else:
                 raise ValueError(f"Unsupported API type for chat: {self.api_type}")
 
+            print(f"{Fore.GREEN}Generated response for query: {query[:50]}...{Style.RESET_ALL}")
+
             self.save_debug_results(query, lexical_context, semantic_context, graph_context, text_context, response)
 
             return response
         except Exception as e:
-            logging.error(f"Error in API call: {str(e)}")
+            error_message = f"Error in API call: {str(e)}"
+            print(f"{Fore.RED}{error_message}{Style.RESET_ALL}")
+            logging.error(error_message)
             return f"I'm sorry, but I encountered an error while processing your request: {str(e)}"
 
     def extract_response_from_text(self, text):

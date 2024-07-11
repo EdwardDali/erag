@@ -756,7 +756,7 @@ class ERAGGUI:
             questions_file = filedialog.askopenfilename(title="Select Questions File",
                                                         filetypes=[("Text files", "*.txt")])
             if not questions_file:
-                messagebox.showwarning("Warning", "No file selected.")
+                print(f"{Fore.RED}No file selected. Exiting.{Style.RESET_ALL}")
                 return
 
             # Read questions and count them
@@ -791,15 +791,15 @@ class ERAGGUI:
             api_type = self.api_type_var.get()
             client = configure_api(api_type)
 
-            # Apply settings before running the answer generation
+            # Apply settings silently
             self.apply_settings()
 
             # Run the answer generation in a separate thread
             threading.Thread(target=self._gen_a_thread, args=(questions_file, gen_method, api_type, client), daemon=True).start()
 
-            messagebox.showinfo("Info", f"Answer generation started using {gen_method} method. Check the console for progress.")
+            print(f"{Fore.CYAN}Answer generation started using {gen_method} method. Check the console for progress.{Style.RESET_ALL}")
         except Exception as e:
-            messagebox.showerror("Error", f"An error occurred while starting the answer generation process: {str(e)}")
+            print(f"{Fore.RED}An error occurred while starting the answer generation process: {str(e)}{Style.RESET_ALL}")
 
     def _gen_a_thread(self, questions_file, gen_method, api_type, client):
         try:
