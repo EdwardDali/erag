@@ -14,33 +14,31 @@ def generate_answer_talk2doc(rag_system, question):
     return response
 
 def generate_answer_web_rag(web_rag, question):
-    # Use the existing search_and_process method for each question
     response = web_rag.search_and_process(question)
     return response
 
-def generate_answer_hybrid(rag_system, web_rag, question):
+def generate_answer_hybrid(rag_system, web_rag, question, client):
     talk2doc_response = rag_system.get_response(question)
     web_rag_response = web_rag.search_and_process(question)
     
-    hybrid_prompt = f"""Combine the following two answers into a comprehensive response:
+    hybrid_prompt = f"""Combine and rephrase the following two answers into a comprehensive and coherent response:
 
 Answer 1 (Talk2Doc): {talk2doc_response}
 
 Answer 2 (Web RAG): {web_rag_response}
 
-Combined answer:"""
+Combined and rephrased answer:"""
 
-    client = configure_api(settings.api_type)
     if isinstance(client, LlamaClient):
         combined_response = client.chat([
-            {"role": "system", "content": "You are a helpful assistant that combines information from multiple sources."},
+            {"role": "system", "content": "You are a helpful assistant that combines and rephrases information from multiple sources into a coherent response."},
             {"role": "user", "content": hybrid_prompt}
         ], temperature=settings.temperature)
     else:
         combined_response = client.chat.completions.create(
             model=settings.ollama_model,
             messages=[
-                {"role": "system", "content": "You are a helpful assistant that combines information from multiple sources."},
+                {"role": "system", "content": "You are a helpful assistant that combines and rephrases information from multiple sources into a coherent response."},
                 {"role": "user", "content": hybrid_prompt}
             ],
             temperature=settings.temperature
@@ -69,12 +67,16 @@ def run_gen_a(questions_file, gen_method, api_type, client):
             elif gen_method == "web_rag":
                 answer = generate_answer_web_rag(web_rag, question)
             else:  # hybrid
-                answer = generate_answer_hybrid(rag_system, web_rag, question)
+                answer = generate_answer_hybrid(rag_system, web_rag, question, client)
             
+            # Write to file immediately after generating each answer
             f.write(f"Question: {question}\n\n")
             f.write(f"Answer: {answer}\n\n")
             f.write("-" * 50 + "\n\n")
-    
+            f.flush()  # Ensure the content is written to the file immediately
+            
+            print(f"\nProcessed question {i+1}/{len(questions)}")
+
     return f"Generated answers for {len(questions)} questions using {gen_method} method. Saved to {output_file}"
 
 if __name__ == "__main__":

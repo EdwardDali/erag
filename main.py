@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+from colorama import Fore, Style, init
 
 # Add the project root directory to the Python path
 project_root = Path(__file__).parent
@@ -88,6 +89,9 @@ class ERAGGUI:
 
         # Set up the window close event
         self.master.protocol("WM_DELETE_WINDOW", self.on_closing)
+
+        # Initialize colorama
+        init(autoreset=True)
 
     def create_widgets(self):
         self.main_tab = ttk.Frame(self.notebook)
@@ -755,22 +759,36 @@ class ERAGGUI:
                 messagebox.showwarning("Warning", "No file selected.")
                 return
 
-            # Display options to the user
-            options = ["Talk2Doc", "Web RAG", "Hybrid"]
-            choice = simpledialog.askinteger("Answer Generation Method",
-                                             "Choose the answer generation method:\n\n"
-                                             "1. Talk2Doc\n"
-                                             "2. Web RAG\n"
-                                             "3. Hybrid (Talk2Doc + Web RAG)",
-                                             minvalue=1, maxvalue=3)
+            # Read questions and count them
+            with open(questions_file, 'r', encoding='utf-8') as file:
+                questions = [line.strip() for line in file if line.strip()]
             
-            if choice is None:
-                return  # User cancelled the dialog
+            print(f"\n{Fore.GREEN}Question file imported correctly, {len(questions)} questions identified.{Style.RESET_ALL}")
+
+            # Display options to the user in the console
+            print(f"\n{Fore.CYAN}Choose the answer generation method:{Style.RESET_ALL}")
+            print(f"{Fore.YELLOW}1. Talk2Doc{Style.RESET_ALL}")
+            print(f"{Fore.YELLOW}2. WebRAG{Style.RESET_ALL}")
+            print(f"{Fore.YELLOW}3. Hybrid (Talk2Doc + WebRAG){Style.RESET_ALL}")
+            print(f"{Fore.YELLOW}4. Exit{Style.RESET_ALL}")
             
-            gen_method = options[choice - 1].lower().replace(" ", "_")
+            while True:
+                choice = input(f"{Fore.GREEN}Enter your choice (1, 2, 3, or 4): {Style.RESET_ALL}").strip()
+                if choice in ['1', '2', '3', '4']:
+                    break
+                print(f"{Fore.RED}Invalid choice. Please enter 1, 2, 3, or 4.{Style.RESET_ALL}")
+
+            if choice == '4':
+                print(f"{Fore.CYAN}Exiting the answer generation process.{Style.RESET_ALL}")
+                return
+
+            gen_method = {
+                '1': 'talk2doc',
+                '2': 'web_rag',
+                '3': 'hybrid'
+            }[choice]
 
             api_type = self.api_type_var.get()
-            model = self.model_var.get()
             client = configure_api(api_type)
 
             # Apply settings before running the answer generation
