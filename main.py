@@ -9,8 +9,9 @@ import warnings
 warnings.filterwarnings("ignore", category=FutureWarning, module="huggingface_hub.file_download")
 
 import tkinter as tk
-from tkinter import messagebox, ttk, filedialog
+from tkinter import messagebox, ttk, filedialog, simpledialog
 import threading
+import asyncio
 import os
 from src.file_processing import process_file, append_to_db
 from src.talk2doc import RAGSystem
@@ -30,6 +31,7 @@ from src.talk2url import Talk2URL
 from src.talk2git import Talk2Git
 from src.create_q import run_create_q
 from src.server import ServerManager
+from src.gen_a import run_gen_a
 
 class ToolTip:
     def __init__(self, widget, text):
@@ -243,10 +245,14 @@ class ERAGGUI:
         create_sum_button.pack(side="left", padx=5, pady=5)
         ToolTip(create_sum_button, "Create a summary of an uploaded document")
 
-        # New button for Create Q
         create_q_button = tk.Button(rag_frame, text="Create Q", command=self.run_create_q)
         create_q_button.pack(side="left", padx=5, pady=5)
         ToolTip(create_q_button, "Create questions based on an input document")
+
+        # New 'Gen A' button
+        gen_a_button = tk.Button(rag_frame, text="Gen A", command=self.run_gen_a)
+        gen_a_button.pack(side="left", padx=5, pady=5)
+        ToolTip(gen_a_button, "Generate answers based on existing questions")
 
     def create_web_rag_frame(self):
         rag_frame = tk.LabelFrame(self.main_tab, text="Web Rag")
@@ -738,6 +744,57 @@ class ERAGGUI:
             messagebox.showinfo("Info", f"Web RAG system started with {api_type} API. Check the console for interaction.")
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred while starting the Web RAG system: {str(e)}")
+
+
+    def run_gen_a(self):
+        try:
+            # Open file dialog to select the questions file
+            questions_file = filedialog.askopenfilename(title="Select Questions File",
+                                                        filetypes=[("Text files", "*.txt")])
+            if not questions_file:
+                messagebox.showwarning("Warning", "No file selected.")
+                return
+
+            # Display options to the user
+            options = ["Talk2Doc", "Web RAG", "Hybrid"]
+            choice = simpledialog.askinteger("Answer Generation Method",
+                                             "Choose the answer generation method:\n\n"
+                                             "1. Talk2Doc\n"
+                                             "2. Web RAG\n"
+                                             "3. Hybrid (Talk2Doc + Web RAG)",
+                                             minvalue=1, maxvalue=3)
+            
+            if choice is None:
+                return  # User cancelled the dialog
+            
+            gen_method = options[choice - 1].lower().replace(" ", "_")
+
+            api_type = self.api_type_var.get()
+            model = self.model_var.get()
+            client = configure_api(api_type)
+
+            # Apply settings before running the answer generation
+            self.apply_settings()
+
+            # Run the answer generation in a separate thread
+            threading.Thread(target=self._gen_a_thread, args=(questions_file, gen_method, api_type, client), daemon=True).start()
+
+            messagebox.showinfo("Info", f"Answer generation started using {gen_method} method. Check the console for progress.")
+        except Exception as e:
+            messagebox.showerror("Error", f"An error occurred while starting the answer generation process: {str(e)}")
+
+    def _gen_a_thread(self, questions_file, gen_method, api_type, client):
+        try:
+            from src.gen_a import run_gen_a
+            result = run_gen_a(questions_file, gen_method, api_type, client)
+            print(result)
+            messagebox.showinfo("Success", "Answers generated successfully. Check the output file.")
+        except Exception as e:
+            error_message = f"An error occurred during answer generation: {str(e)}"
+            print(error_message)
+            messagebox.showerror("Error", error_message)
+
+            
 
     def create_server_tab(self):
         # Enable/Disable on start

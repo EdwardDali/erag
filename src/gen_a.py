@@ -1,0 +1,81 @@
+import os
+from tqdm import tqdm
+from src.settings import settings
+from src.api_model import configure_api, LlamaClient
+from src.talk2doc import RAGSystem
+from src.web_rag import WebRAG
+
+def read_questions(file_path):
+    with open(file_path, 'r', encoding='utf-8') as file:
+        return [line.strip() for line in file if line.strip()]
+
+def generate_answer_talk2doc(rag_system, question):
+    response = rag_system.get_response(question)
+    return response
+
+def generate_answer_web_rag(web_rag, question):
+    # Use the existing search_and_process method for each question
+    response = web_rag.search_and_process(question)
+    return response
+
+def generate_answer_hybrid(rag_system, web_rag, question):
+    talk2doc_response = rag_system.get_response(question)
+    web_rag_response = web_rag.search_and_process(question)
+    
+    hybrid_prompt = f"""Combine the following two answers into a comprehensive response:
+
+Answer 1 (Talk2Doc): {talk2doc_response}
+
+Answer 2 (Web RAG): {web_rag_response}
+
+Combined answer:"""
+
+    client = configure_api(settings.api_type)
+    if isinstance(client, LlamaClient):
+        combined_response = client.chat([
+            {"role": "system", "content": "You are a helpful assistant that combines information from multiple sources."},
+            {"role": "user", "content": hybrid_prompt}
+        ], temperature=settings.temperature)
+    else:
+        combined_response = client.chat.completions.create(
+            model=settings.ollama_model,
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant that combines information from multiple sources."},
+                {"role": "user", "content": hybrid_prompt}
+            ],
+            temperature=settings.temperature
+        ).choices[0].message.content
+
+    return combined_response
+
+def run_gen_a(questions_file, gen_method, api_type, client):
+    questions = read_questions(questions_file)
+    
+    output_file = os.path.join(settings.output_folder, f"generated_answers_{gen_method}.txt")
+    
+    rag_system = None
+    web_rag = None
+    
+    if gen_method in ["talk2doc", "hybrid"]:
+        rag_system = RAGSystem(api_type)
+    
+    if gen_method in ["web_rag", "hybrid"]:
+        web_rag = WebRAG(api_type)
+    
+    with open(output_file, 'w', encoding='utf-8') as f:
+        for i, question in enumerate(tqdm(questions, desc="Generating Answers")):
+            if gen_method == "talk2doc":
+                answer = generate_answer_talk2doc(rag_system, question)
+            elif gen_method == "web_rag":
+                answer = generate_answer_web_rag(web_rag, question)
+            else:  # hybrid
+                answer = generate_answer_hybrid(rag_system, web_rag, question)
+            
+            f.write(f"Question: {question}\n\n")
+            f.write(f"Answer: {answer}\n\n")
+            f.write("-" * 50 + "\n\n")
+    
+    return f"Generated answers for {len(questions)} questions using {gen_method} method. Saved to {output_file}"
+
+if __name__ == "__main__":
+    print("This module is not meant to be run directly. Import and use run_gen_a function in your main script.")

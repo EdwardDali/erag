@@ -304,6 +304,16 @@ Please provide a comprehensive and well-structured answer to the question based 
         if len(self.conversation_history) > settings.max_history_length * 2:
             self.conversation_history = self.conversation_history[-settings.max_history_length * 2:]
 
+    def get_response(self, query: str) -> str:
+        if not self.search_utils or not self.current_query:
+            print(f"{ANSIColor.CYAN.value}Searching and processing web content...{ANSIColor.RESET.value}")
+            answer = self.search_and_process(query)
+        else:
+            print(f"{ANSIColor.CYAN.value}Generating answer based on existing knowledge...{ANSIColor.RESET.value}")
+            answer = self.generate_qa(query)
+
+        return answer
+
     def run(self):
         print(f"{ANSIColor.YELLOW.value}Welcome to the Web RAG System. Type 'exit' to quit, 'clear' to clear conversation history, or 'check' to process more URLs and update the knowledge base.{ANSIColor.RESET.value}")
         print(f"{ANSIColor.CYAN.value}All generated files will be saved in: {settings.output_folder}{ANSIColor.RESET.value}")

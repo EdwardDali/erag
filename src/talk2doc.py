@@ -6,14 +6,14 @@ from sentence_transformers import SentenceTransformer
 from typing import List, Dict
 import logging
 from collections import deque
-from src.embeddings_utils import load_embeddings_and_data  # Updated import
+from src.embeddings_utils import load_embeddings_and_data
 from enum import Enum
 from openai import OpenAI
 import networkx as nx
 import json
-from src.search_utils import SearchUtils  # Updated import
-from src.settings import settings  # Updated import
-from src.api_model import configure_api  # Updated import
+from src.search_utils import SearchUtils
+from src.settings import settings
+from src.api_model import configure_api
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -31,7 +31,7 @@ class RAGSystem:
         self.client = configure_api(api_type)
         
         if api_type in ["ollama", "llama"]:
-            self.model = self.client  # For LLM APIs, the client is the model
+            self.model = self.client
             self.embedding_model = SentenceTransformer(settings.sentence_transformer_model)
         elif api_type == "sentence_transformer":
             self.model = SentenceTransformer(settings.sentence_transformer_model)
@@ -237,6 +237,90 @@ Text Search Results:
             
             self.new_entries.clear()
             logging.info("Embeddings updated successfully.")
+
+
+    def get_response(self, query: str) -> str:
+        system_message = "You are a helpful assistant that is an expert at extracting the most useful information from a given text. Prioritize the most recent conversation context when answering questions, but also consider other relevant information if necessary. If the given context doesn't provide a suitable answer, rely on your general knowledge."
+
+        lexical_context, semantic_context, graph_context, text_context = self.search_utils.get_relevant_context(query, list(self.conversation_context))
+        
+        lexical_str = "\n".join(lexical_context)
+        semantic_str = "\n".join(semantic_context)
+        graph_str = "\n".join(graph_context)
+        text_str = "\n".join(text_context)
+
+        combined_context = f"""Conversation Context:\n{' '.join(self.conversation_context)}
+
+Lexical Search Results:
+{lexical_str}
+
+Semantic Search Results:
+{semantic_str}
+
+Knowledge Graph Context:
+{graph_str}
+
+Text Search Results:
+{text_str}"""
+
+        logging.info(f"Combined context pulled: {combined_context[:200]}...")
+
+        messages = [
+            {"role": "system", "content": system_message},
+            *self.conversation_history,
+            {"role": "user", "content": f"Context:\n{combined_context}\n\nQuestion: {query}\n\nPlease prioritize the Conversation Context when answering, followed by the most relevant information from either the lexical, semantic, knowledge graph, or text search results. If none of the provided context is relevant, you can answer based on your general knowledge."}
+        ]
+
+        try:
+            if self.api_type == "ollama":
+                response = self.client.chat.completions.create(
+                    model=settings.ollama_model,
+                    messages=messages,
+                    temperature=settings.temperature
+                ).choices[0].message.content
+            elif self.api_type == "llama":
+                formatted_prompt = self.format_messages_for_llama(messages)
+                response = self.client.complete(formatted_prompt, temperature=settings.temperature)
+            else:
+                raise ValueError(f"Unsupported API type for chat: {self.api_type}")
+
+            self.save_debug_results(query, lexical_context, semantic_context, graph_context, text_context, response)
+
+            return response
+        except Exception as e:
+            logging.error(f"Error in API call: {str(e)}")
+            return f"I'm sorry, but I encountered an error while processing your request: {str(e)}"
+
+    def extract_response_from_text(self, text):
+        try:
+            # Add your parsing logic here if needed
+            return text.strip()
+        except Exception as e:
+            logging.error(f"Error parsing response: {str(e)}")
+            return f"Error parsing response: {text[:100]}..."  # Return first 100 characters of the response
+
+    def save_debug_results(self, user_input: str, lexical_context: List[str], 
+                           semantic_context: List[str], 
+                           graph_context: List[str], 
+                           text_context: List[str],
+                           response: str):
+        with open(settings.results_file_path, "a", encoding="utf-8") as f:
+            f.write(f"User Input: {user_input}\n\n")
+            f.write("Lexical Search Results:\n")
+            for i, content in enumerate(lexical_context, 1):
+                f.write(f"{i}. {content}\n")
+            f.write("\nSemantic Search Results:\n")
+            for i, content in enumerate(semantic_context, 1):
+                f.write(f"{i}. {content}\n")
+            f.write("\nGraph Context Results:\n")
+            for i, content in enumerate(graph_context, 1):
+                f.write(f"{i}. {content}\n")
+            f.write("\nText Search Results:\n")
+            for i, content in enumerate(text_context, 1):
+                f.write(f"{i}. {content}\n")
+            f.write("\nCombined Response:\n")
+            f.write(f"{response}\n")
+            f.write("\n" + "="*50 + "\n\n")
 
 def main(api_type: str):
     rag_system = RAGSystem(api_type)
