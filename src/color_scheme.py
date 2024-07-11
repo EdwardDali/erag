@@ -1,11 +1,22 @@
 from colorama import Fore, Style
 
 class Colors:
-    INFO = Fore.CYAN
     SUCCESS = Fore.GREEN
-    WARNING = Fore.YELLOW
     ERROR = Fore.RED
-    RESET = Style.RESET_ALL
+    WARNING = Fore.YELLOW
+    INFO = Fore.CYAN
 
 def colorize(text, color):
-    return f"{color}{text}{Colors.RESET}"
+    return f"{color}{text}{Style.RESET_ALL}"
+
+def log_success(message):
+    print(colorize(message, Colors.SUCCESS))
+
+def log_error(message):
+    print(colorize(message, Colors.ERROR))
+
+def log_warning(message):
+    print(colorize(message, Colors.WARNING))
+
+def log_info(message):
+    print(colorize(message, Colors.INFO))
