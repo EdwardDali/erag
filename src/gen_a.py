@@ -4,11 +4,8 @@ from src.settings import settings
 from src.api_model import configure_api, LlamaClient
 from src.talk2doc import RAGSystem
 from src.web_rag import WebRAG
-from src.color_scheme import Colors, colorize
-import colorama
-
-# Initialize colorama
-colorama.init(autoreset=True)
+from src.look_and_feel import success, info, warning, error
+from tqdm import tqdm
 
 def read_questions(file_path):
     with open(file_path, 'r', encoding='utf-8') as file:
@@ -66,7 +63,7 @@ def run_gen_a(questions_file, gen_method, api_type, client):
         web_rag = WebRAG(api_type)
     
     with open(output_file, 'w', encoding='utf-8') as f:
-        for i, question in enumerate(tqdm(questions, desc="Generating Answers", bar_format="{l_bar}%s{bar}%s{r_bar}" % (Colors.INFO, Colors.RESET))):
+        for i, question in enumerate(tqdm(questions, desc="Generating Answers", bar_format="{l_bar}%s{bar}%s{r_bar}" % (success(""), ""))):
             if gen_method == "talk2doc":
                 answer = generate_answer_talk2doc(rag_system, question)
             elif gen_method == "web_rag":
@@ -80,9 +77,9 @@ def run_gen_a(questions_file, gen_method, api_type, client):
             f.write("-" * 50 + "\n\n")
             f.flush()  # Ensure the content is written to the file immediately
             
-            print(colorize(f"\nProcessed question {i+1}/{len(questions)}", Colors.INFO))
+            print(f"\n{info(f'Processed question {i+1}/{len(questions)}')}")
 
-    return colorize(f"Generated answers for {len(questions)} questions using {gen_method} method. Saved to {output_file}", Colors.SUCCESS)
+    return success(f"Generated answers for {len(questions)} questions using {gen_method} method. Saved to {output_file}")
 
 if __name__ == "__main__":
-    print(colorize("This module is not meant to be run directly. Import and use run_gen_a function in your main script.", Colors.WARNING))
+    print(warning("This module is not meant to be run directly. Import and use run_gen_a function in your main script."))

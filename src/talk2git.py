@@ -4,13 +4,9 @@ import requests
 from urllib.parse import urlparse
 from src.settings import settings
 from src.api_model import configure_api, LlamaClient
-from src.color_scheme import Colors, colorize
-import colorama
+from src.talk2doc import ANSIColor
 import base64
 import time
-
-# Initialize colorama
-colorama.init(autoreset=True)
 
 class Talk2Git:
     def __init__(self, api_type: str, github_token: str = ""):
@@ -61,7 +57,7 @@ class Talk2Git:
             elif response.status_code == 403 and 'rate limit exceeded' in response.text:
                 reset_time = int(response.headers.get('X-RateLimit-Reset', 0))
                 wait_time = max(reset_time - int(time.time()), 0) + 1
-                print(colorize(f"Rate limit exceeded. Waiting for {wait_time} seconds...", Colors.WARNING))
+                print(f"{ANSIColor.YELLOW.value}Rate limit exceeded. Waiting for {wait_time} seconds...{ANSIColor.RESET.value}")
                 time.sleep(wait_time)
             else:
                 response.raise_for_status()
@@ -80,7 +76,7 @@ class Talk2Git:
                 file_content = self.fetch_file_content(item['url'])
                 file_path = item['path']
                 self.repo_contents[file_path] = file_content
-                print(colorize(f"Successfully processed {file_path}", Colors.SUCCESS))
+                print(f"{ANSIColor.NEON_GREEN.value}Successfully processed {file_path}{ANSIColor.RESET.value}")
             elif item['type'] == 'dir':
                 self.traverse_repo(owner, repo, item['path'])
 
@@ -91,12 +87,12 @@ class Talk2Git:
                 f.write(f"File: {file_path}\n\n")
                 f.write(content)
                 f.write("\n\n" + "="*50 + "\n\n")
-        print(colorize(f"Repository contents saved to {repo_file_path}", Colors.SUCCESS))
+        print(f"{ANSIColor.NEON_GREEN.value}Repository contents saved to {repo_file_path}{ANSIColor.RESET.value}")
 
     def static_code_analysis(self):
         analysis_results = []
         for file_path, content in self.repo_contents.items():
-            print(colorize(f"Analyzing {file_path}...", Colors.INFO))
+            print(f"{ANSIColor.CYAN.value}Analyzing {file_path}...{ANSIColor.RESET.value}")
             
             prompt = f"""Perform a static code analysis on the following file:
 
@@ -327,7 +323,7 @@ Your analysis should be concise but informative."""
         print(f"{ANSIColor.NEON_GREEN.value}Code smell detection completed. Results saved to {analysis_file}{ANSIColor.RESET.value}")
 
     def display_menu(self):
-        print(colorize("\nTalk2Git Menu:", Colors.INFO))
+        print(f"\n{ANSIColor.YELLOW.value}Talk2Git Menu:{ANSIColor.RESET.value}")
         print("1. Analyze repository")
         print("2. Summarize project")
         print("3. Analyze dependencies")
@@ -336,19 +332,19 @@ Your analysis should be concise but informative."""
         print("6. Exit")
 
     def run(self):
-        print(colorize("Welcome to Talk2Git.", Colors.INFO))
+        print(f"{ANSIColor.YELLOW.value}Welcome to Talk2Git.{ANSIColor.RESET.value}")
 
         while True:
             if not self.repo_url:
-                repo_url = input(colorize("Enter the GitHub repository URL: ", Colors.INFO)).strip()
+                repo_url = input(f"{ANSIColor.YELLOW.value}Enter the GitHub repository URL: {ANSIColor.RESET.value}").strip()
                 if not repo_url:
                     continue
-                print(colorize("Processing repository...", Colors.INFO))
+                print(f"{ANSIColor.CYAN.value}Processing repository...{ANSIColor.RESET.value}")
                 processing_result = self.process_repo(repo_url)
-                print(colorize(processing_result, Colors.SUCCESS))
+                print(f"{ANSIColor.NEON_GREEN.value}{processing_result}{ANSIColor.RESET.value}")
 
             self.display_menu()
-            choice = input(colorize("Enter your choice (1-6): ", Colors.INFO)).strip()
+            choice = input(f"{ANSIColor.YELLOW.value}Enter your choice (1-6): {ANSIColor.RESET.value}").strip()
 
             if choice == '1':
                 self.static_code_analysis()
@@ -361,12 +357,12 @@ Your analysis should be concise but informative."""
             elif choice == '5':
                 self.repo_url = ""
                 self.repo_contents.clear()
-                print(colorize("Current repository cleared. Please enter a new repository URL.", Colors.INFO))
+                print(f"{ANSIColor.CYAN.value}Current repository cleared. Please enter a new repository URL.{ANSIColor.RESET.value}")
             elif choice == '6':
-                print(colorize("Thank you for using Talk2Git. Goodbye!", Colors.SUCCESS))
+                print(f"{ANSIColor.NEON_GREEN.value}Thank you for using Talk2Git. Goodbye!{ANSIColor.RESET.value}")
                 break
             else:
-                print(colorize("Invalid choice. Please enter a number between 1 and 6.", Colors.ERROR))
+                print(f"{ANSIColor.PINK.value}Invalid choice. Please enter a number between 1 and 6.{ANSIColor.RESET.value}")
 
 if __name__ == "__main__":
     import sys
@@ -376,7 +372,7 @@ if __name__ == "__main__":
         talk2git = Talk2Git(api_type, github_token)
         talk2git.run()
     else:
-        print(colorize("Error: No API type provided.", Colors.ERROR))
-        print(colorize("Usage: python src/talk2git.py <api_type>", Colors.INFO))
-        print(colorize("Available API types: ollama, llama", Colors.INFO))
+        print("Error: No API type provided.")
+        print("Usage: python src/talk2git.py <api_type>")  # Updated usage instruction
+        print("Available API types: ollama, llama")
         sys.exit(1)

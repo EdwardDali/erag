@@ -10,13 +10,9 @@ from sentence_transformers import SentenceTransformer
 import numpy as np
 from collections import deque
 from src.search_utils import SearchUtils
+from src.talk2doc import ANSIColor
 from src.api_model import configure_api, LlamaClient
 import os
-from src.color_scheme import Colors, colorize
-import colorama
-
-# Initialize colorama
-colorama.init(autoreset=True)
 
 class WebRAG:
     def __init__(self, api_type: str):
@@ -165,7 +161,7 @@ class WebRAG:
 
     def process_next_urls(self):
         if not self.current_query:
-            print(colorize("No current query context. Please perform a search first.", Colors.WARNING))
+            print(f"{ANSIColor.PINK.value}No current query context. Please perform a search first.{ANSIColor.RESET.value}")
             return False
 
         new_search_results = self.perform_search(self.current_query, offset=self.search_offset)
@@ -174,7 +170,7 @@ class WebRAG:
         urls_to_process = [result for result in new_search_results if result['href'] not in self.processed_urls]
         
         if not urls_to_process:
-            print(colorize("No new URLs found to process. Try a new search query.", Colors.WARNING))
+            print(f"{ANSIColor.PINK.value}No new URLs found to process. Try a new search query.{ANSIColor.RESET.value}")
             return False
 
         all_content = []
@@ -192,9 +188,9 @@ class WebRAG:
                         f.write(f"{chunk}\n")
                         all_content.append(chunk)
                     
-                    print(colorize(f"Successfully processed and added content from {url}", Colors.SUCCESS))
+                    print(f"{ANSIColor.NEON_GREEN.value}Successfully processed and added content from {url}{ANSIColor.RESET.value}")
                 else:
-                    print(colorize(f"Failed to process content from {url}", Colors.ERROR))
+                    print(f"{ANSIColor.PINK.value}Failed to process content from {url}{ANSIColor.RESET.value}")
 
         if all_content:
             new_embeddings = self.model.encode(all_content, show_progress_bar=False)
@@ -310,52 +306,61 @@ Please provide a comprehensive and well-structured answer to the question based 
 
     def get_response(self, query: str) -> str:
         if not self.search_utils or not self.current_query:
-            print(colorize("Searching and processing web content...", Colors.INFO))
+            print(f"{ANSIColor.CYAN.value}Searching and processing web content...{ANSIColor.RESET.value}")
             answer = self.search_and_process(query)
         else:
-            print(colorize("Generating answer based on existing knowledge...", Colors.INFO))
+            print(f"{ANSIColor.CYAN.value}Generating answer based on existing knowledge...{ANSIColor.RESET.value}")
             answer = self.generate_qa(query)
 
         return answer
 
     def run(self):
-        print(colorize("Welcome to the Web RAG System. Type 'exit' to quit, 'clear' to clear conversation history, or 'check' to process more URLs and update the knowledge base.", Colors.INFO))
-        print(colorize(f"All generated files will be saved in: {settings.output_folder}", Colors.INFO))
+        print(f"{ANSIColor.YELLOW.value}Welcome to the Web RAG System. Type 'exit' to quit, 'clear' to clear conversation history, or 'check' to process more URLs and update the knowledge base.{ANSIColor.RESET.value}")
+        print(f"{ANSIColor.CYAN.value}All generated files will be saved in: {settings.output_folder}{ANSIColor.RESET.value}")
 
         while True:
-            user_input = input(colorize("Enter your search query, follow-up question, or command: ", Colors.INFO)).strip()
+            user_input = input(f"{ANSIColor.YELLOW.value}Enter your search query, follow-up question, or command: {ANSIColor.RESET.value}").strip()
 
             if user_input.lower() == 'exit':
-                print(colorize("Thank you for using the Web RAG System. Goodbye!", Colors.SUCCESS))
+                print(f"{ANSIColor.NEON_GREEN.value}Thank you for using the Web RAG System. Goodbye!{ANSIColor.RESET.value}")
                 break
             elif user_input.lower() == 'clear':
-                # ... (clearing logic)
-                print(colorize("Conversation history, context, and processed URLs cleared.", Colors.SUCCESS))
+                self.conversation_history.clear()
+                self.conversation_context.clear()
+                self.current_question_file = None
+                self.current_query = None
+                self.context_size = settings.initial_context_size
+                self.processed_urls.clear()
+                self.search_utils = None
+                self.search_offset = 0
+                print(f"{ANSIColor.CYAN.value}Conversation history, context, and processed URLs cleared.{ANSIColor.RESET.value}")
                 continue
             elif user_input.lower() == 'check':
                 if not self.current_query:
-                    print(colorize("No current query. Please perform a search first.", Colors.WARNING))
+                    print(f"{ANSIColor.PINK.value}No current query. Please perform a search first.{ANSIColor.RESET.value}")
                     continue
-                print(colorize("Searching for new URLs and updating knowledge base...", Colors.INFO))
+                print(f"{ANSIColor.CYAN.value}Searching for new URLs and updating knowledge base...{ANSIColor.RESET.value}")
                 if self.process_next_urls():
-                    print(colorize("Generating new answer based on expanded information...", Colors.INFO))
+                    print(f"{ANSIColor.CYAN.value}Generating new answer based on expanded information...{ANSIColor.RESET.value}")
                     new_answer = self.generate_qa(self.current_query)
-                    print(colorize("Updated Answer:", Colors.SUCCESS) + f"\n{new_answer}")
-                    # ... (writing to file)
-                    print(colorize("Knowledge base updated. You can now ask questions with the expanded information.", Colors.SUCCESS))
+                    print(f"\n{ANSIColor.NEON_GREEN.value}Updated Answer:{ANSIColor.RESET.value}\n{new_answer}")
+                    with open(self.web_rag_file, "a", encoding="utf-8") as f:
+                        f.write(f"Updated Answer:\n{new_answer}\n\n")
+                        f.write("-" * 50 + "\n\n")
+                    print(f"{ANSIColor.NEON_GREEN.value}Knowledge base updated. You can now ask questions with the expanded information.{ANSIColor.RESET.value}")
                 continue
 
             if not self.search_utils or not self.current_query:
-                print(colorize("Searching and processing web content...", Colors.INFO))
+                print(f"{ANSIColor.CYAN.value}Searching and processing web content...{ANSIColor.RESET.value}")
                 answer = self.search_and_process(user_input)
-                print(colorize("Answer:", Colors.SUCCESS) + f"\n{answer}")
-                print(colorize("Relevant content has been processed. You can now ask follow-up questions or use 'check' to process more URLs.", Colors.SUCCESS))
+                print(f"\n{ANSIColor.NEON_GREEN.value}Answer:{ANSIColor.RESET.value}\n{answer}")
+                print(f"{ANSIColor.NEON_GREEN.value}Relevant content has been processed. You can now ask follow-up questions or use 'check' to process more URLs.{ANSIColor.RESET.value}")
             else:
-                print(colorize("Generating answer based on existing knowledge...", Colors.INFO))
+                print(f"{ANSIColor.CYAN.value}Generating answer based on existing knowledge...{ANSIColor.RESET.value}")
                 answer = self.generate_qa(user_input)
-                print(colorize("Answer:", Colors.SUCCESS) + f"\n{answer}")
+                print(f"\n{ANSIColor.NEON_GREEN.value}Answer:{ANSIColor.RESET.value}\n{answer}")
 
-            print(colorize("You can ask follow-up questions, start a new search, or use 'check' to process more URLs and update the knowledge base.", Colors.INFO))
+            print(f"{ANSIColor.NEON_GREEN.value}You can ask follow-up questions, start a new search, or use 'check' to process more URLs and update the knowledge base.{ANSIColor.RESET.value}")
 
 if __name__ == "__main__":
     import sys
@@ -364,7 +369,7 @@ if __name__ == "__main__":
         web_rag = WebRAG(api_type)
         web_rag.run()
     else:
-        print(colorize("Error: No API type provided.", Colors.ERROR))
-        print(colorize("Usage: python src/web_rag.py <api_type>", Colors.INFO))
-        print(colorize("Available API types: ollama, llama", Colors.INFO))
+        print("Error: No API type provided.")
+        print("Usage: python src/web_rag.py <api_type>")  # Updated usage instruction
+        print("Available API types: ollama, llama")
         sys.exit(1)

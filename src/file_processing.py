@@ -7,11 +7,7 @@ import logging
 import os
 from src.settings import settings
 import json
-from src.color_scheme import Colors, colorize
-import colorama
-
-# Initialize colorama
-colorama.init(autoreset=True)
+from src.look_and_feel import success, info, warning, error
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -23,7 +19,6 @@ class FileProcessor:
 
     def ensure_output_folder(self):
         os.makedirs(settings.output_folder, exist_ok=True)
-
 
     def extract_toc_from_text(self, text: str) -> str:
         # Look for the "Contents" marker
@@ -151,25 +146,25 @@ class FileProcessor:
         }
         
         if file_type not in upload_functions:
-            raise ValueError(colorize(f"Unsupported file type: {file_type}", Colors.ERROR))
+            raise ValueError(error(f"Unsupported file type: {file_type}"))
         
         text, filename = upload_functions[file_type]()
         if text:
-            print(colorize(f"Processing {filename}...", Colors.INFO))
+            print(info(f"Processing {filename}..."))
             chunks = self.handle_text_chunking(text)
-            print(colorize("Extracting or generating table of contents...", Colors.INFO))
+            print(info("Extracting or generating table of contents..."))
             
             toc_str = self.format_toc()
-            print(colorize(f"Method: TOC generated using {file_type}-specific method", Colors.INFO))
+            print(info(f"Method: TOC generated using {file_type}-specific method"))
             
             if not toc_str or toc_str.strip() == "":
-                print(colorize("Warning: Failed to generate a table of contents.", Colors.WARNING))
+                print(warning("Warning: Failed to generate a table of contents."))
                 toc_str = "No table of contents could be generated for this file."
             
-            print(colorize("TOC content:", Colors.INFO))
+            print(info("TOC content:"))
             print(toc_str)
             
-            print(colorize("Appending to db_content.txt...", Colors.INFO))
+            print(info("Appending to db_content.txt..."))
             self.append_to_db_content(filename, toc_str)
             return chunks
         return None
@@ -196,8 +191,8 @@ class FileProcessor:
             for i, chunk in enumerate(chunks):
                 f.write(f"{chunk.strip()}\n")
                 if total_chunks < 10 or (i + 1) % (total_chunks // 10) == 0:
-                    print(colorize(f"Progress: {(i + 1) / total_chunks * 100:.1f}% ({i + 1}/{total_chunks} chunks)", Colors.INFO))
-        print(colorize(f"Appended {total_chunks} chunks to {db_file_path}", Colors.SUCCESS))
+                    print(info(f"Progress: {(i + 1) / total_chunks * 100:.1f}% ({i + 1}/{total_chunks} chunks)"))
+        print(success(f"Appended {total_chunks} chunks to {db_file_path}"))
 
 # Create a global instance of FileProcessor
 file_processor = FileProcessor()
@@ -213,10 +208,6 @@ if __name__ == "__main__":
     settings.load_settings()
     file_types = ["DOCX", "PDF", "Text", "JSON"]
     for file_type in file_types:
-        print(colorize(f"Processing {file_type} file...", Colors.INFO))
         chunks = process_file(file_type)
         if chunks:
             append_to_db(chunks)
-        else:
-            print(colorize(f"No chunks generated for {file_type} file.", Colors.WARNING))
-    print(colorize("File processing completed.", Colors.SUCCESS))

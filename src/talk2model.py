@@ -1,10 +1,6 @@
 from src.api_model import configure_api, LlamaClient
 from src.settings import settings
-from src.color_scheme import Colors, colorize
-import colorama
-
-# Initialize colorama
-colorama.init(autoreset=True)
+from src.look_and_feel import success, info, warning, error, highlight, user_input, llm_response
 
 class Talk2Model:
     def __init__(self, api_type, model):
@@ -16,41 +12,41 @@ class Talk2Model:
             self.client = configure_api(api_type)
 
     def run(self):
-        print(colorize(f"Talking to {self.model} using {self.api_type} API. Type 'exit' to end the conversation.", Colors.INFO))
+        print(info(f"Talking to {self.model} using {self.api_type} API. Type 'exit' to end the conversation."))
         
         while True:
-            user_input = input(colorize("You: ", Colors.INFO)).strip()
-            if user_input.lower() == 'exit':
-                print(colorize("Thank you for using Talk2Model. Goodbye!", Colors.SUCCESS))
+            user_prompt = input(user_input("You: "))
+            if user_prompt.lower() == 'exit':
+                print(success("Thank you for using Talk2Model. Goodbye!"))
                 break
             
-            response = self.get_model_response(user_input)
-            print(colorize("Model: ", Colors.SUCCESS) + response)
+            response = self.get_model_response(user_prompt)
+            print(llm_response(f"Model: {response}"))
 
-    def get_model_response(self, user_input):
+    def get_model_response(self, user_prompt):
         try:
             if self.api_type == "llama":
                 response = self.client.chat([
                     {"role": "system", "content": "You are a helpful AI assistant."},
-                    {"role": "user", "content": user_input}
+                    {"role": "user", "content": user_prompt}
                 ], temperature=settings.temperature)
             else:
                 response = self.client.chat.completions.create(
                     model=settings.ollama_model if self.api_type == "ollama" else settings.llama_model,
                     messages=[
                         {"role": "system", "content": "You are a helpful AI assistant."},
-                        {"role": "user", "content": user_input}
+                        {"role": "user", "content": user_prompt}
                     ],
                     temperature=settings.temperature
                 ).choices[0].message.content
             return response
         except Exception as e:
-            return f"An error occurred: {str(e)}"
+            return error(f"An error occurred: {str(e)}")
 
 if __name__ == "__main__":
     import sys
     if len(sys.argv) != 3:
-        print(colorize("Usage: python src/talk2model.py <api_type> <model>", Colors.ERROR))
+        print(error("Usage: python src/talk2model.py <api_type> <model>"))
         sys.exit(1)
     
     api_type = sys.argv[1]

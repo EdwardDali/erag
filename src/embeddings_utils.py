@@ -5,27 +5,18 @@ from typing import List, Tuple, Optional
 import logging
 from src.settings import settings
 from src.api_model import configure_api, LlamaClient
-from src.color_scheme import Colors, colorize
-import colorama
-
-# Initialize colorama
-colorama.init(autoreset=True)
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 def ensure_output_folder():
     os.makedirs(settings.output_folder, exist_ok=True)
-    print(colorize(f"Output folder ensured: {settings.output_folder}", Colors.INFO))
 
 def load_db_content(file_path: str) -> List[str]:
     content = []
     if os.path.exists(file_path):
         with open(file_path, "r", encoding='utf-8') as db_file:
             content = [line.strip() for line in db_file]
-        print(colorize(f"Loaded {len(content)} lines from {file_path}", Colors.SUCCESS))
-    else:
-        print(colorize(f"File not found: {file_path}", Colors.WARNING))
     return content
 
 def compute_and_save_embeddings(
@@ -39,16 +30,16 @@ def compute_and_save_embeddings(
         # Ensure save_path is in the output folder
         save_path = os.path.join(settings.output_folder, os.path.basename(save_path))
         
-        print(colorize(f"Computing embeddings for {len(content)} items", Colors.INFO))
+        logging.info(f"Computing embeddings for {len(content)} items")
         db_embeddings = []
         for i in range(0, len(content), settings.batch_size):
             batch = content[i:i+settings.batch_size]
             batch_embeddings = model.encode(batch, convert_to_tensor=True)
             db_embeddings.append(batch_embeddings)
-            print(colorize(f"Processed batch {i//settings.batch_size + 1}/{(len(content)-1)//settings.batch_size + 1}", Colors.INFO))
+            logging.info(f"Processed batch {i//settings.batch_size + 1}/{(len(content)-1)//settings.batch_size + 1}")
 
         db_embeddings = torch.cat(db_embeddings, dim=0)
-        print(colorize(f"Final embeddings shape: {db_embeddings.shape}", Colors.SUCCESS))
+        logging.info(f"Final embeddings shape: {db_embeddings.shape}")
         
         indexes = torch.arange(len(content))
         data_to_save = {
@@ -58,15 +49,15 @@ def compute_and_save_embeddings(
         }
         
         torch.save(data_to_save, save_path)
-        print(colorize(f"Embeddings, indexes, and content saved to {save_path}", Colors.SUCCESS))
+        logging.info(f"Embeddings, indexes, and content saved to {save_path}")
         
         # Verify saved data
         loaded_data = torch.load(save_path)
-        print(colorize(f"Verified saved embeddings shape: {loaded_data['embeddings'].shape}", Colors.SUCCESS))
-        print(colorize(f"Verified saved indexes shape: {loaded_data['indexes'].shape}", Colors.SUCCESS))
-        print(colorize(f"Verified saved content length: {len(loaded_data['content'])}", Colors.SUCCESS))
+        logging.info(f"Verified saved embeddings shape: {loaded_data['embeddings'].shape}")
+        logging.info(f"Verified saved indexes shape: {loaded_data['indexes'].shape}")
+        logging.info(f"Verified saved content length: {len(loaded_data['content'])}")
     except Exception as e:
-        print(colorize(f"Error in compute_and_save_embeddings: {str(e)}", Colors.ERROR))
+        logging.error(f"Error in compute_and_save_embeddings: {str(e)}")
         raise
 
 def load_embeddings_and_data(embeddings_file: str) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor], Optional[List[str]]]:
@@ -79,15 +70,15 @@ def load_embeddings_and_data(embeddings_file: str) -> Tuple[Optional[torch.Tenso
             embeddings = data['embeddings']
             indexes = data['indexes']
             content = data['content']
-            print(colorize(f"Loaded embeddings shape: {embeddings.shape}", Colors.SUCCESS))
-            print(colorize(f"Loaded indexes shape: {indexes.shape}", Colors.SUCCESS))
-            print(colorize(f"Loaded content length: {len(content)}", Colors.SUCCESS))
+            logging.info(f"Loaded embeddings shape: {embeddings.shape}")
+            logging.info(f"Loaded indexes shape: {indexes.shape}")
+            logging.info(f"Loaded content length: {len(content)}")
             return embeddings, indexes, content
         else:
-            print(colorize(f"Embeddings file {embeddings_file} not found", Colors.WARNING))
+            logging.warning(f"Embeddings file {embeddings_file} not found")
             return None, None, None
     except Exception as e:
-        print(colorize(f"Error in load_embeddings_and_data: {str(e)}", Colors.ERROR))
+        logging.error(f"Error in load_embeddings_and_data: {str(e)}")
         raise
 
 def load_or_compute_embeddings(model: SentenceTransformer, db_file: str, embeddings_file: str) -> Tuple[torch.Tensor, torch.Tensor, List[str]]:
@@ -98,13 +89,12 @@ def load_or_compute_embeddings(model: SentenceTransformer, db_file: str, embeddi
         
         embeddings, indexes, content = load_embeddings_and_data(embeddings_file)
         if embeddings is None or indexes is None or content is None:
-            print(colorize("Embeddings not found. Computing new embeddings...", Colors.INFO))
             content = load_db_content(db_file)
             compute_and_save_embeddings(model, embeddings_file, content)
             embeddings, indexes, content = load_embeddings_and_data(embeddings_file)
         return embeddings, indexes, content
     except Exception as e:
-        print(colorize(f"Error in load_or_compute_embeddings: {str(e)}", Colors.ERROR))
+        logging.error(f"Error in load_or_compute_embeddings: {str(e)}")
         raise
 
 if __name__ == "__main__":
@@ -116,9 +106,9 @@ if __name__ == "__main__":
         else:
             model = configure_api("sentence_transformer", settings.model_name)
         
-        print(colorize("Processing db.txt from the output folder", Colors.INFO))
+        # Process db.txt from the output folder
         embeddings, indexes, content = load_or_compute_embeddings(model, settings.db_file_path, settings.embeddings_file_path)
-        print(colorize(f"DB Embeddings shape: {embeddings.shape}, Indexes shape: {indexes.shape}", Colors.SUCCESS))
-        print(colorize(f"DB Content length: {len(content)}", Colors.SUCCESS))
+        logging.info(f"DB Embeddings shape: {embeddings.shape}, Indexes shape: {indexes.shape}")
+        logging.info(f"DB Content length: {len(content)}")
     except Exception as e:
-        print(colorize(f"Error in main execution: {str(e)}", Colors.ERROR))
+        logging.error(f"Error in main execution: {str(e)}")

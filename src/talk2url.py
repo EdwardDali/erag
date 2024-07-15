@@ -3,14 +3,10 @@ from bs4 import BeautifulSoup
 import requests
 from src.settings import settings
 from src.api_model import configure_api, LlamaClient
-from src.color_scheme import Colors, colorize
-import colorama
+from src.talk2doc import ANSIColor
 import os
 import re
 import unicodedata
-
-# Initialize colorama
-colorama.init(autoreset=True)
 
 class Talk2URL:
     def __init__(self, api_type: str):
@@ -56,9 +52,9 @@ class Talk2URL:
             content = self.crawl_page(url)
             if content:
                 self.url_contents[url] = content
-                print(colorize(f"Successfully processed content from {url}", Colors.SUCCESS))
+                print(f"{ANSIColor.NEON_GREEN.value}Successfully processed content from {url}{ANSIColor.RESET.value}")
             else:
-                print(colorize(f"Failed to process content from {url}", Colors.ERROR))
+                print(f"{ANSIColor.PINK.value}Failed to process content from {url}{ANSIColor.RESET.value}")
         
         return f"Processed {len(self.url_contents)} URLs successfully."
 
@@ -121,9 +117,9 @@ Please provide a comprehensive and well-structured answer to the question based 
         return [url.rstrip(',.') for url in urls]
 
     def get_urls_from_user(self):
-        print(colorize("Enter the target URL(s) or a file path containing URLs.", Colors.INFO))
-        print(colorize("You can enter multiple URLs or paste a list of URLs.", Colors.INFO))
-        print(colorize("Type '\\' on a new line when finished.", Colors.INFO))
+        print(f"{ANSIColor.YELLOW.value}Enter the target URL(s) or a file path containing URLs.{ANSIColor.RESET.value}")
+        print(f"{ANSIColor.YELLOW.value}You can enter multiple URLs or paste a list of URLs.{ANSIColor.RESET.value}")
+        print(f"{ANSIColor.YELLOW.value}Type '\\' on a new line when finished.{ANSIColor.RESET.value}")
 
         user_input = []
         while True:
@@ -154,47 +150,46 @@ Please provide a comprehensive and well-structured answer to the question based 
         return urls
 
     def run(self):
-        print(colorize("Welcome to Talk2URLs. Type 'exit' to quit, 'clear' to clear conversation history, or 'change urls' to update the target URLs.", Colors.INFO))
-        print(colorize(f"All generated responses will be saved in: {self.output_file}", Colors.INFO))
+        print(f"{ANSIColor.YELLOW.value}Welcome to Talk2URLs. Type 'exit' to quit, 'clear' to clear conversation history, or 'change urls' to update the target URLs.{ANSIColor.RESET.value}")
+        print(f"{ANSIColor.CYAN.value}All generated responses will be saved in: {self.output_file}{ANSIColor.RESET.value}")
 
         while True:
             if not self.current_urls:
                 self.current_urls = self.get_urls_from_user()
                 if not self.current_urls:
                     continue
-                print(colorize("Processing URLs...", Colors.INFO))
+                print(f"{ANSIColor.CYAN.value}Processing URLs...{ANSIColor.RESET.value}")
                 processing_result = self.process_urls(self.current_urls)
-                print(colorize(f"{processing_result} You can now ask questions about the content.", Colors.SUCCESS))
+                print(f"{ANSIColor.NEON_GREEN.value}{processing_result} You can now ask questions about the content.{ANSIColor.RESET.value}")
                 continue
 
-            user_input = input(colorize("Enter your question or command: ", Colors.INFO)).strip()
+            user_input = input(f"{ANSIColor.YELLOW.value}Enter your question or command: {ANSIColor.RESET.value}").strip()
 
             if user_input.lower() == 'exit':
-                print(colorize("Thank you for using Talk2URLs. Goodbye!", Colors.SUCCESS))
+                print(f"{ANSIColor.NEON_GREEN.value}Thank you for using Talk2URLs. Goodbye!{ANSIColor.RESET.value}")
                 break
             elif user_input.lower() == 'clear':
                 self.conversation_history.clear()
                 self.current_urls.clear()
                 self.url_contents.clear()
-                print(colorize("Conversation history and current URLs cleared.", Colors.SUCCESS))
+                print(f"{ANSIColor.CYAN.value}Conversation history and current URLs cleared.{ANSIColor.RESET.value}")
                 continue
             elif user_input.lower() == 'change urls':
                 self.current_urls.clear()
                 self.url_contents.clear()
-                print(colorize("Current URLs cleared. Please enter new URLs.", Colors.INFO))
+                print(f"{ANSIColor.CYAN.value}Current URLs cleared. Please enter new URLs.{ANSIColor.RESET.value}")
                 continue
 
-            print(colorize("Generating response...", Colors.INFO))
+            print(f"{ANSIColor.CYAN.value}Generating response...{ANSIColor.RESET.value}")
             response = self.generate_response(user_input)
-            print(colorize("\nResponse:", Colors.SUCCESS))
-            print(response)
+            print(f"\n{ANSIColor.NEON_GREEN.value}Response:{ANSIColor.RESET.value}\n{response}")
 
             with open(self.output_file, "a", encoding="utf-8") as f:
                 f.write(f"Question: {user_input}\n\n")
                 f.write(f"Response: {response}\n\n")
                 f.write("-" * 50 + "\n\n")
 
-            print(colorize(f"Response saved to {self.output_file}", Colors.SUCCESS))
+            print(f"{ANSIColor.NEON_GREEN.value}Response saved to {self.output_file}{ANSIColor.RESET.value}")
 
 if __name__ == "__main__":
     import sys
@@ -203,7 +198,7 @@ if __name__ == "__main__":
         talk2url = Talk2URL(api_type)
         talk2url.run()
     else:
-        print(colorize("Error: No API type provided.", Colors.ERROR))
-        print(colorize("Usage: python src/talk2url.py <api_type>", Colors.INFO))
-        print(colorize("Available API types: ollama, llama", Colors.INFO))
+        print("Error: No API type provided.")
+        print("Usage: python src/talk2url.py <api_type>")  # Updated usage instruction
+        print("Available API types: ollama, llama")
         sys.exit(1)

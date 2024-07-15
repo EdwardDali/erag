@@ -3,17 +3,12 @@
 import sys
 import os
 import logging
-from src.talk2doc import RAGSystem
+from src.talk2doc import RAGSystem, ANSIColor
 from src.search_utils import SearchUtils
 from sentence_transformers import SentenceTransformer
 from src.embeddings_utils import load_embeddings_and_data
 from src.settings import settings
 from src.api_model import configure_api, LlamaClient
-from src.color_scheme import Colors, colorize
-import colorama
-
-# Initialize colorama
-colorama.init(autoreset=True)
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -195,49 +190,49 @@ Please provide a comprehensive answer to the question using the information from
                 f.write(final_content)
 
             logging.info(f"Created final knol as {final_knol_path}")
-            print(colorize(f"Final knol created: {final_knol_path}", Colors.SUCCESS))
+            print(f"{ANSIColor.NEON_GREEN.value}Final knol created: {final_knol_path}{ANSIColor.RESET.value}")
 
         except IOError as e:
             logging.error(f"Error creating final knol: {str(e)}")
-            print(colorize("Error creating final knol. See log for details.", Colors.ERROR))
+            print(f"{ANSIColor.PINK.value}Error creating final knol. See log for details.{ANSIColor.RESET.value}")
 
     def run_knol_creator(self):
-        print(colorize("Welcome to the Knol Creation System. Type 'exit' to quit.", Colors.INFO))
-        print(colorize(f"All generated files will be saved in: {settings.output_folder}", Colors.INFO))
+        print(f"{ANSIColor.YELLOW.value}Welcome to the Knol Creation System. Type 'exit' to quit.{ANSIColor.RESET.value}")
+        print(f"{ANSIColor.CYAN.value}All generated files will be saved in: {settings.output_folder}{ANSIColor.RESET.value}")
 
         while True:
-            user_input = input(colorize("Which subject do you want to create a knol about? ", Colors.INFO)).strip()
+            user_input = input(f"{ANSIColor.YELLOW.value}Which subject do you want to create a knol about? {ANSIColor.RESET.value}").strip()
 
             if user_input.lower() == 'exit':
-                print(colorize("Thank you for using the Knol Creation System. Goodbye!", Colors.SUCCESS))
+                print(f"{ANSIColor.NEON_GREEN.value}Thank you for using the Knol Creation System. Goodbye!{ANSIColor.RESET.value}")
                 break
 
             if not user_input:
-                print(colorize("Please enter a valid subject.", Colors.ERROR))
+                print(f"{ANSIColor.PINK.value}Please enter a valid subject.{ANSIColor.RESET.value}")
                 continue
 
-            print(colorize("Creating initial knol...", Colors.INFO))
+            print(f"{ANSIColor.CYAN.value}Creating initial knol...{ANSIColor.RESET.value}")
             initial_knol = self.create_knol(user_input)
 
-            print(colorize("Improving and expanding the knol...", Colors.INFO))
+            print(f"{ANSIColor.CYAN.value}Improving and expanding the knol...{ANSIColor.RESET.value}")
             improved_knol = self.improve_knol(initial_knol, user_input)
 
-            print(colorize("Generating questions based on the improved knol...", Colors.INFO))
+            print(f"{ANSIColor.CYAN.value}Generating questions based on the improved knol...{ANSIColor.RESET.value}")
             questions = self.generate_questions(improved_knol, user_input)
 
-            print(colorize("Answering questions using RAG...", Colors.INFO))
+            print(f"{ANSIColor.CYAN.value}Answering questions using RAG...{ANSIColor.RESET.value}")
             qa_pairs = self.answer_questions(questions, user_input, improved_knol)
 
-            print(colorize("Creating final knol...", Colors.INFO))
+            print(f"{ANSIColor.CYAN.value}Creating final knol...{ANSIColor.RESET.value}")
             self.create_final_knol(user_input)
 
-            print(colorize("Knol creation process completed.", Colors.SUCCESS))
-            print(colorize("You can find the results in files with '_initial', '_improved', '_q', '_q_a', and '_final' suffixes.", Colors.INFO))
+            print(f"{ANSIColor.NEON_GREEN.value}Knol creation process completed.{ANSIColor.RESET.value}")
+            print(f"{ANSIColor.CYAN.value}You can find the results in files with '_initial', '_improved', '_q', '_q_a', and '_final' suffixes.{ANSIColor.RESET.value}")
 
             # Print the improved knol content, questions, and answers
-            print(colorize("\nImproved Knol Content:", Colors.SUCCESS))
+            print(f"\n{ANSIColor.NEON_GREEN.value}Improved Knol Content:{ANSIColor.RESET.value}")
             print(improved_knol)
-            print(colorize("\nGenerated Questions and Answers:", Colors.SUCCESS))
+            print(f"\n{ANSIColor.NEON_GREEN.value}Generated Questions and Answers:{ANSIColor.RESET.value}")
             print(qa_pairs)
 
 if __name__ == "__main__":
@@ -246,7 +241,7 @@ if __name__ == "__main__":
         creator = KnolCreator(api_type)
         creator.run_knol_creator()
     else:
-        print(colorize("Error: No API type provided.", Colors.ERROR))
-        print(colorize("Usage: python src/create_knol.py <api_type>", Colors.INFO))
-        print(colorize("Available API types: ollama, llama", Colors.INFO))
+        print("Error: No API type provided.")
+        print("Usage: python src/create_knol.py <api_type>")  # Updated usage instruction
+        print("Available API types: ollama, llama")
         sys.exit(1)
