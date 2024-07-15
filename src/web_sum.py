@@ -7,7 +7,7 @@ import logging
 import re
 from urllib.parse import urljoin, quote_plus
 from src.settings import settings
-from src.talk2doc import ANSIColor
+from src.look_and_feel import success, info, warning, error
 from openai import OpenAI
 import random
 import time
@@ -223,28 +223,28 @@ class WebSum:
             return "Error in creating final summary."
 
     def run(self):
-        print(f"{ANSIColor.YELLOW.value}Welcome to the Web Sum System. Type 'exit' to quit.{ANSIColor.RESET.value}")
-        print(f"{ANSIColor.CYAN.value}All generated files will be saved in: {settings.output_folder}{ANSIColor.RESET.value}")
+        print(info("Welcome to the Web Sum System. Type 'exit' to quit."))
+        print(info(f"All generated files will be saved in: {settings.output_folder}"))
 
         while True:
-            user_input = input(f"{ANSIColor.YELLOW.value}Enter your search query: {ANSIColor.RESET.value}").strip()
+            user_input = input(info("Enter your search query: ")).strip()
 
             if user_input.lower() == 'exit':
-                print(f"{ANSIColor.NEON_GREEN.value}Thank you for using the Web Sum System. Goodbye!{ANSIColor.RESET.value}")
+                print(success("Thank you for using the Web Sum System. Goodbye!"))
                 break
 
             if not user_input:
-                print(f"{ANSIColor.PINK.value}Please enter a valid query.{ANSIColor.RESET.value}")
+                print(error("Please enter a valid query."))
                 continue
 
-            print(f"{ANSIColor.CYAN.value}Searching and processing web content...{ANSIColor.RESET.value}")
+            print(info("Searching and processing web content..."))
             final_summary = self.search_and_process(user_input)
 
             if not final_summary:
-                print(f"{ANSIColor.PINK.value}Sorry, no relevant results found for your query. Please try a different search term.{ANSIColor.RESET.value}")
+                print(warning("Sorry, no relevant results found for your query. Please try a different search term."))
                 continue
 
-            print(f"\n{ANSIColor.NEON_GREEN.value}Final Summary:{ANSIColor.RESET.value}")
+            print(f"\n{success('Final Summary:')}")
             print(final_summary)
 
 if __name__ == "__main__":
@@ -253,7 +253,7 @@ if __name__ == "__main__":
         web_sum = WebSum(api_type)
         web_sum.run()
     else:
-        print("Error: No API type provided.")
-        print("Usage: python src/web_sum.py <api_type>")
-        print("Available API types: ollama, llama")
+        print(error("Error: No API type provided."))
+        print(warning("Usage: python src/web_sum.py <api_type>"))
+        print(info("Available API types: ollama, llama"))
         sys.exit(1)

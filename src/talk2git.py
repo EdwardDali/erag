@@ -4,7 +4,7 @@ import requests
 from urllib.parse import urlparse
 from src.settings import settings
 from src.api_model import configure_api, LlamaClient
-from src.talk2doc import ANSIColor
+from src.look_and_feel import success, info, warning, error
 import base64
 import time
 
@@ -76,7 +76,7 @@ class Talk2Git:
                 file_content = self.fetch_file_content(item['url'])
                 file_path = item['path']
                 self.repo_contents[file_path] = file_content
-                print(f"{ANSIColor.NEON_GREEN.value}Successfully processed {file_path}{ANSIColor.RESET.value}")
+                print(success(f"Successfully processed {file_path}"))
             elif item['type'] == 'dir':
                 self.traverse_repo(owner, repo, item['path'])
 
@@ -87,12 +87,12 @@ class Talk2Git:
                 f.write(f"File: {file_path}\n\n")
                 f.write(content)
                 f.write("\n\n" + "="*50 + "\n\n")
-        print(f"{ANSIColor.NEON_GREEN.value}Repository contents saved to {repo_file_path}{ANSIColor.RESET.value}")
+        print(success(f"Repository contents saved to {repo_file_path}"))
 
     def static_code_analysis(self):
         analysis_results = []
         for file_path, content in self.repo_contents.items():
-            print(f"{ANSIColor.CYAN.value}Analyzing {file_path}...{ANSIColor.RESET.value}")
+            print(info(f"Analyzing {file_path}..."))
             
             prompt = f"""Perform a static code analysis on the following file:
 
@@ -127,7 +127,7 @@ Your analysis should be concise but informative."""
                     ).choices[0].message.content
 
                 analysis_results.append(f"Analysis for {file_path}:\n\n{response}\n\n{'='*50}\n")
-                print(f"{ANSIColor.NEON_GREEN.value}Analysis complete for {file_path}{ANSIColor.RESET.value}")
+                print(success(f"Analysis complete for {file_path}"))
             except Exception as e:
                 logging.error(f"Error analyzing {file_path}: {str(e)}")
                 analysis_results.append(f"Error analyzing {file_path}: {str(e)}\n\n{'='*50}\n")
@@ -136,12 +136,12 @@ Your analysis should be concise but informative."""
         with open(analysis_file, "w", encoding="utf-8") as f:
             f.write("\n".join(analysis_results))
         
-        print(f"{ANSIColor.NEON_GREEN.value}Static code analysis completed. Results saved to {analysis_file}{ANSIColor.RESET.value}")
+        print(success(f"Static code analysis completed. Results saved to {analysis_file}"))
 
     def summarize_project(self):
         file_summaries = {}
         for file_path, content in self.repo_contents.items():
-            print(f"{ANSIColor.CYAN.value}Summarizing {file_path}...{ANSIColor.RESET.value}")
+            print(info(f"Summarizing {file_path}..."))
             
             prompt = f"""Summarize the purpose and main functionality of the following file:
 
@@ -169,7 +169,7 @@ Please provide a concise summary (2-3 sentences) describing the file's main purp
                     ).choices[0].message.content
 
                 file_summaries[file_path] = response
-                print(f"{ANSIColor.NEON_GREEN.value}Summary complete for {file_path}{ANSIColor.RESET.value}")
+                print(success(f"Summary complete for {file_path}"))
             except Exception as e:
                 logging.error(f"Error summarizing {file_path}: {str(e)}")
                 file_summaries[file_path] = f"Error summarizing file: {str(e)}"
@@ -210,7 +210,7 @@ Please provide a concise summary (3-5 sentences) describing the overall purpose 
                 f.write(f"File: {file_path}\n")
                 f.write(f"Summary: {summary}\n\n")
 
-        print(f"{ANSIColor.NEON_GREEN.value}Project summarization completed. Results saved to {summary_file}{ANSIColor.RESET.value}")
+        print(success(f"Project summarization completed. Results saved to {summary_file}"))
 
     def analyze_dependencies(self):
         dependency_files = [file for file in self.repo_contents.keys() if file.endswith(('requirements.txt', 'package.json', 'pom.xml'))]
@@ -323,7 +323,7 @@ Your analysis should be concise but informative."""
         print(f"{ANSIColor.NEON_GREEN.value}Code smell detection completed. Results saved to {analysis_file}{ANSIColor.RESET.value}")
 
     def display_menu(self):
-        print(f"\n{ANSIColor.YELLOW.value}Talk2Git Menu:{ANSIColor.RESET.value}")
+        print(info("\nTalk2Git Menu:"))
         print("1. Analyze repository")
         print("2. Summarize project")
         print("3. Analyze dependencies")
@@ -332,19 +332,19 @@ Your analysis should be concise but informative."""
         print("6. Exit")
 
     def run(self):
-        print(f"{ANSIColor.YELLOW.value}Welcome to Talk2Git.{ANSIColor.RESET.value}")
+        print(info("Welcome to Talk2Git."))
 
         while True:
             if not self.repo_url:
-                repo_url = input(f"{ANSIColor.YELLOW.value}Enter the GitHub repository URL: {ANSIColor.RESET.value}").strip()
+                repo_url = input(info("Enter the GitHub repository URL: ")).strip()
                 if not repo_url:
                     continue
-                print(f"{ANSIColor.CYAN.value}Processing repository...{ANSIColor.RESET.value}")
+                print(info("Processing repository..."))
                 processing_result = self.process_repo(repo_url)
-                print(f"{ANSIColor.NEON_GREEN.value}{processing_result}{ANSIColor.RESET.value}")
+                print(success(processing_result))
 
             self.display_menu()
-            choice = input(f"{ANSIColor.YELLOW.value}Enter your choice (1-6): {ANSIColor.RESET.value}").strip()
+            choice = input(info("Enter your choice (1-6): ")).strip()
 
             if choice == '1':
                 self.static_code_analysis()
@@ -357,12 +357,12 @@ Your analysis should be concise but informative."""
             elif choice == '5':
                 self.repo_url = ""
                 self.repo_contents.clear()
-                print(f"{ANSIColor.CYAN.value}Current repository cleared. Please enter a new repository URL.{ANSIColor.RESET.value}")
+                print(info("Current repository cleared. Please enter a new repository URL."))
             elif choice == '6':
-                print(f"{ANSIColor.NEON_GREEN.value}Thank you for using Talk2Git. Goodbye!{ANSIColor.RESET.value}")
+                print(success("Thank you for using Talk2Git. Goodbye!"))
                 break
             else:
-                print(f"{ANSIColor.PINK.value}Invalid choice. Please enter a number between 1 and 6.{ANSIColor.RESET.value}")
+                print(error("Invalid choice. Please enter a number between 1 and 6."))
 
 if __name__ == "__main__":
     import sys
@@ -372,7 +372,7 @@ if __name__ == "__main__":
         talk2git = Talk2Git(api_type, github_token)
         talk2git.run()
     else:
-        print("Error: No API type provided.")
-        print("Usage: python src/talk2git.py <api_type>")  # Updated usage instruction
-        print("Available API types: ollama, llama")
+        print(error("Error: No API type provided."))
+        print(warning("Usage: python src/talk2git.py <api_type>"))
+        print(info("Available API types: ollama, llama"))
         sys.exit(1)

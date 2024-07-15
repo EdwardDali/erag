@@ -2,6 +2,7 @@ import subprocess
 from openai import OpenAI
 from src.settings import settings
 import requests
+from src.look_and_feel import error, success, warning, info
 
 def get_available_models(api_type):
     if api_type == "ollama":
@@ -11,7 +12,7 @@ def get_available_models(api_type):
             # Filter out 'failed' and 'NAME' entries
             return [model.split()[0] for model in models if model.split()[0] not in ['failed', 'NAME']]
         except subprocess.CalledProcessError:
-            print("Error running 'ollama list' command")
+            print(error("Error running 'ollama list' command"))
             return []
     elif api_type == "llama":
         try:
@@ -20,10 +21,10 @@ def get_available_models(api_type):
                 models = response.json()['data']
                 return [model['id'] for model in models]
             else:
-                print(f"Error fetching models from llama.cpp server: {response.status_code}")
+                print(error(f"Error fetching models from llama.cpp server: {response.status_code}"))
                 return []
         except requests.RequestException as e:
-            print(f"Error connecting to llama.cpp server: {e}")
+            print(error(f"Error connecting to llama.cpp server: {e}"))
             return []
     else:
         return []
@@ -34,7 +35,7 @@ def update_settings(settings, api_type, model):
     elif api_type == "llama":
         settings.update_setting("llama_model", model)
     settings.apply_settings()
-    print(f"Settings updated. Using {model} with {api_type} API.")
+    print(success(f"Settings updated. Using {model} with {api_type} API."))
 
 def configure_api(api_type: str) -> OpenAI:
     if api_type == "ollama":
@@ -42,7 +43,7 @@ def configure_api(api_type: str) -> OpenAI:
     elif api_type == "llama":
         return OpenAI(base_url='http://localhost:8080/v1', api_key='sk-no-key-required')
     else:
-        raise ValueError("Invalid API type")
+        raise ValueError(error("Invalid API type"))
 
 class LlamaClient:
     def __init__(self, base_url='http://localhost:8080/v1'):
@@ -59,7 +60,7 @@ class LlamaClient:
         if response.status_code == 200:
             return response.json()['choices'][0]['message']['content']
         else:
-            raise Exception(f"Error from llama.cpp server: {response.status_code} - {response.text}")
+            raise Exception(error(f"Error from llama.cpp server: {response.status_code} - {response.text}"))
 
     def complete(self, prompt, temperature=0.7, max_tokens=None):
         url = f"{self.base_url}/completions"
@@ -72,4 +73,4 @@ class LlamaClient:
         if response.status_code == 200:
             return response.json()['choices'][0]['text']
         else:
-            raise Exception(f"Error from llama.cpp server: {response.status_code} - {response.text}")
+            raise Exception(error(f"Error from llama.cpp server: {response.status_code} - {response.text}"))

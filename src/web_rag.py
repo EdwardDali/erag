@@ -10,7 +10,7 @@ from sentence_transformers import SentenceTransformer
 import numpy as np
 from collections import deque
 from src.search_utils import SearchUtils
-from src.talk2doc import ANSIColor
+from src.look_and_feel import success, info, warning, error
 from src.api_model import configure_api, LlamaClient
 import os
 
@@ -315,14 +315,14 @@ Please provide a comprehensive and well-structured answer to the question based 
         return answer
 
     def run(self):
-        print(f"{ANSIColor.YELLOW.value}Welcome to the Web RAG System. Type 'exit' to quit, 'clear' to clear conversation history, or 'check' to process more URLs and update the knowledge base.{ANSIColor.RESET.value}")
-        print(f"{ANSIColor.CYAN.value}All generated files will be saved in: {settings.output_folder}{ANSIColor.RESET.value}")
+        print(info("Welcome to the Web RAG System. Type 'exit' to quit, 'clear' to clear conversation history, or 'check' to process more URLs and update the knowledge base."))
+        print(info(f"All generated files will be saved in: {settings.output_folder}"))
 
         while True:
-            user_input = input(f"{ANSIColor.YELLOW.value}Enter your search query, follow-up question, or command: {ANSIColor.RESET.value}").strip()
+            user_input = input(info("Enter your search query, follow-up question, or command: ")).strip()
 
             if user_input.lower() == 'exit':
-                print(f"{ANSIColor.NEON_GREEN.value}Thank you for using the Web RAG System. Goodbye!{ANSIColor.RESET.value}")
+                print(success("Thank you for using the Web RAG System. Goodbye!"))
                 break
             elif user_input.lower() == 'clear':
                 self.conversation_history.clear()
@@ -333,34 +333,34 @@ Please provide a comprehensive and well-structured answer to the question based 
                 self.processed_urls.clear()
                 self.search_utils = None
                 self.search_offset = 0
-                print(f"{ANSIColor.CYAN.value}Conversation history, context, and processed URLs cleared.{ANSIColor.RESET.value}")
+                print(info("Conversation history, context, and processed URLs cleared."))
                 continue
             elif user_input.lower() == 'check':
                 if not self.current_query:
-                    print(f"{ANSIColor.PINK.value}No current query. Please perform a search first.{ANSIColor.RESET.value}")
+                    print(warning("No current query. Please perform a search first."))
                     continue
-                print(f"{ANSIColor.CYAN.value}Searching for new URLs and updating knowledge base...{ANSIColor.RESET.value}")
+                print(info("Searching for new URLs and updating knowledge base..."))
                 if self.process_next_urls():
-                    print(f"{ANSIColor.CYAN.value}Generating new answer based on expanded information...{ANSIColor.RESET.value}")
+                    print(info("Generating new answer based on expanded information..."))
                     new_answer = self.generate_qa(self.current_query)
-                    print(f"\n{ANSIColor.NEON_GREEN.value}Updated Answer:{ANSIColor.RESET.value}\n{new_answer}")
+                    print(f"\n{success('Updated Answer:')}\n{new_answer}")
                     with open(self.web_rag_file, "a", encoding="utf-8") as f:
                         f.write(f"Updated Answer:\n{new_answer}\n\n")
                         f.write("-" * 50 + "\n\n")
-                    print(f"{ANSIColor.NEON_GREEN.value}Knowledge base updated. You can now ask questions with the expanded information.{ANSIColor.RESET.value}")
+                    print(success("Knowledge base updated. You can now ask questions with the expanded information."))
                 continue
 
             if not self.search_utils or not self.current_query:
-                print(f"{ANSIColor.CYAN.value}Searching and processing web content...{ANSIColor.RESET.value}")
+                print(info("Searching and processing web content..."))
                 answer = self.search_and_process(user_input)
-                print(f"\n{ANSIColor.NEON_GREEN.value}Answer:{ANSIColor.RESET.value}\n{answer}")
-                print(f"{ANSIColor.NEON_GREEN.value}Relevant content has been processed. You can now ask follow-up questions or use 'check' to process more URLs.{ANSIColor.RESET.value}")
+                print(f"\n{success('Answer:')}\n{answer}")
+                print(success("Relevant content has been processed. You can now ask follow-up questions or use 'check' to process more URLs."))
             else:
-                print(f"{ANSIColor.CYAN.value}Generating answer based on existing knowledge...{ANSIColor.RESET.value}")
+                print(info("Generating answer based on existing knowledge..."))
                 answer = self.generate_qa(user_input)
-                print(f"\n{ANSIColor.NEON_GREEN.value}Answer:{ANSIColor.RESET.value}\n{answer}")
+                print(f"\n{success('Answer:')}\n{answer}")
 
-            print(f"{ANSIColor.NEON_GREEN.value}You can ask follow-up questions, start a new search, or use 'check' to process more URLs and update the knowledge base.{ANSIColor.RESET.value}")
+            print(success("You can ask follow-up questions, start a new search, or use 'check' to process more URLs and update the knowledge base."))
 
 if __name__ == "__main__":
     import sys
@@ -369,7 +369,7 @@ if __name__ == "__main__":
         web_rag = WebRAG(api_type)
         web_rag.run()
     else:
-        print("Error: No API type provided.")
-        print("Usage: python src/web_rag.py <api_type>")  # Updated usage instruction
-        print("Available API types: ollama, llama")
+        print(error("Error: No API type provided."))
+        print(warning("Usage: python src/web_rag.py <api_type>"))
+        print(info("Available API types: ollama, llama"))
         sys.exit(1)

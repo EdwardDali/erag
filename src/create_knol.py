@@ -3,12 +3,20 @@
 import sys
 import os
 import logging
-from src.talk2doc import RAGSystem, ANSIColor
+from src.talk2doc import RAGSystem
 from src.search_utils import SearchUtils
 from sentence_transformers import SentenceTransformer
 from src.embeddings_utils import load_embeddings_and_data
 from src.settings import settings
 from src.api_model import configure_api, LlamaClient
+from src.look_and_feel import (
+    RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN, WHITE,
+    DUSTY_PINK, SAGE_GREEN,
+    BOLD, UNDERLINE, RESET,
+    error, success, warning, info, highlight,
+    user_input as color_user_input,
+    llm_response as color_llm_response
+)
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -138,7 +146,7 @@ Format the output as a numbered list of questions."""
         
         for question in question_list:
             if question.strip():
-                print(f"Answering: {question}")
+                print(info(f"Answering: {question}"))
                 
                 system_message = f"""You are a knowledgeable assistant tasked with answering questions about {subject} based on the provided knol and any additional context. Use the information from both the knol and the additional context to provide accurate and comprehensive answers. If the information is not available in the provided content, state that you don't have enough information to answer accurately."""
 
@@ -190,50 +198,50 @@ Please provide a comprehensive answer to the question using the information from
                 f.write(final_content)
 
             logging.info(f"Created final knol as {final_knol_path}")
-            print(f"{ANSIColor.NEON_GREEN.value}Final knol created: {final_knol_path}{ANSIColor.RESET.value}")
+            print(success(f"Final knol created: {final_knol_path}"))
 
         except IOError as e:
             logging.error(f"Error creating final knol: {str(e)}")
-            print(f"{ANSIColor.PINK.value}Error creating final knol. See log for details.{ANSIColor.RESET.value}")
+            print(error("Error creating final knol. See log for details."))
 
     def run_knol_creator(self):
-        print(f"{ANSIColor.YELLOW.value}Welcome to the Knol Creation System. Type 'exit' to quit.{ANSIColor.RESET.value}")
-        print(f"{ANSIColor.CYAN.value}All generated files will be saved in: {settings.output_folder}{ANSIColor.RESET.value}")
+        print(highlight("Welcome to the Knol Creation System. Type 'exit' to quit."))
+        print(info(f"All generated files will be saved in: {settings.output_folder}"))
 
         while True:
-            user_input = input(f"{ANSIColor.YELLOW.value}Which subject do you want to create a knol about? {ANSIColor.RESET.value}").strip()
+            user_input = input(color_user_input("Which subject do you want to create a knol about? ")).strip()
 
             if user_input.lower() == 'exit':
-                print(f"{ANSIColor.NEON_GREEN.value}Thank you for using the Knol Creation System. Goodbye!{ANSIColor.RESET.value}")
+                print(success("Thank you for using the Knol Creation System. Goodbye!"))
                 break
 
             if not user_input:
-                print(f"{ANSIColor.PINK.value}Please enter a valid subject.{ANSIColor.RESET.value}")
+                print(error("Please enter a valid subject."))
                 continue
 
-            print(f"{ANSIColor.CYAN.value}Creating initial knol...{ANSIColor.RESET.value}")
+            print(info("Creating initial knol..."))
             initial_knol = self.create_knol(user_input)
 
-            print(f"{ANSIColor.CYAN.value}Improving and expanding the knol...{ANSIColor.RESET.value}")
+            print(info("Improving and expanding the knol..."))
             improved_knol = self.improve_knol(initial_knol, user_input)
 
-            print(f"{ANSIColor.CYAN.value}Generating questions based on the improved knol...{ANSIColor.RESET.value}")
+            print(info("Generating questions based on the improved knol..."))
             questions = self.generate_questions(improved_knol, user_input)
 
-            print(f"{ANSIColor.CYAN.value}Answering questions using RAG...{ANSIColor.RESET.value}")
+            print(info("Answering questions using RAG..."))
             qa_pairs = self.answer_questions(questions, user_input, improved_knol)
 
-            print(f"{ANSIColor.CYAN.value}Creating final knol...{ANSIColor.RESET.value}")
+            print(info("Creating final knol..."))
             self.create_final_knol(user_input)
 
-            print(f"{ANSIColor.NEON_GREEN.value}Knol creation process completed.{ANSIColor.RESET.value}")
-            print(f"{ANSIColor.CYAN.value}You can find the results in files with '_initial', '_improved', '_q', '_q_a', and '_final' suffixes.{ANSIColor.RESET.value}")
+            print(success("Knol creation process completed."))
+            print(info("You can find the results in files with '_initial', '_improved', '_q', '_q_a', and '_final' suffixes."))
 
             # Print the improved knol content, questions, and answers
-            print(f"\n{ANSIColor.NEON_GREEN.value}Improved Knol Content:{ANSIColor.RESET.value}")
-            print(improved_knol)
-            print(f"\n{ANSIColor.NEON_GREEN.value}Generated Questions and Answers:{ANSIColor.RESET.value}")
-            print(qa_pairs)
+            print(f"\n{highlight('Improved Knol Content:')}")
+            print(color_llm_response(improved_knol))
+            print(f"\n{highlight('Generated Questions and Answers:')}")
+            print(color_llm_response(qa_pairs))
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
@@ -241,7 +249,7 @@ if __name__ == "__main__":
         creator = KnolCreator(api_type)
         creator.run_knol_creator()
     else:
-        print("Error: No API type provided.")
-        print("Usage: python src/create_knol.py <api_type>")  # Updated usage instruction
-        print("Available API types: ollama, llama")
+        print(error("Error: No API type provided."))
+        print(warning("Usage: python src/create_knol.py <api_type>"))
+        print(info("Available API types: ollama, llama"))
         sys.exit(1)

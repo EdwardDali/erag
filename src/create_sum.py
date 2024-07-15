@@ -3,6 +3,7 @@ import fitz  # PyMuPDF
 from typing import List
 from src.settings import settings
 from src.api_model import configure_api, LlamaClient
+from src.look_and_feel import success, info, warning, error
 
 def extract_text(file_path: str) -> str:
     _, file_extension = os.path.splitext(file_path)
@@ -86,7 +87,7 @@ def create_summary(file_path: str, api_type: str, client) -> str:
         full_text_path = os.path.join(output_folder, f"{base_name}_full.txt")
         with open(full_text_path, 'w', encoding='utf-8') as f:
             f.write(full_text)
-        print(f"Saved full text: {full_text_path}")
+        print(info(f"Saved full text: {full_text_path}"))
 
         chunks = split_into_chunks(full_text)
         
@@ -99,9 +100,9 @@ def create_summary(file_path: str, api_type: str, client) -> str:
                 f.write(f"{summary}\n\n")
                 f.flush()  # Ensure the summary is written to the file immediately
                 chunk_summaries.append(summary)
-                print(f"Processed chunk {i}/{len(chunks)}")
+                print(info(f"Processed chunk {i}/{len(chunks)}"))
 
-        print(f"All chunk summaries saved to: {all_summaries_path}")
+        print(success(f"All chunk summaries saved to: {all_summaries_path}"))
 
         # Create reviewed summary by processing chunks in groups
         reviewed_summary_path = os.path.join(output_folder, "reviewed_summary.txt")
@@ -111,14 +112,14 @@ def create_summary(file_path: str, api_type: str, client) -> str:
                 reviewed_summary = review_summaries(group, api_type, client)
                 f.write(f"{reviewed_summary}\n\n")
                 f.flush()  # Ensure the summary is written to the file immediately
-                print(f"Processed reviewed summary group {i//settings.summarization_combining_number + 1}")
+                print(info(f"Processed reviewed summary group {i//settings.summarization_combining_number + 1}"))
 
-        print(f"Reviewed summary saved to: {reviewed_summary_path}")
+        print(success(f"Reviewed summary saved to: {reviewed_summary_path}"))
 
-        return f"Successfully processed {len(chunks)} chunks. Full text, all chunk summaries, and reviewed summary saved in folder: {output_folder}"
+        return success(f"Successfully processed {len(chunks)} chunks. Full text, all chunk summaries, and reviewed summary saved in folder: {output_folder}")
 
     except Exception as e:
-        return f"An error occurred while processing the document: {str(e)}"
+        return error(f"An error occurred while processing the document: {str(e)}")
 
 def run_create_sum(file_path: str, api_type: str, client) -> str:
     if api_type == "llama" and not isinstance(client, LlamaClient):

@@ -3,7 +3,7 @@ from bs4 import BeautifulSoup
 import requests
 from src.settings import settings
 from src.api_model import configure_api, LlamaClient
-from src.talk2doc import ANSIColor
+from src.look_and_feel import success, info, warning, error
 import os
 import re
 import unicodedata
@@ -150,46 +150,46 @@ Please provide a comprehensive and well-structured answer to the question based 
         return urls
 
     def run(self):
-        print(f"{ANSIColor.YELLOW.value}Welcome to Talk2URLs. Type 'exit' to quit, 'clear' to clear conversation history, or 'change urls' to update the target URLs.{ANSIColor.RESET.value}")
-        print(f"{ANSIColor.CYAN.value}All generated responses will be saved in: {self.output_file}{ANSIColor.RESET.value}")
+        print(info("Welcome to Talk2URLs. Type 'exit' to quit, 'clear' to clear conversation history, or 'change urls' to update the target URLs."))
+        print(info(f"All generated responses will be saved in: {self.output_file}"))
 
         while True:
             if not self.current_urls:
                 self.current_urls = self.get_urls_from_user()
                 if not self.current_urls:
                     continue
-                print(f"{ANSIColor.CYAN.value}Processing URLs...{ANSIColor.RESET.value}")
+                print(info("Processing URLs..."))
                 processing_result = self.process_urls(self.current_urls)
-                print(f"{ANSIColor.NEON_GREEN.value}{processing_result} You can now ask questions about the content.{ANSIColor.RESET.value}")
+                print(success(f"{processing_result} You can now ask questions about the content."))
                 continue
 
-            user_input = input(f"{ANSIColor.YELLOW.value}Enter your question or command: {ANSIColor.RESET.value}").strip()
+            user_input = input(info("Enter your question or command: ")).strip()
 
             if user_input.lower() == 'exit':
-                print(f"{ANSIColor.NEON_GREEN.value}Thank you for using Talk2URLs. Goodbye!{ANSIColor.RESET.value}")
+                print(success("Thank you for using Talk2URLs. Goodbye!"))
                 break
             elif user_input.lower() == 'clear':
                 self.conversation_history.clear()
                 self.current_urls.clear()
                 self.url_contents.clear()
-                print(f"{ANSIColor.CYAN.value}Conversation history and current URLs cleared.{ANSIColor.RESET.value}")
+                print(info("Conversation history and current URLs cleared."))
                 continue
             elif user_input.lower() == 'change urls':
                 self.current_urls.clear()
                 self.url_contents.clear()
-                print(f"{ANSIColor.CYAN.value}Current URLs cleared. Please enter new URLs.{ANSIColor.RESET.value}")
+                print(info("Current URLs cleared. Please enter new URLs."))
                 continue
 
-            print(f"{ANSIColor.CYAN.value}Generating response...{ANSIColor.RESET.value}")
+            print(info("Generating response..."))
             response = self.generate_response(user_input)
-            print(f"\n{ANSIColor.NEON_GREEN.value}Response:{ANSIColor.RESET.value}\n{response}")
+            print(f"\n{success('Response:')}\n{response}")
 
             with open(self.output_file, "a", encoding="utf-8") as f:
                 f.write(f"Question: {user_input}\n\n")
                 f.write(f"Response: {response}\n\n")
                 f.write("-" * 50 + "\n\n")
 
-            print(f"{ANSIColor.NEON_GREEN.value}Response saved to {self.output_file}{ANSIColor.RESET.value}")
+            print(success(f"Response saved to {self.output_file}"))
 
 if __name__ == "__main__":
     import sys
@@ -198,7 +198,7 @@ if __name__ == "__main__":
         talk2url = Talk2URL(api_type)
         talk2url.run()
     else:
-        print("Error: No API type provided.")
-        print("Usage: python src/talk2url.py <api_type>")  # Updated usage instruction
-        print("Available API types: ollama, llama")
+        print(error("Error: No API type provided."))
+        print(warning("Usage: python src/talk2url.py <api_type>"))
+        print(info("Available API types: ollama, llama"))
         sys.exit(1)

@@ -1,11 +1,5 @@
 import sys
 from pathlib import Path
-from src.color_scheme import Colors, colorize
-import colorama
-from colorama import init
-
-# Initialize colorama
-init(autoreset=True)
 
 # Add the project root directory to the Python path
 project_root = Path(__file__).parent
@@ -21,7 +15,6 @@ import asyncio
 import os
 from src.file_processing import process_file, append_to_db
 from src.talk2doc import RAGSystem
-from src.web_rag import WebRAG
 from src.embeddings_utils import compute_and_save_embeddings, load_or_compute_embeddings
 from sentence_transformers import SentenceTransformer
 from src.create_graph import create_knowledge_graph, create_knowledge_graph_from_raw
@@ -29,6 +22,7 @@ from src.settings import settings
 from src.search_utils import SearchUtils
 from src.create_knol import KnolCreator
 from src.web_sum import WebSum
+from src.web_rag import WebRAG
 from src.route_query import RouteQuery
 from src.api_model import get_available_models, update_settings, configure_api
 from src.talk2model import Talk2Model
@@ -38,8 +32,7 @@ from src.talk2git import Talk2Git
 from src.create_q import run_create_q
 from src.server import ServerManager
 from src.gen_a import run_gen_a
-
-
+from src.look_and_feel import error, success, warning, info, highlight
 
 class ToolTip:
     def __init__(self, widget, text):
@@ -96,9 +89,6 @@ class ERAGGUI:
 
         # Set up the window close event
         self.master.protocol("WM_DELETE_WINDOW", self.on_closing)
-
-        # Initialize colorama
-        init(autoreset=True)
 
     def create_widgets(self):
         self.main_tab = ttk.Frame(self.notebook)
@@ -763,30 +753,30 @@ class ERAGGUI:
             questions_file = filedialog.askopenfilename(title="Select Questions File",
                                                         filetypes=[("Text files", "*.txt")])
             if not questions_file:
-                print(colorize("No file selected. Exiting.", Colors.ERROR))
+                print(error("No file selected. Exiting."))
                 return
 
             # Read questions and count them
             with open(questions_file, 'r', encoding='utf-8') as file:
                 questions = [line.strip() for line in file if line.strip()]
             
-            print(colorize(f"\nQuestion file imported correctly, {len(questions)} questions identified.", Colors.SUCCESS))
+            print(f"\n{success(f'Question file imported correctly, {len(questions)} questions identified.')}")
 
             # Display options to the user in the console
-            print(colorize("\nChoose the answer generation method:", Colors.INFO))
-            print(colorize("1. Talk2Doc", Colors.INFO))
-            print(colorize("2. WebRAG", Colors.INFO))
-            print(colorize("3. Hybrid (Talk2Doc + WebRAG)", Colors.INFO))
-            print(colorize("4. Exit", Colors.INFO))
+            print(f"\n{info('Choose the answer generation method:')}")
+            print(warning("1. Talk2Doc"))
+            print(warning("2. WebRAG"))
+            print(warning("3. Hybrid (Talk2Doc + WebRAG)"))
+            print(warning("4. Exit"))
             
             while True:
-                choice = input(colorize("Enter your choice (1, 2, 3, or 4): ", Colors.INFO)).strip()
+                choice = input(success("Enter your choice (1, 2, 3, or 4): ")).strip()
                 if choice in ['1', '2', '3', '4']:
                     break
-                print(colorize("Invalid choice. Please enter 1, 2, 3, or 4.", Colors.ERROR))
+                print(error("Invalid choice. Please enter 1, 2, 3, or 4."))
 
             if choice == '4':
-                print(colorize("Exiting the answer generation process.", Colors.INFO))
+                print(info("Exiting the answer generation process."))
                 return
 
             gen_method = {
@@ -804,9 +794,9 @@ class ERAGGUI:
             # Run the answer generation in a separate thread
             threading.Thread(target=self._gen_a_thread, args=(questions_file, gen_method, api_type, client), daemon=True).start()
 
-            print(colorize(f"Answer generation started using {gen_method} method. Check the console for progress.", Colors.INFO))
+            print(info(f"Answer generation started using {gen_method} method. Check the console for progress."))
         except Exception as e:
-            print(colorize(f"An error occurred while starting the answer generation process: {str(e)}", Colors.ERROR))
+            print(error(f"An error occurred while starting the answer generation process: {str(e)}"))
 
     def _gen_a_thread(self, questions_file, gen_method, api_type, client):
         try:
@@ -816,9 +806,8 @@ class ERAGGUI:
             messagebox.showinfo("Success", "Answers generated successfully. Check the output file.")
         except Exception as e:
             error_message = f"An error occurred during answer generation: {str(e)}"
-            print(colorize(error_message, Colors.ERROR))
+            print(error(error_message))
             messagebox.showerror("Error", error_message)
-
             
 
     def create_server_tab(self):

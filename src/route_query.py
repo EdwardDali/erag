@@ -5,16 +5,10 @@ from src.settings import settings
 import re
 import os
 from src.api_model import configure_api, LlamaClient
+from src.look_and_feel import success, info, warning, error, highlight
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
-class ANSIColor(Enum):
-    PINK = '\033[95m'
-    CYAN = '\033[96m'
-    YELLOW = '\033[93m'
-    NEON_GREEN = '\033[92m'
-    RESET = '\033[0m'
 
 class RouteQuery:
     def __init__(self, api_type: str):
@@ -37,8 +31,8 @@ class RouteQuery:
             return content
         except FileNotFoundError:
             logging.error(f"{db_content_path} not found")
-            print(f"\n{ANSIColor.PINK.value}Warning: db_content.txt not found. Please upload and process documents first.{ANSIColor.RESET.value}")
-            print("You can do this by:")
+            print(warning("Warning: db_content.txt not found. Please upload and process documents first."))
+            print(info("You can do this by:"))
             print("1. Using the 'Upload' buttons in the main tab to process documents")
             print("2. Clicking 'Execute Embeddings' to generate the necessary files for using Doc RAG")
             print("3. Optionally, creating a knowledge graph using 'Create Knowledge Graph'")
@@ -65,7 +59,7 @@ class RouteQuery:
            - Deep: If the query requires a comprehensive analysis, multiple aspects, or extensive information.
 
         4. Based on your evaluation, recommend one of the following options:
-First check if there is relevant information in the TOC; if yes chose A or B. If there is no relevant information in TOC chose C or D. For complex query not in the TOC choose D.
+    First check if there is relevant information in the TOC; if yes chose A or B. If there is no relevant information in TOC chose C or D. For complex query not in the TOC choose D.
            A. talk2doc (RAGSystem): 
               - in TOC: yes
               - simple: yes
@@ -117,9 +111,9 @@ First check if there is relevant information in the TOC; if yes chose A or B. If
                 )
                 llm_response = response.choices[0].message.content
             
-            print(f"\n{ANSIColor.CYAN.value}LLM-generated response:{ANSIColor.RESET.value}")
+            print(info("LLM-generated response:"))
             print(llm_response)
-            print(f"\n{ANSIColor.YELLOW.value}Parsing LLM response...{ANSIColor.RESET.value}")
+            print(info("Parsing LLM response..."))
             
             parsed_response = self.parse_evaluation(llm_response)
             
@@ -177,7 +171,7 @@ First check if there is relevant information in the TOC; if yes chose A or B. If
             raise ValueError(f"Unknown component: {component_name}")
 
     def route_query(self, query: str, evaluation: dict):
-        print(f"{ANSIColor.CYAN.value}Routing decision:{ANSIColor.RESET.value}")
+        print(info("Routing decision:"))
         print(f"Relevance: {evaluation['relevance']}")
         print(f"Complexity: {evaluation['complexity']}")
         print(f"Recommendation: {evaluation['recommendation']}")
@@ -190,9 +184,9 @@ First check if there is relevant information in the TOC; if yes chose A or B. If
             'D': 'web_sum'
         }.get(evaluation['recommendation'], 'web_rag')
 
-        print(f"\n{ANSIColor.YELLOW.value}Loading system: {system_to_load}{ANSIColor.RESET.value}")
+        print(info(f"Loading system: {system_to_load}"))
         component = self.load_component(system_to_load)
-        print(f"{ANSIColor.NEON_GREEN.value}System loaded: {system_to_load}{ANSIColor.RESET.value}")
+        print(success(f"System loaded: {system_to_load}"))
 
         if system_to_load == 'talk2doc':
             response = component.ollama_chat(query, "You are a helpful assistant. Please respond to the user's query based on the available context.")
@@ -204,31 +198,31 @@ First check if there is relevant information in the TOC; if yes chose A or B. If
         else:
             response = "Error: Invalid system selected."
 
-        print(f"\n{ANSIColor.NEON_GREEN.value}Response:{ANSIColor.RESET.value}")
+        print(success("Response:"))
         print(response)
 
     def run(self):
-        print(f"{ANSIColor.YELLOW.value}Welcome to the Query Routing System. Type 'exit' to quit.{ANSIColor.RESET.value}")
-        print(f"{ANSIColor.CYAN.value}Using output folder: {settings.output_folder}{ANSIColor.RESET.value}")
+        print(highlight("Welcome to the Query Routing System. Type 'exit' to quit."))
+        print(info(f"Using output folder: {settings.output_folder}"))
 
         # Check if db_content.txt exists and is not empty
         db_content = self.load_db_content()
         if not db_content:
-            print(f"{ANSIColor.PINK.value}Error: Cannot start the Query Routing System. Please upload and process documents first.{ANSIColor.RESET.value}")
+            print(error("Error: Cannot start the Query Routing System. Please upload and process documents first."))
             return
 
         while True:
-            user_input = input(f"\n{ANSIColor.YELLOW.value}Enter your query: {ANSIColor.RESET.value}").strip()
+            user_input = input(info("Enter your query: ")).strip()
 
             if user_input.lower() == 'exit':
-                print(f"{ANSIColor.NEON_GREEN.value}Thank you for using the Query Routing System. Goodbye!{ANSIColor.RESET.value}")
+                print(success("Thank you for using the Query Routing System. Goodbye!"))
                 break
 
             if not user_input:
-                print(f"{ANSIColor.PINK.value}Please enter a valid query.{ANSIColor.RESET.value}")
+                print(warning("Please enter a valid query."))
                 continue
 
-            print(f"{ANSIColor.CYAN.value}Evaluating your query...{ANSIColor.RESET.value}")
+            print(info("Evaluating your query..."))
             evaluation = self.evaluate_query(user_input)
 
             self.route_query(user_input, evaluation)
@@ -242,7 +236,7 @@ if __name__ == "__main__":
         api_type = sys.argv[1]
         main(api_type)
     else:
-        print("Error: No API type provided.")
-        print("Usage: python src/route_query.py <api_type>")
-        print("Available API types: ollama, llama")
+        print(error("No API type provided."))
+        print(warning("Usage: python src/route_query.py <api_type>"))
+        print(info("Available API types: ollama, llama"))
         sys.exit(1)

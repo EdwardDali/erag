@@ -8,6 +8,7 @@ import spacy
 from src.settings import settings
 import os
 import json
+from src.look_and_feel import success, info, warning, error
 
 class SearchUtils:
     def __init__(self, model, db_embeddings=None, db_content=None, knowledge_graph=None):
@@ -24,8 +25,9 @@ class SearchUtils:
                 loaded_data = torch.load(embeddings_path)
                 self.db_embeddings = loaded_data['embeddings']
                 self.db_content = loaded_data['content']
+                logging.info(info(f"Loaded embeddings and content from {embeddings_path}"))
             else:
-                logging.error(f"Embeddings file not found: {embeddings_path}")
+                logging.error(error(f"Embeddings file not found: {embeddings_path}"))
                 self.db_embeddings = torch.tensor([])
                 self.db_content = []
 
@@ -38,8 +40,9 @@ class SearchUtils:
                 with open(graph_path, 'r') as f:
                     graph_data = json.load(f)
                 self.knowledge_graph = nx.node_link_graph(graph_data)
+                logging.info(info(f"Loaded knowledge graph from {graph_path}"))
             else:
-                logging.error(f"Knowledge graph file not found: {graph_path}")
+                logging.error(error(f"Knowledge graph file not found: {graph_path}"))
                 self.knowledge_graph = nx.Graph()
 
     def lexical_search(self, query: str) -> List[str]:
@@ -139,14 +142,14 @@ class SearchUtils:
         return None
 
     def get_relevant_context(self, user_input: str, conversation_context: List[str]) -> Tuple[List[str], List[str], List[str], List[str]]:
-        logging.info(f"DB Embeddings shape: {self.db_embeddings.shape if hasattr(self.db_embeddings, 'shape') else 'No shape attribute'}")
-        logging.info(f"DB Content length: {len(self.db_content)}")
+        logging.info(info(f"DB Embeddings shape: {self.db_embeddings.shape if hasattr(self.db_embeddings, 'shape') else 'No shape attribute'}"))
+        logging.info(info(f"DB Content length: {len(self.db_content)}"))
 
         if isinstance(self.db_embeddings, torch.Tensor) and self.db_embeddings.dim() > 1:
             self.db_embeddings = self.db_embeddings.numpy()
 
         if self.db_embeddings.size == 0 or len(self.db_content) == 0:
-            logging.warning("DB Embeddings or DB Content is empty")
+            logging.warning(warning("DB Embeddings or DB Content is empty"))
             return [], [], [], []
 
         search_query = " ".join(list(conversation_context) + [user_input])
@@ -156,9 +159,9 @@ class SearchUtils:
         graph_results = self.get_graph_context(search_query)
         text_results = self.text_search(search_query)
 
-        logging.info(f"Number of lexical results: {len(lexical_results)}")
-        logging.info(f"Number of semantic results: {len(semantic_results)}")
-        logging.info(f"Number of graph results: {len(graph_results)}")
-        logging.info(f"Number of text search results: {len(text_results)}")
+        logging.info(success(f"Number of lexical results: {len(lexical_results)}"))
+        logging.info(success(f"Number of semantic results: {len(semantic_results)}"))
+        logging.info(success(f"Number of graph results: {len(graph_results)}"))
+        logging.info(success(f"Number of text search results: {len(text_results)}"))
 
         return lexical_results, semantic_results, graph_results, text_results

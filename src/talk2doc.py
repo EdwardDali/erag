@@ -7,7 +7,6 @@ from typing import List, Dict
 import logging
 from collections import deque
 from src.embeddings_utils import load_embeddings_and_data
-from enum import Enum
 from openai import OpenAI
 import networkx as nx
 import json
@@ -18,13 +17,6 @@ from src.look_and_feel import success, info, warning, error, colorize, MAGENTA, 
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
-class ANSIColor(Enum):
-    PINK = '\033[95m'
-    CYAN = '\033[96m'
-    YELLOW = '\033[93m'
-    NEON_GREEN = '\033[92m'
-    RESET = '\033[0m'
 
 class RAGSystem:
     def __init__(self, api_type: str):
@@ -337,6 +329,6 @@ if __name__ == "__main__":
         main(api_type)
     else:
         print(error("No API type provided."))
-        print("Usage: python src/talk2doc.py <api_type>")  # Updated usage instruction
-        print("Available API types: ollama, llama, sentence_transformer")
+        print(warning("Usage: python src/talk2doc.py <api_type>"))
+        print(info("Available API types: ollama, llama, sentence_transformer"))
         sys.exit(1)
