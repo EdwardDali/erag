@@ -52,9 +52,9 @@ class Talk2URL:
             content = self.crawl_page(url)
             if content:
                 self.url_contents[url] = content
-                print(f"{ANSIColor.NEON_GREEN.value}Successfully processed content from {url}{ANSIColor.RESET.value}")
+                print(success(f"Successfully processed content from {url}"))
             else:
-                print(f"{ANSIColor.PINK.value}Failed to process content from {url}{ANSIColor.RESET.value}")
+                print(error(f"Failed to process content from {url}"))
         
         return f"Processed {len(self.url_contents)} URLs successfully."
 
@@ -117,9 +117,9 @@ Please provide a comprehensive and well-structured answer to the question based 
         return [url.rstrip(',.') for url in urls]
 
     def get_urls_from_user(self):
-        print(f"{ANSIColor.YELLOW.value}Enter the target URL(s) or a file path containing URLs.{ANSIColor.RESET.value}")
-        print(f"{ANSIColor.YELLOW.value}You can enter multiple URLs or paste a list of URLs.{ANSIColor.RESET.value}")
-        print(f"{ANSIColor.YELLOW.value}Type '\\' on a new line when finished.{ANSIColor.RESET.value}")
+        print(info("Enter the target URL(s) or a file path containing URLs."))
+        print(info("You can enter multiple URLs or paste a list of URLs."))
+        print(info("Type '\\' on a new line when finished."))
 
         user_input = []
         while True:
@@ -135,18 +135,18 @@ Please provide a comprehensive and well-structured answer to the question based 
                 with open(full_input.strip(), 'r') as file:
                     file_content = file.read()
                 urls = self.extract_urls(file_content)
-                print(f"{ANSIColor.CYAN.value}Loaded {len(urls)} URLs from file.{ANSIColor.RESET.value}")
+                print(info(f"Loaded {len(urls)} URLs from file."))
                 return urls
             except Exception as e:
-                print(f"{ANSIColor.PINK.value}Error reading file: {str(e)}. Please try again.{ANSIColor.RESET.value}")
+                print(error(f"Error reading file: {str(e)}. Please try again."))
                 return []
 
         urls = self.extract_urls(full_input)
         if not urls:
-            print(f"{ANSIColor.PINK.value}No valid URLs found. Please try again.{ANSIColor.RESET.value}")
+            print(warning("No valid URLs found. Please try again."))
             return []
 
-        print(f"{ANSIColor.CYAN.value}Found {len(urls)} URLs.{ANSIColor.RESET.value}")
+        print(info(f"Found {len(urls)} URLs."))
         return urls
 
     def run(self):

@@ -216,28 +216,28 @@ Please provide a concise summary (3-5 sentences) describing the overall purpose 
         dependency_files = [file for file in self.repo_contents.keys() if file.endswith(('requirements.txt', 'package.json', 'pom.xml'))]
         
         if not dependency_files:
-            print(f"{ANSIColor.YELLOW.value}No dependency files found in the repository.{ANSIColor.RESET.value}")
+            print(warning("No dependency files found in the repository."))
             return
 
         analysis_results = []
         for file in dependency_files:
             content = self.repo_contents[file][:settings.file_analysis_limit]  # Use settings directly
-            print(f"{ANSIColor.CYAN.value}Analyzing dependencies in {file}...{ANSIColor.RESET.value}")
+            print(info(f"Analyzing dependencies in {file}..."))
             
             prompt = f"""Analyze the dependencies in the following file:
 
-File: {file}
+    File: {file}
 
-Content:
-{content}
+    Content:
+    {content}
 
-Please provide a brief analysis covering the following aspects:
-1. List of main dependencies and their versions
-2. Potential outdated dependencies
-3. Possible security vulnerabilities (based on known common vulnerabilities)
-4. Suggestions for dependency updates or replacements
+    Please provide a brief analysis covering the following aspects:
+    1. List of main dependencies and their versions
+    2. Potential outdated dependencies
+    3. Possible security vulnerabilities (based on known common vulnerabilities)
+    4. Suggestions for dependency updates or replacements
 
-Your analysis should be concise but informative."""
+    Your analysis should be concise but informative."""
 
             try:
                 if self.api_type == "llama":
@@ -256,7 +256,7 @@ Your analysis should be concise but informative."""
                     ).choices[0].message.content
 
                 analysis_results.append(f"Analysis for {file}:\n\n{response}\n\n{'='*50}\n")
-                print(f"{ANSIColor.NEON_GREEN.value}Analysis complete for {file}{ANSIColor.RESET.value}")
+                print(success(f"Analysis complete for {file}"))
             except Exception as e:
                 logging.error(f"Error analyzing dependencies in {file}: {str(e)}")
                 analysis_results.append(f"Error analyzing dependencies in {file}: {str(e)}\n\n{'='*50}\n")
@@ -265,34 +265,34 @@ Your analysis should be concise but informative."""
         with open(analysis_file, "w", encoding="utf-8") as f:
             f.write("\n".join(analysis_results))
         
-        print(f"{ANSIColor.NEON_GREEN.value}Dependency analysis completed. Results saved to {analysis_file}{ANSIColor.RESET.value}")
+        print(success(f"Dependency analysis completed. Results saved to {analysis_file}"))
 
     def detect_code_smells(self):
         code_files = [file for file in self.repo_contents.keys() if file.endswith(('.py', '.js', '.java', '.cpp', '.c', '.h', '.cs'))]
         
         if not code_files:
-            print(f"{ANSIColor.YELLOW.value}No supported code files found in the repository.{ANSIColor.RESET.value}")
+            print(warning("No supported code files found in the repository."))
             return
 
         analysis_results = []
         for file in code_files:
             content = self.repo_contents[file][:settings.file_analysis_limit]  # Use settings directly
-            print(f"{ANSIColor.CYAN.value}Detecting code smells in {file}...{ANSIColor.RESET.value}")
+            print(info(f"Detecting code smells in {file}..."))
             
             prompt = f"""Analyze the following code for potential code smells:
 
-File: {file}
+    File: {file}
 
-Content:
-{content}
+    Content:
+    {content}
 
-Please provide a brief analysis covering the following aspects:
-1. Identify any common code smells (e.g., long methods, large classes, duplicate code)
-2. Highlight areas of the code that might be difficult to understand or maintain
-3. Suggest potential refactoring opportunities
-4. Comment on the overall code quality and structure
+    Please provide a brief analysis covering the following aspects:
+    1. Identify any common code smells (e.g., long methods, large classes, duplicate code)
+    2. Highlight areas of the code that might be difficult to understand or maintain
+    3. Suggest potential refactoring opportunities
+    4. Comment on the overall code quality and structure
 
-Your analysis should be concise but informative."""
+    Your analysis should be concise but informative."""
 
             try:
                 if self.api_type == "llama":
@@ -311,7 +311,7 @@ Your analysis should be concise but informative."""
                     ).choices[0].message.content
 
                 analysis_results.append(f"Analysis for {file}:\n\n{response}\n\n{'='*50}\n")
-                print(f"{ANSIColor.NEON_GREEN.value}Analysis complete for {file}{ANSIColor.RESET.value}")
+                print(success(f"Analysis complete for {file}"))
             except Exception as e:
                 logging.error(f"Error detecting code smells in {file}: {str(e)}")
                 analysis_results.append(f"Error detecting code smells in {file}: {str(e)}\n\n{'='*50}\n")
@@ -320,7 +320,7 @@ Your analysis should be concise but informative."""
         with open(analysis_file, "w", encoding="utf-8") as f:
             f.write("\n".join(analysis_results))
         
-        print(f"{ANSIColor.NEON_GREEN.value}Code smell detection completed. Results saved to {analysis_file}{ANSIColor.RESET.value}")
+        print(success(f"Code smell detection completed. Results saved to {analysis_file}"))
 
     def display_menu(self):
         print(info("\nTalk2Git Menu:"))
