@@ -161,7 +161,7 @@ class WebRAG:
 
     def process_next_urls(self):
         if not self.current_query:
-            print(f"{ANSIColor.PINK.value}No current query context. Please perform a search first.{ANSIColor.RESET.value}")
+            print(warning("No current query context. Please perform a search first."))
             return False
 
         new_search_results = self.perform_search(self.current_query, offset=self.search_offset)
@@ -170,7 +170,7 @@ class WebRAG:
         urls_to_process = [result for result in new_search_results if result['href'] not in self.processed_urls]
         
         if not urls_to_process:
-            print(f"{ANSIColor.PINK.value}No new URLs found to process. Try a new search query.{ANSIColor.RESET.value}")
+            print(warning("No new URLs found to process. Try a new search query."))
             return False
 
         all_content = []
@@ -188,9 +188,9 @@ class WebRAG:
                         f.write(f"{chunk}\n")
                         all_content.append(chunk)
                     
-                    print(f"{ANSIColor.NEON_GREEN.value}Successfully processed and added content from {url}{ANSIColor.RESET.value}")
+                    print(success(f"Successfully processed and added content from {url}"))
                 else:
-                    print(f"{ANSIColor.PINK.value}Failed to process content from {url}{ANSIColor.RESET.value}")
+                    print(error(f"Failed to process content from {url}"))
 
         if all_content:
             new_embeddings = self.model.encode(all_content, show_progress_bar=False)
@@ -306,10 +306,10 @@ Please provide a comprehensive and well-structured answer to the question based 
 
     def get_response(self, query: str) -> str:
         if not self.search_utils or not self.current_query:
-            print(f"{ANSIColor.CYAN.value}Searching and processing web content...{ANSIColor.RESET.value}")
+            print(info("Searching and processing web content..."))
             answer = self.search_and_process(query)
         else:
-            print(f"{ANSIColor.CYAN.value}Generating answer based on existing knowledge...{ANSIColor.RESET.value}")
+            print(info("Generating answer based on existing knowledge..."))
             answer = self.generate_qa(query)
 
         return answer
