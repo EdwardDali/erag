@@ -33,6 +33,10 @@ from src.create_q import run_create_q
 from src.server import ServerManager
 from src.gen_a import run_gen_a
 from src.look_and_feel import error, success, warning, info, highlight
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 
 class ToolTip:
@@ -152,7 +156,7 @@ class ERAGGUI:
         api_label = tk.Label(model_frame, text="API Type:")
         api_label.grid(row=0, column=0, padx=5, pady=5, sticky="e")
         
-        api_options = ["ollama", "llama"]
+        api_options = ["ollama", "llama", "groq"]
         api_menu = ttk.Combobox(model_frame, textvariable=self.api_type_var, values=api_options, state="readonly")
         api_menu.grid(row=0, column=1, padx=5, pady=5, sticky="w")
         api_menu.bind("<<ComboboxSelected>>", self.update_model_list)
@@ -185,11 +189,8 @@ class ERAGGUI:
             api_type = self.api_type_var.get()
             model = self.model_var.get()
             
-            # Create EragAPI instance
-            erag_api = EragAPI(api_type)
-            
             # Create and run the Talk2Model instance in a separate thread
-            talk2model = Talk2Model(erag_api, model)
+            talk2model = Talk2Model(create_erag_api(api_type, model), model)
             threading.Thread(target=talk2model.run, daemon=True).start()
             
             messagebox.showinfo("Info", f"Talk2Model started with {api_type} API and {model} model. Check the console for interaction.")
@@ -198,21 +199,22 @@ class ERAGGUI:
 
 
 
-    def update_model_list(self, event=None):
-        api_type = self.api_type_var.get()
-        if api_type == "ollama":
-            models = get_available_models(api_type)
-        elif api_type == "llama":
-            models = self.server_manager.get_gguf_models()
+    def update_model_list(self, event=None, api_type_var=None):
+        if api_type_var:
+            api_type = api_type_var.get()
         else:
-            models = []
+            api_type = self.api_type_var.get()
+        
+        models = get_available_models(api_type)
 
         self.model_menu['values'] = models
         if models:
             if api_type == "ollama" and settings.ollama_model in models:
                 self.model_var.set(settings.ollama_model)
-            elif api_type == "llama" and self.server_manager.current_model in models:
-                self.model_var.set(self.server_manager.current_model)
+            elif api_type == "llama" and settings.llama_model in models:
+                self.model_var.set(settings.llama_model)
+            elif api_type == "groq" and settings.groq_model in models:
+                self.model_var.set(settings.groq_model)
             else:
                 self.model_var.set(models[0])
             if not self.is_initializing:
@@ -224,11 +226,19 @@ class ERAGGUI:
             self.is_initializing = False
             self.update_model_setting(show_message=False)
 
+        # Update the API type in settings
+        settings.update_setting("api_type", api_type)
+
     def update_model_setting(self, event=None, show_message=True):
         api_type = self.api_type_var.get()
         model = self.model_var.get()
         if model:
-            update_settings(settings, api_type, model)
+            if api_type == "ollama":
+                settings.update_setting("ollama_model", model)
+            elif api_type == "llama":
+                settings.update_setting("llama_model", model)
+            elif api_type == "groq":
+                settings.update_setting("groq_model", model)
             if api_type == "llama":
                 self.server_manager.set_current_model(model)
             if show_message:
@@ -283,44 +293,34 @@ class ERAGGUI:
         ToolTip(talk2git_button, "Interact with content from a GitHub repository")
 
     def create_settings_tab(self):
-        # Create a main frame to hold the three columns
+        # Create a main frame to hold the four columns
         main_frame = ttk.Frame(self.settings_tab)
         main_frame.grid(row=0, column=0, sticky="nsew")
-        main_frame.columnconfigure(0, weight=1)
-        main_frame.columnconfigure(1, weight=1)
-        main_frame.columnconfigure(2, weight=1)
+        for i in range(4):
+            main_frame.columnconfigure(i, weight=1)
 
-        # Left Column
-        left_column = ttk.Frame(main_frame)
-        left_column.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
-
-        # Middle Column
-        middle_column = ttk.Frame(main_frame)
-        middle_column.grid(row=0, column=1, sticky="nsew", padx=5, pady=5)
-
-        # Right Column
-        right_column = ttk.Frame(main_frame)
-        right_column.grid(row=0, column=2, sticky="nsew", padx=5, pady=5)
+        # Create four columns
+        columns = [ttk.Frame(main_frame) for _ in range(4)]
+        for i, column in enumerate(columns):
+            column.grid(row=0, column=i, sticky="nsew", padx=5, pady=5)
 
         # Create frames for different setting categories
-        upload_frame = self.create_labelframe(left_column, "Upload Settings", 0)
-        embeddings_frame = self.create_labelframe(left_column, "Embeddings Settings", 1)
-        graph_frame = self.create_labelframe(left_column, "Graph Settings", 2)
-        model_frame = self.create_labelframe(left_column, "Model Settings", 3)
+        upload_frame = self.create_labelframe(columns[0], "Upload Settings", 0)
+        embeddings_frame = self.create_labelframe(columns[0], "Embeddings Settings", 1)
+        graph_frame = self.create_labelframe(columns[0], "Graph Settings", 2)
 
-        knol_frame = self.create_labelframe(middle_column, "Knol Creation Settings", 0)
-        search_frame = self.create_labelframe(middle_column, "Search Settings", 1)
-        file_frame = self.create_labelframe(middle_column, "File Settings", 2)
-        web_sum_frame = self.create_labelframe(middle_column, "Web Sum Settings", 3)
+        knol_frame = self.create_labelframe(columns[1], "Knol Creation Settings", 0)
+        search_frame = self.create_labelframe(columns[1], "Search Settings", 1)
+        file_frame = self.create_labelframe(columns[1], "File Settings", 2)
 
-        web_rag_frame = self.create_labelframe(right_column, "Web RAG Settings", 0)
-        summarization_frame = self.create_labelframe(right_column, "Summarization Settings", 1)
-        api_frame = self.create_labelframe(right_column, "API Settings", 2)
-        question_gen_frame = self.create_labelframe(right_column, "Question Generation Settings", 3)
-        talk2url_frame = self.create_labelframe(right_column, "Talk2URL Settings", 4)
-        github_frame = self.create_labelframe(right_column, "GitHub Settings", 5)
-        
+        web_sum_frame = self.create_labelframe(columns[2], "Web Sum Settings", 0)
+        web_rag_frame = self.create_labelframe(columns[2], "Web RAG Settings", 1)
+        summarization_frame = self.create_labelframe(columns[2], "Summarization Settings", 2)
 
+        api_frame = self.create_labelframe(columns[3], "API Settings", 0)
+        question_gen_frame = self.create_labelframe(columns[3], "Question Generation Settings", 1)
+        talk2url_frame = self.create_labelframe(columns[3], "Talk2URL Settings", 2)
+        github_frame = self.create_labelframe(columns[3], "GitHub Settings", 3)
 
         # Create and layout settings fields
         self.create_settings_fields(upload_frame, [
@@ -347,17 +347,29 @@ class ERAGGUI:
         self.create_checkbox(graph_frame, "Enable Semantic Edges", "enable_semantic_edges", 
                              len(graph_frame.grid_slaves()), 0)
 
-        self.create_settings_fields(model_frame, [
-            ("Max History Length", "max_history_length"),
-            ("Conversation Context Size", "conversation_context_size"),
-            ("Update Threshold", "update_threshold"),
-            ("Ollama Model", "ollama_model"),
-            ("Temperature", "temperature"),
-            ("Model Name", "model_name"),
-        ])
-
         self.create_settings_fields(knol_frame, [
             ("Number of Questions", "num_questions"),
+        ])
+
+        self.create_settings_fields(search_frame, [
+            ("Top K", "top_k"),
+            ("Entity Relevance Threshold", "entity_relevance_threshold"),
+            ("Lexical Weight", "lexical_weight"),
+            ("Semantic Weight", "semantic_weight"),
+            ("Graph Weight", "graph_weight"),
+            ("Text Weight", "text_weight"),
+        ])
+
+        # Create checkboxes for boolean settings
+        checkbox_frame = ttk.Frame(search_frame)
+        checkbox_frame.grid(row=len(search_frame.grid_slaves()), column=0, columnspan=2, sticky="w", padx=5, pady=5)
+        self.create_checkbox(checkbox_frame, "Enable Lexical Search", "enable_lexical_search", 0, 0)
+        self.create_checkbox(checkbox_frame, "Enable Semantic Search", "enable_semantic_search", 0, 1)
+        self.create_checkbox(checkbox_frame, "Enable Graph Search", "enable_graph_search", 1, 0)
+        self.create_checkbox(checkbox_frame, "Enable Text Search", "enable_text_search", 1, 1)
+
+        self.create_settings_fields(file_frame, [
+            ("Results File Path", "results_file_path"),
         ])
 
         self.create_settings_fields(web_sum_frame, [
@@ -374,32 +386,40 @@ class ERAGGUI:
             ("Web RAG Overlap Size", "web_rag_overlap_size"),
         ])
 
-        self.create_settings_fields(search_frame, [
-            ("Top K", "top_k"),
-            ("Entity Relevance Threshold", "entity_relevance_threshold"),
-            ("Lexical Weight", "lexical_weight"),
-            ("Semantic Weight", "semantic_weight"),
-            ("Graph Weight", "graph_weight"),
-            ("Text Weight", "text_weight"),
+        self.create_settings_fields(summarization_frame, [
+            ("Chunk Size", "summarization_chunk_size"),
+            ("Summary Size", "summarization_summary_size"),
+            ("Combining Number", "summarization_combining_number"),
+            ("Final Chunk Size", "summarization_final_chunk_size"),
         ])
+
+        # API Settings
+        ttk.Label(api_frame, text="API Type:").grid(row=0, column=0, sticky="e", padx=5, pady=2)
+        api_type_var = tk.StringVar(value=settings.api_type)
+        api_type_menu = ttk.Combobox(api_frame, textvariable=api_type_var, values=["ollama", "llama", "groq"], state="readonly")
+        api_type_menu.grid(row=0, column=1, sticky="w", padx=5, pady=2)
+        api_type_menu.bind("<<ComboboxSelected>>", lambda e: self.update_model_list(e, api_type_var))
+
+        self.create_settings_fields(api_frame, [
+            ("Ollama Model", "ollama_model"),
+            ("Llama Model", "llama_model"),
+            ("Groq Model", "groq_model"),
+            ("Temperature", "temperature"),
+            ("Max History Length", "max_history_length"),
+            ("Conversation Context Size", "conversation_context_size"),
+            ("Update Threshold", "update_threshold"),
+        ])
+
+        # Groq API Key field
+        ttk.Label(api_frame, text="Groq API Key:").grid(row=len(api_frame.grid_slaves()), column=0, sticky="e", padx=5, pady=2)
+        self.groq_api_key_var = tk.StringVar()
+        ttk.Entry(api_frame, textvariable=self.groq_api_key_var, show="*").grid(row=len(api_frame.grid_slaves())-1, column=1, sticky="w", padx=5, pady=2)
 
         self.create_settings_fields(question_gen_frame, [
             ("Initial Question Chunk Size", "initial_question_chunk_size"),
             ("Question Chunk Levels", "question_chunk_levels"),
             ("Excluded Question Levels", "excluded_question_levels"),
-            ("Questions Per Chunk", "questions_per_chunk"),  # New field for questions per chunk
-        ])
-
-        # Create checkboxes for boolean settings
-        checkbox_frame = ttk.Frame(search_frame)
-        checkbox_frame.grid(row=len(search_frame.grid_slaves()), column=0, columnspan=2, sticky="w", padx=5, pady=5)
-        self.create_checkbox(checkbox_frame, "Enable Lexical Search", "enable_lexical_search", 0, 0)
-        self.create_checkbox(checkbox_frame, "Enable Semantic Search", "enable_semantic_search", 0, 1)
-        self.create_checkbox(checkbox_frame, "Enable Graph Search", "enable_graph_search", 1, 0)
-        self.create_checkbox(checkbox_frame, "Enable Text Search", "enable_text_search", 1, 1)
-
-        self.create_settings_fields(file_frame, [
-            ("Results File Path", "results_file_path"),
+            ("Questions Per Chunk", "questions_per_chunk"),
         ])
 
         # Create checkbox for talk2url_limit_content_size
@@ -412,19 +432,10 @@ class ERAGGUI:
         content_size_entry.grid(row=1, column=1, sticky="w", padx=5, pady=2)
         setattr(self, "talk2url_content_size_per_url_var", content_size_var)
 
-        self.create_settings_fields(summarization_frame, [
-            ("Chunk Size", "summarization_chunk_size"),
-            ("Summary Size", "summarization_summary_size"),
-            ("Combining Number", "summarization_combining_number"),
-            ("Final Chunk Size", "summarization_final_chunk_size"),
-        ])
-
         self.create_settings_fields(github_frame, [
             ("GitHub Token", "github_token"),
             ("File Analysis Limit", "file_analysis_limit"),
         ])
-
-
 
         # Add buttons for settings management
         button_frame = ttk.Frame(self.settings_tab)
@@ -475,8 +486,40 @@ class ERAGGUI:
                     value = os.path.join(self.project_root, value)
                 settings.update_setting(key, value)
         
+        # Update Groq API Key in .env file
+        groq_api_key = self.groq_api_key_var.get()
+        self.update_env_file("GROQ_API_KEY", groq_api_key)
+
+        # Update API type in settings and GUI
+        api_type = getattr(self, "api_type_var").get()
+        settings.update_setting("api_type", api_type)
+        self.api_type_var.set(api_type)
+        self.update_model_list()
+        
         settings.apply_settings()
         messagebox.showinfo("Settings", "Settings applied successfully")
+
+    def update_env_file(self, key, value):
+        env_path = os.path.join(self.project_root, '.env')
+        if os.path.exists(env_path):
+            with open(env_path, 'r') as file:
+                lines = file.readlines()
+            
+            updated = False
+            for i, line in enumerate(lines):
+                if line.startswith(f"{key}="):
+                    lines[i] = f"{key}={value}\n"
+                    updated = True
+                    break
+            
+            if not updated:
+                lines.append(f"{key}={value}\n")
+            
+            with open(env_path, 'w') as file:
+                file.writelines(lines)
+        else:
+            with open(env_path, 'w') as file:
+                file.write(f"{key}={value}\n")
 
     def reset_settings(self):
         settings.reset_to_defaults()
@@ -518,7 +561,7 @@ class ERAGGUI:
 
             api_type = self.api_type_var.get()
             model = self.model_var.get()
-            erag_api = EragAPI(api_type)
+            erag_api = create_erag_api(api_type, model)
 
             # Apply settings before running the summarization
             self.apply_settings()
@@ -543,7 +586,8 @@ class ERAGGUI:
     def create_knol(self):
         try:
             api_type = self.api_type_var.get()
-            erag_api = create_erag_api(api_type)
+            model = self.model_var.get()
+            erag_api = create_erag_api(api_type, model)
             creator = KnolCreator(erag_api)
             
             if os.path.exists(settings.db_file_path):
@@ -649,7 +693,8 @@ class ERAGGUI:
     def run_talk2urls(self):
         try:
             api_type = self.api_type_var.get()
-            erag_api = create_erag_api(api_type)
+            model = self.model_var.get()
+            erag_api = create_erag_api(api_type, model)
             self.talk2url = Talk2URL(erag_api)
             
             # Apply settings to Talk2URL
@@ -666,8 +711,9 @@ class ERAGGUI:
     def run_talk2git(self):
         try:
             api_type = self.api_type_var.get()
-            github_token = settings.github_token  # Get the GitHub token from settings
-            erag_api = create_erag_api(api_type)
+            model = self.model_var.get()
+            github_token = settings.github_token
+            erag_api = create_erag_api(api_type, model)
             self.talk2git = Talk2Git(erag_api, github_token)
             
             # Apply settings to Talk2Git
@@ -692,7 +738,7 @@ class ERAGGUI:
 
             api_type = self.api_type_var.get()
             model = self.model_var.get()
-            erag_api = EragAPI(api_type)
+            erag_api = create_erag_api(api_type, model)
 
             # Apply settings before running the question creation
             self.apply_settings()
@@ -720,7 +766,8 @@ class ERAGGUI:
     def run_web_sum(self):
         try:
             api_type = self.api_type_var.get()
-            erag_api = create_erag_api(api_type)
+            model = self.model_var.get()
+            erag_api = create_erag_api(api_type, model)
             web_sum = WebSum(erag_api)
             
             # Apply settings to WebSum
@@ -737,7 +784,8 @@ class ERAGGUI:
     def run_web_rag(self):
         try:
             api_type = self.api_type_var.get()
-            erag_api = create_erag_api(api_type)
+            model = self.model_var.get()
+            erag_api = create_erag_api(api_type, model)
             self.web_rag = WebRAG(erag_api)
             
             # Apply settings to WebRAG
@@ -790,7 +838,8 @@ class ERAGGUI:
             }[choice]
 
             api_type = self.api_type_var.get()
-            erag_api = create_erag_api(api_type)
+            model = self.model_var.get()
+            erag_api = create_erag_api(api_type, model)
 
             # Apply settings silently
             self.apply_settings()
@@ -912,7 +961,7 @@ class ERAGGUI:
             model = self.model_var.get()
             
             # Create EragAPI instance
-            self.erag_api = EragAPI(api_type)
+            self.erag_api = create_erag_api(api_type, model)
             
             if api_type == "ollama":
                 self.rag_system = RAGSystem(self.erag_api)
@@ -926,11 +975,13 @@ class ERAGGUI:
                 self.server_manager.restart_server()
                 # Start the llama.cpp client
                 threading.Thread(target=self.run_llama_client, daemon=True).start()
+            elif api_type == "groq":
+                # Start the Groq client
+                threading.Thread(target=self.run_groq_client, daemon=True).start()
             
             messagebox.showinfo("Info", f"System started with {api_type} API and model: {model}. Check the console for interaction.")
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred while starting the system: {str(e)}")
-
 
     def run_llama_client(self):
         try:
@@ -939,6 +990,15 @@ class ERAGGUI:
             rag_system.run()
         except Exception as e:
             print(f"An error occurred while running the RAG system: {str(e)}")
+
+    def run_groq_client(self):
+        try:
+            from src.talk2doc import RAGSystem
+            rag_system = RAGSystem(self.erag_api)
+            rag_system.run()
+        except Exception as e:
+            print(f"An error occurred while running the RAG system with Groq: {str(e)}")
+
 
 def main():
     root = tk.Tk()

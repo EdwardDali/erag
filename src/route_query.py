@@ -157,6 +157,7 @@ class RouteQuery:
         else:
             raise ValueError(f"Unknown component: {component_name}")
 
+
     def route_query(self, query: str, evaluation: dict):
         print(info("Routing decision:"))
         print(f"Relevance: {evaluation['relevance']}")
@@ -176,7 +177,7 @@ class RouteQuery:
         print(success(f"System loaded: {system_to_load}"))
 
         if system_to_load == 'talk2doc':
-            response = component.ollama_chat(query, "You are a helpful assistant. Please respond to the user's query based on the available context.")
+            response = component.get_response(query)
         elif system_to_load == 'create_knol':
             component.run_knol_creator()
             response = "Knol creation process completed. Please check the generated files for results."

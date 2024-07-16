@@ -3,43 +3,67 @@ from openai import OpenAI
 from src.settings import settings
 import requests
 from src.look_and_feel import error, success, warning, info
+import os
+from dotenv import load_dotenv
+from groq.types import Model, ModelDeleted, ModelListResponse
+from groq import Groq
+
+# Load environment variables from .env file
+load_dotenv()
 
 class EragAPI:
-    def __init__(self, api_type):
+    def __init__(self, api_type, model=None):
         self.api_type = api_type
+        self.model = model
+
         if api_type == "ollama":
-            self.client = OpenAI(base_url='http://localhost:11434/v1', api_key=settings.ollama_model)
+            self.client = OpenAI(base_url='http://localhost:11434/v1', api_key='ollama')
+            self.model = model or settings.ollama_model
         elif api_type == "llama":
             self.client = LlamaClient()
+            self.model = model or settings.llama_model
+        elif api_type == "groq":
+            self.client = GroqClient(model)
+            self.model = self.client.model  # GroqClient will handle default model if needed
         else:
             raise ValueError(error("Invalid API type"))
 
-    def chat(self, messages, temperature=0.7, max_tokens=None):
+    def chat(self, messages, temperature=0.7, max_tokens=None, stream=False):
         try:
             if self.api_type == "llama":
                 response = self.client.chat(messages, temperature=temperature, max_tokens=max_tokens)
-            else:
+            elif self.api_type == "groq":
+                response = self.client.chat(messages, temperature=temperature, max_tokens=max_tokens, stream=stream)
+            else:  # ollama
                 response = self.client.chat.completions.create(
-                    model=settings.ollama_model if self.api_type == "ollama" else settings.llama_model,
+                    model=self.model,
                     messages=messages,
                     temperature=temperature,
-                    max_tokens=max_tokens
-                ).choices[0].message.content
+                    max_tokens=max_tokens,
+                    stream=stream
+                )
+                if not stream:
+                    response = response.choices[0].message.content
             return response
         except Exception as e:
             return error(f"An error occurred: {str(e)}")
 
-    def complete(self, prompt, temperature=0.7, max_tokens=None):
+    def complete(self, prompt, temperature=0.7, max_tokens=None, stream=False):
         try:
             if self.api_type == "llama":
                 response = self.client.complete(prompt, temperature=temperature, max_tokens=max_tokens)
-            else:
+            elif self.api_type == "groq":
+                response = self.client.complete(prompt, temperature=temperature, max_tokens=max_tokens, stream=stream)
+            else:  # ollama
                 response = self.client.completions.create(
-                    model=settings.ollama_model if self.api_type == "ollama" else settings.llama_model,
+                    model=self.model,
                     prompt=prompt,
                     temperature=temperature,
-                    max_tokens=max_tokens
-                ).choices[0].text
+                    max_tokens=max_tokens,
+                    stream=stream
+                )
+                if not stream:
+                    response = response.choices[0].text
             return response
         except Exception as e:
             return error(f"An error occurred: {str(e)}")
@@ -66,6 +90,21 @@ def get_available_models(api_type):
         except requests.RequestException as e:
             print(error(f"Error connecting to llama.cpp server: {e}"))
             return []
+    elif api_type == "groq":
+        try:
+            api_key = os.getenv("GROQ_API_KEY")
+            if not api_key:
+                print(error("GROQ_API_KEY not found in .env file"))
+                return []
+            
+            client = Groq(api_key=api_key)
+            models: ModelListResponse = client.models.list()
+            
+            # Filter and return only the model IDs
+            return [model.id for model in models.data if isinstance(model, Model)]
+        except Exception as e:
+            print(error(f"Error fetching models from Groq API: {str(e)}"))
+            return []
     else:
         return []
 
@@ -74,6 +113,7 @@ def update_settings(settings, api_type, model):
         settings.update_setting("ollama_model", model)
     elif api_type == "llama":
         settings.update_setting("llama_model", model)
+    # We don't update settings for Groq model anymore
     settings.apply_settings()
     print(success(f"Settings updated. Using {model} with {api_type} API."))
 
@@ -107,6 +147,71 @@ class LlamaClient:
         else:
             raise Exception(error(f"Error from llama.cpp server: {response.status_code} - {response.text}"))
 
+class GroqClient:
+    def __init__(self, model=None):
+        self.api_key = os.getenv("GROQ_API_KEY")
+        if not self.api_key:
+            raise ValueError(error("GROQ_API_KEY not found in .env file"))
+        self.client = Groq()
+        self.model = model or self.get_default_model()
+
+    def get_default_model(self):
+        try:
+            models = self.client.models.list()
+            return models.data[0].id if models.data else None
+        except Exception:
+            return None
+
+
+    def chat(self, messages, temperature=0.7, max_tokens=None, stream=False):
+        try:
+            completion = self.client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                stream=stream
+            )
+            
+            if stream:
+                return completion  # Return the stream object
+            else:
+                return completion.choices[0].message.content
+        except Exception as e:
+            raise Exception(error(f"Error from Groq API: {str(e)}"))
+
+    def complete(self, prompt, temperature=0.7, max_tokens=None, stream=False):
+        try:
+            completion = self.client.completions.create(
+                model=self.model,
+                prompt=prompt,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                stream=stream
+            )
+            
+            if stream:
+                return completion  # Return the stream object
+            else:
+                return completion.choices[0].text
+        except Exception as e:
+            raise Exception(error(f"Error from Groq API: {str(e)}"))
+
+    def stream_chat(self, messages, temperature=1, max_tokens=1024):
+        try:
+            completion = self.client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                stream=True
+            )
+            
+            for chunk in completion:
+                yield chunk.choices[0].delta.content or ""
+        except Exception as e:
+            raise Exception(error(f"Error streaming from Groq API: {str(e)}"))
+
 # Factory function to create EragAPI instance
-def create_erag_api(api_type):
-    return EragAPI(api_type)
+def create_erag_api(api_type, model=None):
+    return EragAPI(api_type, model)

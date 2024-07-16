@@ -47,10 +47,11 @@ class Settings:
         self.conversation_context_size = 3
         self.update_threshold = 10
         self.ollama_model = "qwen2:1.5b-instruct-q8_0"
+        self.llama_model = "llama-default"
+        self.groq_model = "mixtral-8x7b-32768"  # Add default Groq model
         self.temperature = 0.1
         self.model_name = "all-MiniLM-L6-v2"
         self.sentence_transformer_model = "all-MiniLM-L6-v2"
-        self.llama_model = "llama-default"
 
         # Knol Creation Settings
         self.num_questions = 8
@@ -101,6 +102,9 @@ class Settings:
         # GitHub Settings
         self.github_token = ""
         self.file_analysis_limit = 2000
+
+        # Groq Settings
+        self.groq_api_key = ""
 
         # API Settings
         self.api_type = "ollama"
