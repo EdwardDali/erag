@@ -236,7 +236,7 @@ Please provide a concise summary (3-5 sentences) describing the overall purpose 
 
         analysis_results = []
         for file in code_files:
-            content = self.repo_contents[file][:settings.file_analysis_limit]  # Use settings directly
+            content = self.repo_contents[file][:settings.file_analysis_limit]
             print(info(f"Detecting code smells in {file}..."))
             
             prompt = f"""Analyze the following code for potential code smells:
@@ -255,20 +255,11 @@ Please provide a concise summary (3-5 sentences) describing the overall purpose 
     Your analysis should be concise but informative."""
 
             try:
-                if self.api_type == "llama":
-                    response = self.client.chat([
-                        {"role": "system", "content": "You are an expert code reviewer specializing in identifying code smells and suggesting improvements."},
-                        {"role": "user", "content": prompt}
-                    ], temperature=0.2)
-                else:
-                    response = self.client.chat.completions.create(
-                        model=settings.ollama_model,
-                        messages=[
-                            {"role": "system", "content": "You are an expert code reviewer specializing in identifying code smells and suggesting improvements."},
-                            {"role": "user", "content": prompt}
-                        ],
-                        temperature=0.2
-                    ).choices[0].message.content
+                messages = [
+                    {"role": "system", "content": "You are an expert code reviewer specializing in identifying code smells and suggesting improvements."},
+                    {"role": "user", "content": prompt}
+                ]
+                response = self.erag_api.chat(messages, temperature=0.2)
 
                 analysis_results.append(f"Analysis for {file}:\n\n{response}\n\n{'='*50}\n")
                 print(success(f"Analysis complete for {file}"))
