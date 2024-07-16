@@ -175,6 +175,22 @@ class ERAGGUI:
         # Initialize model list
         self.update_model_list()
 
+    def update_model_list(self, event=None):
+        api_type = self.api_type_var.get()
+        models = get_available_models(api_type)
+
+        self.model_menu['values'] = models
+        if models:
+            self.model_var.set(models[0])  # Set to first available model
+        else:
+            self.model_var.set("")
+        
+        # Update the API type in settings
+        settings.update_setting("api_type", api_type)
+        
+        print(success(f"Updated model list for API type: {api_type}"))
+        print(success(f"Available models: {', '.join(models)}"))
+
     def create_agent_frame(self):
         agent_frame = tk.LabelFrame(self.main_tab, text="Model and Agent")
         agent_frame.pack(fill="x", padx=10, pady=5)
@@ -202,37 +218,7 @@ class ERAGGUI:
 
 
 
-    def update_model_list(self, event=None, api_type_var=None):
-        if api_type_var:
-            api_type = api_type_var.get()
-        else:
-            api_type = self.api_type_var.get()
-        
-        models = get_available_models(api_type)
-
-        self.model_menu['values'] = models
-        if models:
-            if api_type == "ollama" and settings.ollama_model in models:
-                self.model_var.set(settings.ollama_model)
-            elif api_type == "llama" and settings.llama_model in models:
-                self.model_var.set(settings.llama_model)
-            elif api_type == "groq" and settings.groq_model in models:
-                self.model_var.set(settings.groq_model)
-            else:
-                self.model_var.set(models[0])
-            if not self.is_initializing:
-                self.update_model_setting()
-        else:
-            self.model_var.set("")
-        
-        if self.is_initializing:
-            self.is_initializing = False
-            self.update_model_setting(show_message=False)
-
-        # Update the API type in settings
-        settings.update_setting("api_type", api_type)
-
-    def update_model_setting(self, event=None, show_message=True):
+    def update_model_setting(self, event=None):
         api_type = self.api_type_var.get()
         model = self.model_var.get()
         if model:
@@ -240,13 +226,14 @@ class ERAGGUI:
                 settings.update_setting("ollama_model", model)
             elif api_type == "llama":
                 settings.update_setting("llama_model", model)
+                self.server_manager.set_current_model(model)
             elif api_type == "groq":
                 settings.update_setting("groq_model", model)
-            if api_type == "llama":
-                self.server_manager.set_current_model(model)
-            if show_message:
-                messagebox.showinfo("Model Selected", f"Selected API: {api_type}, Model: {model}")
-        elif show_message:
+            
+            print(success(f"Selected API: {api_type}, Model: {model}"))
+            messagebox.showinfo("Model Selected", f"Selected API: {api_type}, Model: {model}")
+        else:
+            print(error("No model selected"))
             messagebox.showwarning("Model Selection", "No model selected")
 
     def create_doc_rag_frame(self):
@@ -398,16 +385,10 @@ class ERAGGUI:
         ])
 
         # API Settings
-        ttk.Label(api_frame, text="API Type:").grid(row=0, column=0, sticky="e", padx=5, pady=2)
-        api_type_var = tk.StringVar(value=settings.api_type)
-        api_type_menu = ttk.Combobox(api_frame, textvariable=api_type_var, values=["ollama", "llama", "groq"], state="readonly")
-        api_type_menu.grid(row=0, column=1, sticky="w", padx=5, pady=2)
-        api_type_menu.bind("<<ComboboxSelected>>", lambda e: self.update_model_list(e, api_type_var))
-
         self.create_settings_fields(api_frame, [
-            ("Ollama Model", "ollama_model"),
-            ("Llama Model", "llama_model"),
-            ("Groq Model", "groq_model"),
+            ("Default Ollama Model", "ollama_model"),
+            ("Default Llama Model", "llama_model"),
+            ("Default Groq Model", "groq_model"),
             ("Temperature", "temperature"),
             ("Max History Length", "max_history_length"),
             ("Conversation Context Size", "conversation_context_size"),
@@ -498,14 +479,11 @@ class ERAGGUI:
         self.update_env_file("GROQ_API_KEY", self.groq_api_key_var.get())
         self.update_env_file("GITHUB_TOKEN", self.github_token_var.get())
 
-        # Update API type in settings and GUI
-        api_type = getattr(self, "api_type_var").get()
-        settings.update_setting("api_type", api_type)
-        self.api_type_var.set(api_type)
-        self.update_model_list()
-        
         settings.apply_settings()
         messagebox.showinfo("Settings", "Settings applied successfully")
+
+        # Update the model list in the main GUI to reflect any changes
+        self.update_model_list()
 
     def update_env_file(self, key: str, value: str) -> None:
         """
