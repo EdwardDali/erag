@@ -13,6 +13,7 @@ from tkinter import messagebox, ttk, filedialog, simpledialog
 import threading
 import asyncio
 import os
+from dotenv import load_dotenv, set_key  # Add set_key here
 from src.file_processing import process_file, append_to_db
 from src.talk2doc import RAGSystem
 from src.embeddings_utils import compute_and_save_embeddings, load_or_compute_embeddings
@@ -33,7 +34,6 @@ from src.create_q import run_create_q
 from src.server import ServerManager
 from src.gen_a import run_gen_a
 from src.look_and_feel import error, success, warning, info, highlight
-from dotenv import load_dotenv
 
 # Load environment variables from .env file
 load_dotenv()
@@ -83,6 +83,9 @@ class ERAGGUI:
         self.server_manager = ServerManager()  # Initialize the ServerManager
         self.project_root = project_root
         self.erag_api = None
+        load_dotenv()
+        self.groq_api_key = os.getenv("GROQ_API_KEY", "")
+        self.github_token = os.getenv("GITHUB_TOKEN", "")
 
         # Create output folder if it doesn't exist
         os.makedirs(settings.output_folder, exist_ok=True)
@@ -322,6 +325,7 @@ class ERAGGUI:
         talk2url_frame = self.create_labelframe(columns[3], "Talk2URL Settings", 2)
         github_frame = self.create_labelframe(columns[3], "GitHub Settings", 3)
 
+
         # Create and layout settings fields
         self.create_settings_fields(upload_frame, [
             ("Chunk Size", "file_chunk_size"),
@@ -412,15 +416,14 @@ class ERAGGUI:
 
         # Groq API Key field
         ttk.Label(api_frame, text="Groq API Key:").grid(row=len(api_frame.grid_slaves()), column=0, sticky="e", padx=5, pady=2)
-        self.groq_api_key_var = tk.StringVar()
+        self.groq_api_key_var = tk.StringVar(value=self.groq_api_key)
         ttk.Entry(api_frame, textvariable=self.groq_api_key_var, show="*").grid(row=len(api_frame.grid_slaves())-1, column=1, sticky="w", padx=5, pady=2)
 
-        self.create_settings_fields(question_gen_frame, [
-            ("Initial Question Chunk Size", "initial_question_chunk_size"),
-            ("Question Chunk Levels", "question_chunk_levels"),
-            ("Excluded Question Levels", "excluded_question_levels"),
-            ("Questions Per Chunk", "questions_per_chunk"),
-        ])
+        # GitHub Token field
+        ttk.Label(github_frame, text="GitHub Token:").grid(row=0, column=0, sticky="e", padx=5, pady=2)
+        self.github_token_var = tk.StringVar(value=self.github_token)
+        ttk.Entry(github_frame, textvariable=self.github_token_var, show="*").grid(row=0, column=1, sticky="w", padx=5, pady=2)
+
 
         # Create checkbox for talk2url_limit_content_size
         self.create_checkbox(talk2url_frame, "Limit Content Size", "talk2url_limit_content_size", 0, 0)
@@ -433,9 +436,14 @@ class ERAGGUI:
         setattr(self, "talk2url_content_size_per_url_var", content_size_var)
 
         self.create_settings_fields(github_frame, [
-            ("GitHub Token", "github_token"),
             ("File Analysis Limit", "file_analysis_limit"),
         ])
+
+        # Add GitHub Token field separately
+        ttk.Label(github_frame, text="GitHub Token:").grid(row=1, column=0, sticky="e", padx=5, pady=2)
+        self.github_token_var = tk.StringVar(value=self.github_token)
+        ttk.Entry(github_frame, textvariable=self.github_token_var, show="*").grid(row=1, column=1, sticky="w", padx=5, pady=2)
+
 
         # Add buttons for settings management
         button_frame = ttk.Frame(self.settings_tab)
@@ -486,9 +494,9 @@ class ERAGGUI:
                     value = os.path.join(self.project_root, value)
                 settings.update_setting(key, value)
         
-        # Update Groq API Key in .env file
-        groq_api_key = self.groq_api_key_var.get()
-        self.update_env_file("GROQ_API_KEY", groq_api_key)
+        # Update Groq API Key and GitHub Token in .env file
+        self.update_env_file("GROQ_API_KEY", self.groq_api_key_var.get())
+        self.update_env_file("GITHUB_TOKEN", self.github_token_var.get())
 
         # Update API type in settings and GUI
         api_type = getattr(self, "api_type_var").get()
@@ -499,27 +507,23 @@ class ERAGGUI:
         settings.apply_settings()
         messagebox.showinfo("Settings", "Settings applied successfully")
 
-    def update_env_file(self, key, value):
+    def update_env_file(self, key: str, value: str) -> None:
+        """
+        Update or add a key-value pair in the .env file and current environment.
+
+        Args:
+            key (str): The key to update or add.
+            value (str): The value to set for the key.
+
+        This method updates the .env file located in the project root directory.
+        If the file doesn't exist, it will be created. If the key already exists
+        in the file, its value will be updated. If the key doesn't exist, it will
+        be added to the file. The method also updates the current session's
+        environment variables.
+        """
         env_path = os.path.join(self.project_root, '.env')
-        if os.path.exists(env_path):
-            with open(env_path, 'r') as file:
-                lines = file.readlines()
-            
-            updated = False
-            for i, line in enumerate(lines):
-                if line.startswith(f"{key}="):
-                    lines[i] = f"{key}={value}\n"
-                    updated = True
-                    break
-            
-            if not updated:
-                lines.append(f"{key}={value}\n")
-            
-            with open(env_path, 'w') as file:
-                file.writelines(lines)
-        else:
-            with open(env_path, 'w') as file:
-                file.write(f"{key}={value}\n")
+        set_key(env_path, key, value)
+        os.environ[key] = value  # Update the environment variable in the current session
 
     def reset_settings(self):
         settings.reset_to_defaults()
@@ -561,6 +565,13 @@ class ERAGGUI:
 
             api_type = self.api_type_var.get()
             model = self.model_var.get()
+
+            # Check Groq API key if using Groq
+            if api_type == "groq":
+                self.check_groq_api_key()
+                if not self.groq_api_key:
+                    return  # Exit if no API key is provided
+
             erag_api = create_erag_api(api_type, model)
 
             # Apply settings before running the summarization
@@ -998,6 +1009,17 @@ class ERAGGUI:
             rag_system.run()
         except Exception as e:
             print(f"An error occurred while running the RAG system with Groq: {str(e)}")
+
+    def check_groq_api_key(self):
+        if not self.groq_api_key:
+            # Prompt the user to enter the Groq API key
+            self.groq_api_key = simpledialog.askstring("Groq API Key", "Please enter your Groq API Key:", show='*')
+            if self.groq_api_key:
+                # Save the API key to the .env file
+                self.update_env_file("GROQ_API_KEY", self.groq_api_key)
+                messagebox.showinfo("Success", "Groq API Key has been saved.")
+            else:
+                messagebox.showwarning("Warning", "Groq API Key is required to use the Groq API.")
 
 
 def main():

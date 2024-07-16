@@ -100,11 +100,11 @@ class Settings:
         self.talk2url_content_size_per_url = 500
 
         # GitHub Settings
-        self.github_token = ""
         self.file_analysis_limit = 2000
 
-        # Groq Settings
-        self.groq_api_key = ""
+        #self.groq_api_key = ""
+        #self.github_token = ""
+
 
         # API Settings
         self.api_type = "ollama"
