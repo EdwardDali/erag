@@ -7,6 +7,7 @@ from src.api_model import EragAPI, create_erag_api
 from src.look_and_feel import success, info, warning, error
 import base64
 import time
+from dotenv import load_dotenv
 
 class Talk2Git:
     def __init__(self, erag_api: EragAPI, github_token: str = ""):
@@ -16,8 +17,19 @@ class Talk2Git:
             "User-Agent": "Talk2Git/1.0",
             "Accept": "application/vnd.github.v3+json"
         })
+        
+        # Load environment variables
+        load_dotenv()
+        
+        # Use GitHub token from .env file if not provided
+        if not github_token:
+            github_token = os.getenv("GITHUB_TOKEN")
+        
         if github_token:
             self.session.headers["Authorization"] = f"token {github_token}"
+        else:
+            print(warning("GitHub token not found. Some operations may be limited."))
+        
         self.repo_url = ""
         self.repo_contents = {}
         self.github_api_url = "https://api.github.com"

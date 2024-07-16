@@ -181,7 +181,20 @@ class ERAGGUI:
 
         self.model_menu['values'] = models
         if models:
-            self.model_var.set(models[0])  # Set to first available model
+            # Set to the default model for the selected API type
+            if api_type == "ollama":
+                default_model = settings.ollama_model
+            elif api_type == "llama":
+                default_model = settings.llama_model
+            elif api_type == "groq":
+                default_model = settings.groq_model
+            else:
+                default_model = models[0]
+            
+            if default_model in models:
+                self.model_var.set(default_model)
+            else:
+                self.model_var.set(models[0])
         else:
             self.model_var.set("")
         
@@ -190,6 +203,7 @@ class ERAGGUI:
         
         print(success(f"Updated model list for API type: {api_type}"))
         print(success(f"Available models: {', '.join(models)}"))
+        print(success(f"Selected model: {self.model_var.get()}"))
 
     def create_agent_frame(self):
         agent_frame = tk.LabelFrame(self.main_tab, text="Model and Agent")
@@ -701,7 +715,7 @@ class ERAGGUI:
         try:
             api_type = self.api_type_var.get()
             model = self.model_var.get()
-            github_token = settings.github_token
+            github_token = os.getenv("GITHUB_TOKEN")  # Get token from environment
             erag_api = create_erag_api(api_type, model)
             self.talk2git = Talk2Git(erag_api, github_token)
             
