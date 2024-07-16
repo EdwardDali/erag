@@ -4,21 +4,18 @@ from enum import Enum
 from src.settings import settings
 import re
 import os
-from src.api_model import configure_api, LlamaClient
+from src.api_model import EragAPI, create_erag_api
 from src.look_and_feel import success, info, warning, error, highlight
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class RouteQuery:
-    def __init__(self, api_type: str):
-        self.api_type = api_type
-        if api_type == "llama":
-            self.client = LlamaClient()
-        else:
-            self.client = configure_api(api_type)
+    def __init__(self, erag_api: EragAPI):
+        self.erag_api = erag_api
         # Ensure output folder exists
         os.makedirs(settings.output_folder, exist_ok=True)
+
 
     def load_db_content(self):
         logging.info("Loading database content...")
@@ -95,21 +92,11 @@ class RouteQuery:
 
         try:
             logging.info("Sending request to LLM...")
-            if self.api_type == "llama":
-                llm_response = self.client.chat([
-                    {"role": "system", "content": system_message},
-                    {"role": "user", "content": user_message}
-                ], temperature=settings.temperature)
-            else:
-                response = self.client.chat.completions.create(
-                    model=settings.ollama_model,
-                    messages=[
-                        {"role": "system", "content": system_message},
-                        {"role": "user", "content": user_message}
-                    ],
-                    temperature=settings.temperature
-                )
-                llm_response = response.choices[0].message.content
+            messages = [
+                {"role": "system", "content": system_message},
+                {"role": "user", "content": user_message}
+            ]
+            llm_response = self.erag_api.chat(messages, temperature=settings.temperature)
             
             print(info("LLM-generated response:"))
             print(llm_response)
@@ -157,16 +144,16 @@ class RouteQuery:
         logging.info(f"Loading component: {component_name}")
         if component_name == 'talk2doc':
             from src.talk2doc import RAGSystem
-            return RAGSystem(self.api_type)
+            return RAGSystem(self.erag_api)
         elif component_name == 'create_knol':
             from src.create_knol import KnolCreator
-            return KnolCreator(self.api_type)
+            return KnolCreator(self.erag_api)
         elif component_name == 'web_rag':
             from src.web_rag import WebRAG
-            return WebRAG(self.api_type)
+            return WebRAG(self.erag_api)
         elif component_name == 'web_sum':
             from src.web_sum import WebSum
-            return WebSum(self.api_type)
+            return WebSum(self.erag_api)
         else:
             raise ValueError(f"Unknown component: {component_name}")
 
@@ -228,7 +215,8 @@ class RouteQuery:
             self.route_query(user_input, evaluation)
 
 def main(api_type: str):
-    route_query = RouteQuery(api_type)
+    erag_api = create_erag_api(api_type)
+    route_query = RouteQuery(erag_api)
     route_query.run()
 
 if __name__ == "__main__":

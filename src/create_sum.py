@@ -2,7 +2,7 @@ import os
 import fitz  # PyMuPDF
 from typing import List
 from src.settings import settings
-from src.api_model import configure_api, LlamaClient
+from src.api_model import EragAPI
 from src.look_and_feel import success, info, warning, error
 
 def extract_text(file_path: str) -> str:
@@ -25,57 +25,35 @@ def process_pdf(pdf_path: str) -> str:
 def split_into_chunks(text: str) -> List[str]:
     return [text[i:i+settings.summarization_chunk_size] for i in range(0, len(text), settings.summarization_chunk_size)]
 
-def summarize_chunk(chunk: str, api_type: str, client) -> str:
+def summarize_chunk(chunk: str, erag_api: EragAPI) -> str:
     prompt = f"""Write a concise summary (about {settings.summarization_summary_size} characters) of the following text:
 
 {chunk}
 
 SUMMARY:"""
 
-    if api_type == "llama":
-        response = client.chat([
-            {"role": "system", "content": "You are a helpful assistant that creates concise summaries."},
-            {"role": "user", "content": prompt}
-        ], temperature=settings.temperature)
-        return response.strip()
-    else:
-        response = client.chat.completions.create(
-            model=settings.ollama_model,
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant that creates concise summaries."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=settings.temperature,
-            max_tokens=settings.summarization_summary_size
-        )
-        return response.choices[0].message.content.strip()
+    messages = [
+        {"role": "system", "content": "You are a helpful assistant that creates concise summaries."},
+        {"role": "user", "content": prompt}
+    ]
+    response = erag_api.chat(messages, temperature=settings.temperature)
+    return response.strip()
 
-def review_summaries(summaries: List[str], api_type: str, client) -> str:
+def review_summaries(summaries: List[str], erag_api: EragAPI) -> str:
     prompt = f"""Summarize the following {settings.summarization_combining_number} summaries into one coherent paragraph:
 
 {' '.join(summaries)}
 
 SUMMARIZED PARAGRAPH:"""
 
-    if api_type == "llama":
-        response = client.chat([
-            {"role": "system", "content": "You are a helpful assistant that combines multiple summaries into a coherent paragraph."},
-            {"role": "user", "content": prompt}
-        ], temperature=settings.temperature)
-        return response.strip()
-    else:
-        response = client.chat.completions.create(
-            model=settings.ollama_model,
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant that combines multiple summaries into a coherent paragraph."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=settings.temperature,
-            max_tokens=settings.summarization_final_chunk_size
-        )
-        return response.choices[0].message.content.strip()
+    messages = [
+        {"role": "system", "content": "You are a helpful assistant that combines multiple summaries into a coherent paragraph."},
+        {"role": "user", "content": prompt}
+    ]
+    response = erag_api.chat(messages, temperature=settings.temperature)
+    return response.strip()
 
-def create_summary(file_path: str, api_type: str, client) -> str:
+def create_summary(file_path: str, erag_api: EragAPI) -> str:
     try:
         full_text = extract_text(file_path)
         
@@ -96,7 +74,7 @@ def create_summary(file_path: str, api_type: str, client) -> str:
         chunk_summaries = []
         with open(all_summaries_path, 'w', encoding='utf-8') as f:
             for i, chunk in enumerate(chunks, 1):
-                summary = summarize_chunk(chunk, api_type, client)
+                summary = summarize_chunk(chunk, erag_api)
                 f.write(f"{summary}\n\n")
                 f.flush()  # Ensure the summary is written to the file immediately
                 chunk_summaries.append(summary)
@@ -109,7 +87,7 @@ def create_summary(file_path: str, api_type: str, client) -> str:
         with open(reviewed_summary_path, 'w', encoding='utf-8') as f:
             for i in range(0, len(chunk_summaries), settings.summarization_combining_number):
                 group = chunk_summaries[i:i+settings.summarization_combining_number]
-                reviewed_summary = review_summaries(group, api_type, client)
+                reviewed_summary = review_summaries(group, erag_api)
                 f.write(f"{reviewed_summary}\n\n")
                 f.flush()  # Ensure the summary is written to the file immediately
                 print(info(f"Processed reviewed summary group {i//settings.summarization_combining_number + 1}"))
@@ -121,7 +99,5 @@ def create_summary(file_path: str, api_type: str, client) -> str:
     except Exception as e:
         return error(f"An error occurred while processing the document: {str(e)}")
 
-def run_create_sum(file_path: str, api_type: str, client) -> str:
-    if api_type == "llama" and not isinstance(client, LlamaClient):
-        client = LlamaClient()  # Create a new LlamaClient instance if it's not already
-    return create_summary(file_path, api_type, client)
+def run_create_sum(file_path: str, api_type: str, erag_api: EragAPI) -> str:
+    return create_summary(file_path, erag_api)

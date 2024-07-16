@@ -2,19 +2,15 @@ import logging
 from bs4 import BeautifulSoup
 import requests
 from src.settings import settings
-from src.api_model import configure_api, LlamaClient
+from src.api_model import EragAPI, create_erag_api
 from src.look_and_feel import success, info, warning, error
 import os
 import re
 import unicodedata
 
 class Talk2URL:
-    def __init__(self, api_type: str):
-        self.api_type = api_type
-        if api_type == "llama":
-            self.client = LlamaClient()
-        else:
-            self.client = configure_api(api_type)
+    def __init__(self, erag_api: EragAPI):
+        self.erag_api = erag_api
         self.session = requests.Session()
         self.session.headers.update({
             "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0",
@@ -78,29 +74,19 @@ class Talk2URL:
 8. If you're not sure about something or if the information is not in the provided content, say so."""
 
         user_message = f"""Web Content:
-{all_content}
+        {all_content}
 
-User Question: {user_input}
+        User Question: {user_input}
 
-Please provide a comprehensive and well-structured answer to the question based on the given web content. If the content doesn't contain relevant information, you can answer based on your general knowledge."""
+        Please provide a comprehensive and well-structured answer to the question based on the given web content. If the content doesn't contain relevant information, you can answer based on your general knowledge."""
 
         try:
-            if self.api_type == "llama":
-                response = self.client.chat([
-                    {"role": "system", "content": system_message},
-                    *self.conversation_history,
-                    {"role": "user", "content": user_message}
-                ], temperature=settings.temperature)
-            else:
-                response = self.client.chat.completions.create(
-                    model=settings.ollama_model,
-                    messages=[
-                        {"role": "system", "content": system_message},
-                        *self.conversation_history,
-                        {"role": "user", "content": user_message}
-                    ],
-                    temperature=settings.temperature
-                ).choices[0].message.content
+            messages = [
+                {"role": "system", "content": system_message},
+                *self.conversation_history,
+                {"role": "user", "content": user_message}
+            ]
+            response = self.erag_api.chat(messages, temperature=settings.temperature)
 
             self.conversation_history.append({"role": "user", "content": user_input})
             self.conversation_history.append({"role": "assistant", "content": response})
@@ -109,6 +95,7 @@ Please provide a comprehensive and well-structured answer to the question based 
         except Exception as e:
             logging.error(f"Error generating response: {str(e)}")
             return "I'm sorry, but I encountered an error while trying to answer your question."
+
 
 
     def extract_urls(self, text):
@@ -191,12 +178,16 @@ Please provide a comprehensive and well-structured answer to the question based 
 
             print(success(f"Response saved to {self.output_file}"))
 
+def main(api_type: str):
+    erag_api = create_erag_api(api_type)
+    talk2url = Talk2URL(erag_api)
+    talk2url.run()
+
 if __name__ == "__main__":
     import sys
     if len(sys.argv) > 1:
         api_type = sys.argv[1]
-        talk2url = Talk2URL(api_type)
-        talk2url.run()
+        main(api_type)
     else:
         print(error("Error: No API type provided."))
         print(warning("Usage: python src/talk2url.py <api_type>"))

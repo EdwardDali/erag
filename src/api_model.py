@@ -4,6 +4,46 @@ from src.settings import settings
 import requests
 from src.look_and_feel import error, success, warning, info
 
+class EragAPI:
+    def __init__(self, api_type):
+        self.api_type = api_type
+        if api_type == "ollama":
+            self.client = OpenAI(base_url='http://localhost:11434/v1', api_key=settings.ollama_model)
+        elif api_type == "llama":
+            self.client = LlamaClient()
+        else:
+            raise ValueError(error("Invalid API type"))
+
+    def chat(self, messages, temperature=0.7, max_tokens=None):
+        try:
+            if self.api_type == "llama":
+                response = self.client.chat(messages, temperature=temperature, max_tokens=max_tokens)
+            else:
+                response = self.client.chat.completions.create(
+                    model=settings.ollama_model if self.api_type == "ollama" else settings.llama_model,
+                    messages=messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens
+                ).choices[0].message.content
+            return response
+        except Exception as e:
+            return error(f"An error occurred: {str(e)}")
+
+    def complete(self, prompt, temperature=0.7, max_tokens=None):
+        try:
+            if self.api_type == "llama":
+                response = self.client.complete(prompt, temperature=temperature, max_tokens=max_tokens)
+            else:
+                response = self.client.completions.create(
+                    model=settings.ollama_model if self.api_type == "ollama" else settings.llama_model,
+                    prompt=prompt,
+                    temperature=temperature,
+                    max_tokens=max_tokens
+                ).choices[0].text
+            return response
+        except Exception as e:
+            return error(f"An error occurred: {str(e)}")
+
 def get_available_models(api_type):
     if api_type == "ollama":
         try:
@@ -37,14 +77,6 @@ def update_settings(settings, api_type, model):
     settings.apply_settings()
     print(success(f"Settings updated. Using {model} with {api_type} API."))
 
-def configure_api(api_type: str) -> OpenAI:
-    if api_type == "ollama":
-        return OpenAI(base_url='http://localhost:11434/v1', api_key=settings.ollama_model)
-    elif api_type == "llama":
-        return OpenAI(base_url='http://localhost:8080/v1', api_key='sk-no-key-required')
-    else:
-        raise ValueError(error("Invalid API type"))
-
 class LlamaClient:
     def __init__(self, base_url='http://localhost:8080/v1'):
         self.base_url = base_url
@@ -74,3 +106,7 @@ class LlamaClient:
             return response.json()['choices'][0]['text']
         else:
             raise Exception(error(f"Error from llama.cpp server: {response.status_code} - {response.text}"))
+
+# Factory function to create EragAPI instance
+def create_erag_api(api_type):
+    return EragAPI(api_type)

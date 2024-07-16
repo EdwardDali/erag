@@ -4,7 +4,7 @@ import os
 from typing import List, Tuple, Optional
 import logging
 from src.settings import settings
-from src.api_model import configure_api, LlamaClient
+from src.api_model import EragAPI
 from src.look_and_feel import success, info, warning, error
 
 # Set up logging
@@ -21,7 +21,7 @@ def load_db_content(file_path: str) -> List[str]:
     return content
 
 def compute_and_save_embeddings(
-    model: SentenceTransformer,
+    erag_api: EragAPI,
     save_path: str,
     content: List[str]
 ) -> None:
@@ -35,7 +35,7 @@ def compute_and_save_embeddings(
         db_embeddings = []
         for i in range(0, len(content), settings.batch_size):
             batch = content[i:i+settings.batch_size]
-            batch_embeddings = model.encode(batch, convert_to_tensor=True)
+            batch_embeddings = erag_api.encode(batch, convert_to_tensor=True)
             db_embeddings.append(batch_embeddings)
             print(info(f"Processed batch {i//settings.batch_size + 1}/{(len(content)-1)//settings.batch_size + 1}"))
 
@@ -82,7 +82,7 @@ def load_embeddings_and_data(embeddings_file: str) -> Tuple[Optional[torch.Tenso
         print(error(f"Error in load_embeddings_and_data: {str(e)}"))
         raise
 
-def load_or_compute_embeddings(model: SentenceTransformer, db_file: str, embeddings_file: str) -> Tuple[torch.Tensor, torch.Tensor, List[str]]:
+def load_or_compute_embeddings(erag_api: EragAPI, db_file: str, embeddings_file: str) -> Tuple[torch.Tensor, torch.Tensor, List[str]]:
     try:
         # Ensure db_file and embeddings_file are in the output folder
         db_file = os.path.join(settings.output_folder, os.path.basename(db_file))
@@ -91,7 +91,7 @@ def load_or_compute_embeddings(model: SentenceTransformer, db_file: str, embeddi
         embeddings, indexes, content = load_embeddings_and_data(embeddings_file)
         if embeddings is None or indexes is None or content is None:
             content = load_db_content(db_file)
-            compute_and_save_embeddings(model, embeddings_file, content)
+            compute_and_save_embeddings(erag_api, embeddings_file, content)
             embeddings, indexes, content = load_embeddings_and_data(embeddings_file)
         return embeddings, indexes, content
     except Exception as e:
@@ -101,14 +101,11 @@ def load_or_compute_embeddings(model: SentenceTransformer, db_file: str, embeddi
 if __name__ == "__main__":
     try:
         ensure_output_folder()
-        # Use the configure_api function to get the appropriate model
-        if settings.api_type == "llama":
-            model = LlamaClient()
-        else:
-            model = configure_api("sentence_transformer", settings.model_name)
+        # Use the EragAPI
+        erag_api = EragAPI(settings.api_type)
         
         # Process db.txt from the output folder
-        embeddings, indexes, content = load_or_compute_embeddings(model, settings.db_file_path, settings.embeddings_file_path)
+        embeddings, indexes, content = load_or_compute_embeddings(erag_api, settings.db_file_path, settings.embeddings_file_path)
         print(success(f"DB Embeddings shape: {embeddings.shape}, Indexes shape: {indexes.shape}"))
         print(success(f"DB Content length: {len(content)}"))
     except Exception as e:

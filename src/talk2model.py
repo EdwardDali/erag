@@ -1,18 +1,15 @@
-from src.api_model import configure_api, LlamaClient
+from src.api_model import EragAPI
 from src.settings import settings
 from src.look_and_feel import success, info, warning, error, highlight, user_input, llm_response
 
 class Talk2Model:
-    def __init__(self, api_type, model):
-        self.api_type = api_type
+    def __init__(self, erag_api: EragAPI, model: str):
+        self.erag_api = erag_api
         self.model = model
-        if api_type == "llama":
-            self.client = LlamaClient()
-        else:
-            self.client = configure_api(api_type)
 
     def run(self):
-        print(info(f"Talking to {self.model} using {self.api_type} API. Type 'exit' to end the conversation."))
+        print(info(f"EragAPI initialized with {self.erag_api.api_type} backend."))
+        print(info(f"Talking to {self.model} using EragAPI (backed by {self.erag_api.api_type}). Type 'exit' to end the conversation."))
         
         while True:
             user_prompt = input(user_input("You: "))
@@ -25,20 +22,11 @@ class Talk2Model:
 
     def get_model_response(self, user_prompt):
         try:
-            if self.api_type == "llama":
-                response = self.client.chat([
-                    {"role": "system", "content": "You are a helpful AI assistant."},
-                    {"role": "user", "content": user_prompt}
-                ], temperature=settings.temperature)
-            else:
-                response = self.client.chat.completions.create(
-                    model=settings.ollama_model if self.api_type == "ollama" else settings.llama_model,
-                    messages=[
-                        {"role": "system", "content": "You are a helpful AI assistant."},
-                        {"role": "user", "content": user_prompt}
-                    ],
-                    temperature=settings.temperature
-                ).choices[0].message.content
+            messages = [
+                {"role": "system", "content": "You are a helpful AI assistant."},
+                {"role": "user", "content": user_prompt}
+            ]
+            response = self.erag_api.chat(messages, temperature=settings.temperature)
             return response
         except Exception as e:
             return error(f"An error occurred: {str(e)}")
@@ -51,5 +39,6 @@ if __name__ == "__main__":
     
     api_type = sys.argv[1]
     model = sys.argv[2]
-    talk2model = Talk2Model(api_type, model)
+    erag_api = EragAPI(api_type)
+    talk2model = Talk2Model(erag_api, model)
     talk2model.run()

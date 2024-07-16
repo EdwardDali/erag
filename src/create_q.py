@@ -2,7 +2,7 @@ import os
 import re
 from src.settings import settings
 from PyPDF2 import PdfReader
-from src.api_model import configure_api, LlamaClient
+from src.api_model import EragAPI
 from src.look_and_feel import success, info, warning, error
 
 def chunk_text(text, chunk_size):
@@ -23,7 +23,7 @@ def read_pdf(file_path):
         text += page.extract_text() + "\n"
     return text
 
-def generate_questions(client, api_type, chunk, question_number, total_questions, output_file, chunk_size):
+def generate_questions(erag_api, chunk, question_number, total_questions, output_file, chunk_size):
     print(info(f"Generating questions for chunk {question_number}/{total_questions} (size: {chunk_size})"))
     
     prompt = f"""Based on the following text, generate {settings.questions_per_chunk} insightful questions that would test a reader's understanding of the key concepts, main ideas, or important details. The questions should be specific to the content provided. Provide only the questions, without any additional text or answers.
@@ -33,20 +33,11 @@ Text:
 
 Generate {settings.questions_per_chunk} questions:"""
 
-    if api_type == "llama":
-        response = client.chat([
-            {"role": "system", "content": "You are a helpful assistant that generates insightful questions based on given text."},
-            {"role": "user", "content": prompt}
-        ], temperature=settings.temperature)
-    else:
-        response = client.chat.completions.create(
-            model=settings.ollama_model,
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant that generates insightful questions based on given text."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=settings.temperature
-        ).choices[0].message.content
+    messages = [
+        {"role": "system", "content": "You are a helpful assistant that generates insightful questions based on given text."},
+        {"role": "user", "content": prompt}
+    ]
+    response = erag_api.chat(messages, temperature=settings.temperature)
 
     questions = response.strip().split('\n')
     
@@ -82,9 +73,8 @@ def extract_questions(input_file, output_file):
     return len(extracted_questions)
 
 def run_create_q(file_path, api_type, client):
-    # If api_type is "llama" and client is not a LlamaClient, create a new LlamaClient
-    if api_type == "llama" and not isinstance(client, LlamaClient):
-        client = LlamaClient()
+    erag_api = EragAPI(api_type)
+
 
     # Get the base name of the input file
     input_file_name = os.path.splitext(os.path.basename(file_path))[0]
@@ -114,7 +104,7 @@ def run_create_q(file_path, api_type, client):
     for chunk_size in chunk_sizes:
         chunks = chunk_text(content, chunk_size)
         for chunk in chunks:
-            questions = generate_questions(client, api_type, chunk, chunk_counter, total_chunks, output_file, chunk_size)
+            questions = generate_questions(erag_api, chunk, chunk_counter, total_chunks, output_file, chunk_size)
             chunk_counter += 1
 
     print(success(f"Generated questions for {chunk_counter - 1} chunks and saved to {output_file}"))

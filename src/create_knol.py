@@ -5,10 +5,8 @@ import os
 import logging
 from src.talk2doc import RAGSystem
 from src.search_utils import SearchUtils
-from sentence_transformers import SentenceTransformer
-from src.embeddings_utils import load_embeddings_and_data
 from src.settings import settings
-from src.api_model import configure_api, LlamaClient
+from src.api_model import EragAPI, create_erag_api
 from src.look_and_feel import (
     RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN, WHITE,
     DUSTY_PINK, SAGE_GREEN,
@@ -21,16 +19,13 @@ from src.look_and_feel import (
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class KnolCreator:
-    def __init__(self, api_type: str):
-        self.api_type = api_type
-        if api_type == "llama":
-            self.client = LlamaClient()
-        else:
-            self.client = configure_api(api_type)
-        self.rag_system = RAGSystem(api_type)
+    def __init__(self, erag_api: EragAPI):
+        self.erag_api = erag_api
+        self.rag_system = RAGSystem(self.erag_api)
         self.search_utils = self.rag_system.search_utils
         # Ensure output folder exists
         os.makedirs(settings.output_folder, exist_ok=True)
+
 
     def save_iteration(self, content: str, stage: str, subject: str):
         filename = f"knol_{subject.replace(' ', '_')}_{stage}.txt"
@@ -69,14 +64,11 @@ Ensure that the structure is consistent and the information is detailed and accu
 
         user_input = f"Create a structured, comprehensive knowledge entry about {subject}. Include main topics, subtopics, and at least 5 key points with detailed information for each subtopic. Focus exclusively on {subject}."
 
-        if self.api_type == "llama":
-            messages = [
-                {"role": "system", "content": system_message},
-                {"role": "user", "content": user_input}
-            ]
-            content = self.client.chat(messages, temperature=settings.temperature)
-        else:
-            content = self.rag_system.ollama_chat(user_input, system_message)
+        messages = [
+            {"role": "system", "content": system_message},
+            {"role": "user", "content": user_input}
+        ]
+        content = self.erag_api.chat(messages, temperature=settings.temperature)
         
         self.save_iteration(content, "initial", subject)
         return content
@@ -100,14 +92,11 @@ Feel free to add new topics, subtopics, or points, and reorganize the structure 
 
         user_input = f"Improve and expand the following knol about {subject} by adding more details, ensuring at least 7 points per subtopic, and restructuring if necessary. Focus exclusively on {subject}:\n\n{knol}"
 
-        if self.api_type == "llama":
-            messages = [
-                {"role": "system", "content": system_message},
-                {"role": "user", "content": user_input}
-            ]
-            improved_content = self.client.chat(messages, temperature=settings.temperature)
-        else:
-            improved_content = self.rag_system.ollama_chat(user_input, system_message)
+        messages = [
+            {"role": "system", "content": system_message},
+            {"role": "user", "content": user_input}
+        ]
+        improved_content = self.erag_api.chat(messages, temperature=settings.temperature)
 
         self.save_iteration(improved_content, "improved", subject)
         return improved_content
@@ -128,14 +117,11 @@ Please provide {settings.num_questions} questions that:
 
 Format the output as a numbered list of questions."""
 
-        if self.api_type == "llama":
-            messages = [
-                {"role": "system", "content": system_message},
-                {"role": "user", "content": user_input}
-            ]
-            questions = self.client.chat(messages, temperature=settings.temperature)
-        else:
-            questions = self.rag_system.ollama_chat(user_input, system_message)
+        messages = [
+            {"role": "system", "content": system_message},
+            {"role": "user", "content": user_input}
+        ]
+        questions = self.erag_api.chat(messages, temperature=settings.temperature)
 
         self.save_iteration(questions, "q", subject)
         return questions
@@ -157,14 +143,11 @@ Knol Content:
 
 Please provide a comprehensive answer to the question using the information from the knol and any additional context provided. If you can't find relevant information to answer the question accurately, please state so."""
 
-                if self.api_type == "llama":
-                    messages = [
-                        {"role": "system", "content": system_message},
-                        {"role": "user", "content": user_input}
-                    ]
-                    answer = self.client.chat(messages, temperature=settings.temperature)
-                else:
-                    answer = self.rag_system.ollama_chat(user_input, system_message)
+                messages = [
+                    {"role": "system", "content": system_message},
+                    {"role": "user", "content": user_input}
+                ]
+                answer = self.erag_api.chat(messages, temperature=settings.temperature)
 
                 answers.append(f"Q: {question}\nA: {answer}\n")
 
@@ -243,11 +226,15 @@ Please provide a comprehensive answer to the question using the information from
             print(f"\n{highlight('Generated Questions and Answers:')}")
             print(color_llm_response(qa_pairs))
 
+def main(api_type: str):
+    erag_api = create_erag_api(api_type)
+    creator = KnolCreator(erag_api)
+    creator.run_knol_creator()
+
 if __name__ == "__main__":
     if len(sys.argv) > 1:
         api_type = sys.argv[1]
-        creator = KnolCreator(api_type)
-        creator.run_knol_creator()
+        main(api_type)
     else:
         print(error("Error: No API type provided."))
         print(warning("Usage: python src/create_knol.py <api_type>"))

@@ -9,7 +9,7 @@ from nltk.tokenize import sent_tokenize
 import nltk
 from src.embeddings_utils import load_embeddings_and_data
 from src.settings import settings
-from src.api_model import configure_api, LlamaClient
+from src.api_model import EragAPI
 import os
 from tqdm import tqdm
 from src.look_and_feel import BLUE, GREEN, RESET, error, success, warning, info

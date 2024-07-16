@@ -1,6 +1,5 @@
 
 from src.settings import settings
-from openai import OpenAI
 import logging
 from bs4 import BeautifulSoup
 import requests
@@ -11,16 +10,12 @@ import numpy as np
 from collections import deque
 from src.search_utils import SearchUtils
 from src.look_and_feel import success, info, warning, error
-from src.api_model import configure_api, LlamaClient
+from src.api_model import EragAPI, create_erag_api
 import os
 
 class WebRAG:
-    def __init__(self, api_type: str):
-        self.api_type = api_type
-        if api_type == "llama":
-            self.client = LlamaClient()
-        else:
-            self.client = configure_api(api_type)
+    def __init__(self, erag_api: EragAPI):
+        self.erag_api = erag_api
         self.session = requests.Session()
         self.session.headers.update({
             "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0",
@@ -75,20 +70,11 @@ class WebRAG:
         user_message = f"Summarize this question into a short phrase (3-5 words): {query}"
 
         try:
-            if self.api_type == "llama":
-                response = self.client.chat([
-                    {"role": "system", "content": system_message},
-                    {"role": "user", "content": user_message}
-                ], temperature=settings.temperature)
-            else:
-                response = self.client.chat.completions.create(
-                    model=settings.ollama_model,
-                    messages=[
-                        {"role": "system", "content": system_message},
-                        {"role": "user", "content": user_message}
-                    ],
-                    temperature=settings.temperature
-                ).choices[0].message.content
+            messages = [
+                {"role": "system", "content": system_message},
+                {"role": "user", "content": user_message}
+            ]
+            response = self.erag_api.chat(messages, temperature=settings.temperature)
 
             safe_filename = re.sub(r'[^a-zA-Z0-9\s]', '', response.strip())
             safe_filename = safe_filename.replace(' ', '_').lower()
@@ -122,20 +108,11 @@ class WebRAG:
         user_message = f"Query: {query}\n\nSearch Result Title: {result.get('title', 'No title')}\nSearch Result Snippet: {result.get('body', 'No snippet')}\n\nIs this search result relevant to the query?"
 
         try:
-            if self.api_type == "llama":
-                response = self.client.chat([
-                    {"role": "system", "content": system_message},
-                    {"role": "user", "content": user_message}
-                ], temperature=0.1)
-            else:
-                response = self.client.chat.completions.create(
-                    model=settings.ollama_model,
-                    messages=[
-                        {"role": "system", "content": system_message},
-                        {"role": "user", "content": user_message}
-                    ],
-                    temperature=0.1
-                ).choices[0].message.content
+            messages = [
+                {"role": "system", "content": system_message},
+                {"role": "user", "content": user_message}
+            ]
+            response = self.erag_api.chat(messages, temperature=0.1)
 
             return response.strip().lower() == 'yes'
         except Exception as e:
@@ -261,32 +238,22 @@ class WebRAG:
 6. Be concise but comprehensive. Aim for a well-structured answer that covers the main points without unnecessary elaboration."""
 
         user_message = f"""Conversation Context:
-{conversation_context}
+        {conversation_context}
 
-Search Context:
-{context}
+        Search Context:
+        {context}
 
-Question: {query}
+        Question: {query}
 
-Please provide a comprehensive and well-structured answer to the question based on the given context and conversation history. Prioritize the Conversation Context when answering, followed by the most relevant information from the Search Context. If none of the provided context is relevant, you can answer based on your general knowledge."""
+        Please provide a comprehensive and well-structured answer to the question based on the given context and conversation history. Prioritize the Conversation Context when answering, followed by the most relevant information from the Search Context. If none of the provided context is relevant, you can answer based on your general knowledge."""
 
         try:
-            if self.api_type == "llama":
-                response = self.client.chat([
-                    {"role": "system", "content": system_message},
-                    *self.conversation_history,
-                    {"role": "user", "content": user_message}
-                ], temperature=settings.temperature)
-            else:
-                response = self.client.chat.completions.create(
-                    model=settings.ollama_model,
-                    messages=[
-                        {"role": "system", "content": system_message},
-                        *self.conversation_history,
-                        {"role": "user", "content": user_message}
-                    ],
-                    temperature=settings.temperature
-                ).choices[0].message.content
+            messages = [
+                {"role": "system", "content": system_message},
+                *self.conversation_history,
+                {"role": "user", "content": user_message}
+            ]
+            response = self.erag_api.chat(messages, temperature=settings.temperature)
 
             self.update_conversation_history(query, response)
 
@@ -294,6 +261,7 @@ Please provide a comprehensive and well-structured answer to the question based 
         except Exception as e:
             logging.error(f"Error generating Q&A: {str(e)}")
             return "I'm sorry, but I encountered an error while trying to answer your question."
+
 
     def update_conversation_history(self, query, response):
         self.conversation_history.append({"role": "user", "content": query})
@@ -362,12 +330,16 @@ Please provide a comprehensive and well-structured answer to the question based 
 
             print(success("You can ask follow-up questions, start a new search, or use 'check' to process more URLs and update the knowledge base."))
 
+def main(api_type: str):
+    erag_api = create_erag_api(api_type)
+    web_rag = WebRAG(erag_api)
+    web_rag.run()
+
 if __name__ == "__main__":
     import sys
     if len(sys.argv) > 1:
         api_type = sys.argv[1]
-        web_rag = WebRAG(api_type)
-        web_rag.run()
+        main(api_type)
     else:
         print(error("Error: No API type provided."))
         print(warning("Usage: python src/web_rag.py <api_type>"))

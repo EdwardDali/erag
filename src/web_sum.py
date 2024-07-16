@@ -8,22 +8,17 @@ import re
 from urllib.parse import urljoin, quote_plus
 from src.settings import settings
 from src.look_and_feel import success, info, warning, error
-from openai import OpenAI
 import random
 import time
 from duckduckgo_search import DDGS
-from src.api_model import configure_api, LlamaClient
+from src.api_model import EragAPI, create_erag_api
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class WebSum:
-    def __init__(self, api_type: str):
-        self.api_type = api_type
-        if api_type == "llama":
-            self.client = LlamaClient()
-        else:
-            self.client = configure_api(api_type)
+    def __init__(self, erag_api: EragAPI):
+        self.erag_api = erag_api
         self.session = requests.Session()
         self.session.headers.update({
             "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0",
@@ -52,20 +47,11 @@ class WebSum:
         user_message = f"Summarize this question into a short phrase (3-5 words): {query}"
 
         try:
-            if self.api_type == "llama":
-                response = self.client.chat([
-                    {"role": "system", "content": system_message},
-                    {"role": "user", "content": user_message}
-                ], temperature=settings.temperature)
-            else:
-                response = self.client.chat.completions.create(
-                    model=settings.ollama_model,
-                    messages=[
-                        {"role": "system", "content": system_message},
-                        {"role": "user", "content": user_message}
-                    ],
-                    temperature=settings.temperature
-                ).choices[0].message.content
+            messages = [
+                {"role": "system", "content": system_message},
+                {"role": "user", "content": user_message}
+            ]
+            response = self.erag_api.chat(messages, temperature=settings.temperature)
 
             safe_filename = re.sub(r'[^a-zA-Z0-9\s]', '', response.strip())
             safe_filename = safe_filename.replace(' ', '_').lower()
@@ -74,7 +60,7 @@ class WebSum:
             return f"web_sum_{safe_filename}.txt"
         except Exception as e:
             logging.error(f"Error summarizing query: {str(e)}")
-            return f"web_sum_query_{hash(query) % 10000}.txt"  # Fallback filename
+            return f"web_sum_query_{hash(query) % 10000}.txt" 
 
     def perform_search(self, query):
         search_results = []
@@ -96,20 +82,11 @@ class WebSum:
         user_message = f"Query: {query}\n\nSearch Result Title: {result['title']}\nSearch Result Snippet: {result['body']}\n\nIs this search result relevant to the query?"
 
         try:
-            if self.api_type == "llama":
-                response = self.client.chat([
-                    {"role": "system", "content": system_message},
-                    {"role": "user", "content": user_message}
-                ], temperature=0.1)
-            else:
-                response = self.client.chat.completions.create(
-                    model=settings.ollama_model,
-                    messages=[
-                        {"role": "system", "content": system_message},
-                        {"role": "user", "content": user_message}
-                    ],
-                    temperature=0.1
-                ).choices[0].message.content
+            messages = [
+                {"role": "system", "content": system_message},
+                {"role": "user", "content": user_message}
+            ]
+            response = self.erag_api.chat(messages, temperature=0.1)
 
             return response.strip().lower() == 'yes'
         except Exception as e:
@@ -161,20 +138,11 @@ class WebSum:
         user_message = f"Web content:\n{content}\n\nPlease summarize this content in relation to the query: {query}"
 
         try:
-            if self.api_type == "llama":
-                response = self.client.chat([
-                    {"role": "system", "content": system_message},
-                    {"role": "user", "content": user_message}
-                ], temperature=settings.temperature)
-            else:
-                response = self.client.chat.completions.create(
-                    model=settings.ollama_model,
-                    messages=[
-                        {"role": "system", "content": system_message},
-                        {"role": "user", "content": user_message}
-                    ],
-                    temperature=settings.temperature
-                ).choices[0].message.content
+            messages = [
+                {"role": "system", "content": system_message},
+                {"role": "user", "content": user_message}
+            ]
+            response = self.erag_api.chat(messages, temperature=settings.temperature)
 
             return f"Summary {index}:\n{response}\n\n{'='*50}\n\n"
         except Exception as e:
@@ -200,20 +168,11 @@ class WebSum:
         user_message = f"Individual summaries:\n{combined_summaries}\n\nPlease create a final comprehensive summary related to the query: {query}"
 
         try:
-            if self.api_type == "llama":
-                response = self.client.chat([
-                    {"role": "system", "content": system_message},
-                    {"role": "user", "content": user_message}
-                ], temperature=settings.temperature)
-            else:
-                response = self.client.chat.completions.create(
-                    model=settings.ollama_model,
-                    messages=[
-                        {"role": "system", "content": system_message},
-                        {"role": "user", "content": user_message}
-                    ],
-                    temperature=settings.temperature
-                ).choices[0].message.content
+            messages = [
+                {"role": "system", "content": system_message},
+                {"role": "user", "content": user_message}
+            ]
+            response = self.erag_api.chat(messages, temperature=settings.temperature)
 
             filename = f"web_sum_{query.replace(' ', '_')}_final.txt"
             self.save_content(filename, response)
@@ -247,11 +206,15 @@ class WebSum:
             print(f"\n{success('Final Summary:')}")
             print(final_summary)
 
+def main(api_type: str):
+    erag_api = create_erag_api(api_type)
+    web_sum = WebSum(erag_api)
+    web_sum.run()
+
 if __name__ == "__main__":
     if len(sys.argv) > 1:
         api_type = sys.argv[1]
-        web_sum = WebSum(api_type)
-        web_sum.run()
+        main(api_type)
     else:
         print(error("Error: No API type provided."))
         print(warning("Usage: python src/web_sum.py <api_type>"))

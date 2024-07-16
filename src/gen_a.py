@@ -1,7 +1,7 @@
 import os
 from tqdm import tqdm
 from src.settings import settings
-from src.api_model import configure_api, LlamaClient
+from src.api_model import EragAPI, create_erag_api
 from src.talk2doc import RAGSystem
 from src.web_rag import WebRAG
 from src.look_and_feel import success, info, warning, error
@@ -19,7 +19,7 @@ def generate_answer_web_rag(web_rag, question):
     response = web_rag.search_and_process(question)
     return response
 
-def generate_answer_hybrid(rag_system, web_rag, question, client):
+def generate_answer_hybrid(rag_system, web_rag, question, erag_api):
     talk2doc_response = rag_system.get_response(question)
     web_rag_response = web_rag.search_and_process(question)
     
@@ -31,24 +31,15 @@ Answer 2 (Web RAG): {web_rag_response}
 
 Combined and rephrased answer:"""
 
-    if isinstance(client, LlamaClient):
-        combined_response = client.chat([
-            {"role": "system", "content": "You are a helpful assistant that combines and rephrases information from multiple sources into a coherent response."},
-            {"role": "user", "content": hybrid_prompt}
-        ], temperature=settings.temperature)
-    else:
-        combined_response = client.chat.completions.create(
-            model=settings.ollama_model,
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant that combines and rephrases information from multiple sources into a coherent response."},
-                {"role": "user", "content": hybrid_prompt}
-            ],
-            temperature=settings.temperature
-        ).choices[0].message.content
+    messages = [
+        {"role": "system", "content": "You are a helpful assistant that combines and rephrases information from multiple sources into a coherent response."},
+        {"role": "user", "content": hybrid_prompt}
+    ]
+    combined_response = erag_api.chat(messages, temperature=settings.temperature)
 
     return combined_response
 
-def run_gen_a(questions_file, gen_method, api_type, client):
+def run_gen_a(questions_file, gen_method, api_type, erag_api):
     questions = read_questions(questions_file)
     
     output_file = os.path.join(settings.output_folder, f"generated_answers_{gen_method}.txt")
@@ -57,10 +48,10 @@ def run_gen_a(questions_file, gen_method, api_type, client):
     web_rag = None
     
     if gen_method in ["talk2doc", "hybrid"]:
-        rag_system = RAGSystem(api_type)
+        rag_system = RAGSystem(erag_api)
     
     if gen_method in ["web_rag", "hybrid"]:
-        web_rag = WebRAG(api_type)
+        web_rag = WebRAG(erag_api)
     
     with open(output_file, 'w', encoding='utf-8') as f:
         for i, question in enumerate(tqdm(questions, desc="Generating Answers", bar_format="{l_bar}%s{bar}%s{r_bar}" % (success(""), ""))):
@@ -69,7 +60,7 @@ def run_gen_a(questions_file, gen_method, api_type, client):
             elif gen_method == "web_rag":
                 answer = generate_answer_web_rag(web_rag, question)
             else:  # hybrid
-                answer = generate_answer_hybrid(rag_system, web_rag, question, client)
+                answer = generate_answer_hybrid(rag_system, web_rag, question, erag_api)
             
             # Write to file immediately after generating each answer
             f.write(f"Question: {question}\n\n")

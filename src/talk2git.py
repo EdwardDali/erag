@@ -3,18 +3,14 @@ import os
 import requests
 from urllib.parse import urlparse
 from src.settings import settings
-from src.api_model import configure_api, LlamaClient
+from src.api_model import EragAPI, create_erag_api
 from src.look_and_feel import success, info, warning, error
 import base64
 import time
 
 class Talk2Git:
-    def __init__(self, api_type: str, github_token: str = ""):
-        self.api_type = api_type
-        if api_type == "llama":
-            self.client = LlamaClient()
-        else:
-            self.client = configure_api(api_type)
+    def __init__(self, erag_api: EragAPI, github_token: str = ""):
+        self.erag_api = erag_api
         self.session = requests.Session()
         self.session.headers.update({
             "User-Agent": "Talk2Git/1.0",
@@ -111,20 +107,11 @@ Please provide a brief analysis covering the following aspects:
 Your analysis should be concise but informative."""
 
             try:
-                if self.api_type == "llama":
-                    response = self.client.chat([
-                        {"role": "system", "content": "You are an expert code reviewer performing static code analysis."},
-                        {"role": "user", "content": prompt}
-                    ], temperature=0.2)
-                else:
-                    response = self.client.chat.completions.create(
-                        model=settings.ollama_model,
-                        messages=[
-                            {"role": "system", "content": "You are an expert code reviewer performing static code analysis."},
-                            {"role": "user", "content": prompt}
-                        ],
-                        temperature=0.2
-                    ).choices[0].message.content
+                messages = [
+                    {"role": "system", "content": "You are an expert code reviewer performing static code analysis."},
+                    {"role": "user", "content": prompt}
+                ]
+                response = self.erag_api.chat(messages, temperature=0.2)
 
                 analysis_results.append(f"Analysis for {file_path}:\n\n{response}\n\n{'='*50}\n")
                 print(success(f"Analysis complete for {file_path}"))
@@ -153,20 +140,11 @@ Content:
 Please provide a concise summary (2-3 sentences) describing the file's main purpose and functionality."""
 
             try:
-                if self.api_type == "llama":
-                    response = self.client.chat([
-                        {"role": "system", "content": "You are an expert programmer summarizing code files."},
-                        {"role": "user", "content": prompt}
-                    ], temperature=0.2)
-                else:
-                    response = self.client.chat.completions.create(
-                        model=settings.ollama_model,
-                        messages=[
-                            {"role": "system", "content": "You are an expert programmer summarizing code files."},
-                            {"role": "user", "content": prompt}
-                        ],
-                        temperature=0.2
-                    ).choices[0].message.content
+                messages = [
+                    {"role": "system", "content": "You are an expert programmer summarizing code files."},
+                    {"role": "user", "content": prompt}
+                ]
+                response = self.erag_api.chat(messages, temperature=0.2)
 
                 file_summaries[file_path] = response
                 print(success(f"Summary complete for {file_path}"))
@@ -182,20 +160,11 @@ Please provide a concise summary (2-3 sentences) describing the file's main purp
 Please provide a concise summary (3-5 sentences) describing the overall purpose and functionality of the project."""
 
         try:
-            if self.api_type == "llama":
-                project_summary = self.client.chat([
-                    {"role": "system", "content": "You are an expert programmer summarizing software projects."},
-                    {"role": "user", "content": project_summary_prompt}
-                ], temperature=0.2)
-            else:
-                project_summary = self.client.chat.completions.create(
-                    model=settings.ollama_model,
-                    messages=[
-                        {"role": "system", "content": "You are an expert programmer summarizing software projects."},
-                        {"role": "user", "content": project_summary_prompt}
-                    ],
-                    temperature=0.2
-                ).choices[0].message.content
+            messages = [
+                {"role": "system", "content": "You are an expert programmer summarizing software projects."},
+                {"role": "user", "content": project_summary_prompt}
+            ]
+            project_summary = self.erag_api.chat(messages, temperature=0.2)
         except Exception as e:
             logging.error(f"Error creating project summary: {str(e)}")
             project_summary = f"Error creating project summary: {str(e)}"
@@ -240,20 +209,11 @@ Please provide a concise summary (3-5 sentences) describing the overall purpose 
     Your analysis should be concise but informative."""
 
             try:
-                if self.api_type == "llama":
-                    response = self.client.chat([
-                        {"role": "system", "content": "You are an expert in software dependencies and security analysis."},
-                        {"role": "user", "content": prompt}
-                    ], temperature=0.2)
-                else:
-                    response = self.client.chat.completions.create(
-                        model=settings.ollama_model,
-                        messages=[
-                            {"role": "system", "content": "You are an expert in software dependencies and security analysis."},
-                            {"role": "user", "content": prompt}
-                        ],
-                        temperature=0.2
-                    ).choices[0].message.content
+                messages = [
+                    {"role": "system", "content": "You are an expert in software dependencies and security analysis."},
+                    {"role": "user", "content": prompt}
+                ]
+                response = self.erag_api.chat(messages, temperature=0.2)
 
                 analysis_results.append(f"Analysis for {file}:\n\n{response}\n\n{'='*50}\n")
                 print(success(f"Analysis complete for {file}"))
@@ -364,13 +324,17 @@ Please provide a concise summary (3-5 sentences) describing the overall purpose 
             else:
                 print(error("Invalid choice. Please enter a number between 1 and 6."))
 
+def main(api_type: str):
+    erag_api = create_erag_api(api_type)
+    github_token = settings.github_token
+    talk2git = Talk2Git(erag_api, github_token)
+    talk2git.run()
+
 if __name__ == "__main__":
     import sys
     if len(sys.argv) > 1:
         api_type = sys.argv[1]
-        github_token = settings.github_token  # Get the GitHub token from settings
-        talk2git = Talk2Git(api_type, github_token)
-        talk2git.run()
+        main(api_type)
     else:
         print(error("Error: No API type provided."))
         print(warning("Usage: python src/talk2git.py <api_type>"))

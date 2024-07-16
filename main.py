@@ -24,7 +24,7 @@ from src.create_knol import KnolCreator
 from src.web_sum import WebSum
 from src.web_rag import WebRAG
 from src.route_query import RouteQuery
-from src.api_model import get_available_models, update_settings, configure_api
+from src.api_model import get_available_models, update_settings, EragAPI, create_erag_api
 from src.talk2model import Talk2Model
 from src.create_sum import run_create_sum
 from src.talk2url import Talk2URL
@@ -33,6 +33,7 @@ from src.create_q import run_create_q
 from src.server import ServerManager
 from src.gen_a import run_gen_a
 from src.look_and_feel import error, success, warning, info, highlight
+
 
 class ToolTip:
     def __init__(self, widget, text):
@@ -77,6 +78,7 @@ class ERAGGUI:
         self.talk2url = None
         self.server_manager = ServerManager()  # Initialize the ServerManager
         self.project_root = project_root
+        self.erag_api = None
 
         # Create output folder if it doesn't exist
         os.makedirs(settings.output_folder, exist_ok=True)
@@ -183,13 +185,17 @@ class ERAGGUI:
             api_type = self.api_type_var.get()
             model = self.model_var.get()
             
+            # Create EragAPI instance
+            erag_api = EragAPI(api_type)
+            
             # Create and run the Talk2Model instance in a separate thread
-            talk2model = Talk2Model(api_type, model)
+            talk2model = Talk2Model(erag_api, model)
             threading.Thread(target=talk2model.run, daemon=True).start()
             
             messagebox.showinfo("Info", f"Talk2Model started with {api_type} API and {model} model. Check the console for interaction.")
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred while starting Talk2Model: {str(e)}")
+
 
 
     def update_model_list(self, event=None):
@@ -487,8 +493,9 @@ class ERAGGUI:
             api_type = self.api_type_var.get()
             model = self.model_var.get()
             
-            # Create the RouteQuery instance with just the api_type
-            route_query = RouteQuery(api_type)
+            # Create the RouteQuery instance with EragAPI
+            erag_api = EragAPI(api_type)
+            route_query = RouteQuery(erag_api)
             
             # Apply settings to RouteQuery
             settings.apply_settings()
@@ -500,6 +507,7 @@ class ERAGGUI:
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred while starting the Route Query system: {str(e)}")
 
+
     def run_create_sum(self):
         try:
             file_path = filedialog.askopenfilename(title="Select a book to summarize",
@@ -510,21 +518,21 @@ class ERAGGUI:
 
             api_type = self.api_type_var.get()
             model = self.model_var.get()
-            client = configure_api(api_type)
+            erag_api = EragAPI(api_type)
 
             # Apply settings before running the summarization
             self.apply_settings()
 
             # Run the summarization in a separate thread
-            threading.Thread(target=self._create_sum_thread, args=(file_path, api_type, client), daemon=True).start()
+            threading.Thread(target=self._create_sum_thread, args=(file_path, api_type, erag_api), daemon=True).start()
 
             messagebox.showinfo("Info", f"Summarization started for {os.path.basename(file_path)}. Check the console for progress.")
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred while starting the summarization process: {str(e)}")
 
-    def _create_sum_thread(self, file_path, api_type, client):
+    def _create_sum_thread(self, file_path, api_type, erag_api):
         try:
-            result = run_create_sum(file_path, api_type, client)
+            result = run_create_sum(file_path, api_type, erag_api)
             print(result)
             messagebox.showinfo("Success", result)
         except Exception as e:
@@ -535,7 +543,8 @@ class ERAGGUI:
     def create_knol(self):
         try:
             api_type = self.api_type_var.get()
-            creator = KnolCreator(api_type)
+            erag_api = create_erag_api(api_type)
+            creator = KnolCreator(erag_api)
             
             if os.path.exists(settings.db_file_path):
                 with open(settings.db_file_path, "r", encoding="utf-8") as db_file:
@@ -636,25 +645,12 @@ class ERAGGUI:
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred while creating the knowledge graph from raw documents: {str(e)}")
 
-    def run_model(self):
-        try:
-            api_type = self.api_type_var.get()
-            self.rag_system = RAGSystem(api_type)
-            
-            # Apply settings to RAGSystem
-            settings.apply_settings()
-            
-            # Run the CLI in a separate thread to keep the GUI responsive
-            threading.Thread(target=self.rag_system.run, daemon=True).start()
-            
-            messagebox.showinfo("Info", f"RAG system started with {api_type} API. Check the console for interaction.")
-        except Exception as e:
-            messagebox.showerror("Error", f"An error occurred while starting the RAG system: {str(e)}")
 
     def run_talk2urls(self):
         try:
             api_type = self.api_type_var.get()
-            self.talk2url = Talk2URL(api_type)
+            erag_api = create_erag_api(api_type)
+            self.talk2url = Talk2URL(erag_api)
             
             # Apply settings to Talk2URL
             settings.apply_settings()
@@ -666,11 +662,13 @@ class ERAGGUI:
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred while starting the Talk2URLs system: {str(e)}")
 
+
     def run_talk2git(self):
         try:
             api_type = self.api_type_var.get()
             github_token = settings.github_token  # Get the GitHub token from settings
-            self.talk2git = Talk2Git(api_type, github_token)
+            erag_api = create_erag_api(api_type)
+            self.talk2git = Talk2Git(erag_api, github_token)
             
             # Apply settings to Talk2Git
             settings.apply_settings()
@@ -682,6 +680,8 @@ class ERAGGUI:
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred while starting the Talk2Git system: {str(e)}")
 
+
+
     def run_create_q(self):
         try:
             file_path = filedialog.askopenfilename(title="Select a document to create questions from",
@@ -692,21 +692,22 @@ class ERAGGUI:
 
             api_type = self.api_type_var.get()
             model = self.model_var.get()
-            client = configure_api(api_type)
+            erag_api = EragAPI(api_type)
 
             # Apply settings before running the question creation
             self.apply_settings()
 
             # Run the question creation in a separate thread
-            threading.Thread(target=self._create_q_thread, args=(file_path, api_type, client), daemon=True).start()
+            threading.Thread(target=self._create_q_thread, args=(file_path, api_type, erag_api), daemon=True).start()
 
             messagebox.showinfo("Info", f"Question creation started for {os.path.basename(file_path)}. Check the console for progress.")
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred while starting the question creation process: {str(e)}")
 
-    def _create_q_thread(self, file_path, api_type, client):
+
+    def _create_q_thread(self, file_path, api_type, erag_api):
         try:
-            result = run_create_q(file_path, api_type, client)
+            result = run_create_q(file_path, api_type, erag_api)
             print(result)
             messagebox.showinfo("Success", "Questions created successfully. Check the output file.")
         except Exception as e:
@@ -719,7 +720,8 @@ class ERAGGUI:
     def run_web_sum(self):
         try:
             api_type = self.api_type_var.get()
-            web_sum = WebSum(api_type)
+            erag_api = create_erag_api(api_type)
+            web_sum = WebSum(erag_api)
             
             # Apply settings to WebSum
             settings.apply_settings()
@@ -731,10 +733,12 @@ class ERAGGUI:
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred while starting the Web Sum system: {str(e)}")
 
+
     def run_web_rag(self):
         try:
             api_type = self.api_type_var.get()
-            self.web_rag = WebRAG(api_type)
+            erag_api = create_erag_api(api_type)
+            self.web_rag = WebRAG(erag_api)
             
             # Apply settings to WebRAG
             settings.apply_settings()
@@ -786,22 +790,24 @@ class ERAGGUI:
             }[choice]
 
             api_type = self.api_type_var.get()
-            client = configure_api(api_type)
+            erag_api = create_erag_api(api_type)
 
             # Apply settings silently
             self.apply_settings()
 
             # Run the answer generation in a separate thread
-            threading.Thread(target=self._gen_a_thread, args=(questions_file, gen_method, api_type, client), daemon=True).start()
+            threading.Thread(target=self._gen_a_thread, args=(questions_file, gen_method, api_type, erag_api), daemon=True).start()
 
             print(info(f"Answer generation started using {gen_method} method. Check the console for progress."))
         except Exception as e:
             print(error(f"An error occurred while starting the answer generation process: {str(e)}"))
 
-    def _gen_a_thread(self, questions_file, gen_method, api_type, client):
+
+
+    def _gen_a_thread(self, questions_file, gen_method, api_type, erag_api):
         try:
             from src.gen_a import run_gen_a
-            result = run_gen_a(questions_file, gen_method, api_type, client)
+            result = run_gen_a(questions_file, gen_method, api_type, erag_api)
             print(result)
             messagebox.showinfo("Success", "Answers generated successfully. Check the output file.")
         except Exception as e:
@@ -905,8 +911,11 @@ class ERAGGUI:
             api_type = self.api_type_var.get()
             model = self.model_var.get()
             
+            # Create EragAPI instance
+            self.erag_api = EragAPI(api_type)
+            
             if api_type == "ollama":
-                self.rag_system = RAGSystem(api_type)
+                self.rag_system = RAGSystem(self.erag_api)
                 # Apply settings to RAGSystem
                 settings.apply_settings()
                 # Run the CLI in a separate thread to keep the GUI responsive
@@ -915,20 +924,21 @@ class ERAGGUI:
                 # Ensure the server is running with the selected model
                 self.server_manager.set_current_model(model)
                 self.server_manager.restart_server()
-                # Start the llama.cpp client (you'll need to implement this)
+                # Start the llama.cpp client
                 threading.Thread(target=self.run_llama_client, daemon=True).start()
             
             messagebox.showinfo("Info", f"System started with {api_type} API and model: {model}. Check the console for interaction.")
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred while starting the system: {str(e)}")
 
+
     def run_llama_client(self):
         try:
             from src.talk2doc import RAGSystem
-            rag_system = RAGSystem("llama")
+            rag_system = RAGSystem(self.erag_api)
             rag_system.run()
         except Exception as e:
-            print(f"An error occurred while running the llama.cpp client: {str(e)}")
+            print(f"An error occurred while running the RAG system: {str(e)}")
 
 def main():
     root = tk.Tk()
