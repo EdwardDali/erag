@@ -17,3 +17,8 @@ lxml==4.9.3
 fitz==0.0.1-alpha.6
 PyMuPDF==1.23.7
 tk==0.1.0
+python-dotenv
+pyarrow
+pandas
+tqdm
+groq
