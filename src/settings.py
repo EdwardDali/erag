@@ -112,6 +112,11 @@ class Settings:
         # Config file path (in project root)
         self.config_file = ensure_output_path("config.json")
 
+        # Dataset Generation Settings
+        self.dataset_fields = ["id", "question", "answer", "domain", "difficulty", "keywords", "language", "answer_type"]
+        self.dataset_output_formats = ["jsonl", "csv", "parquet"]
+        self.dataset_output_file = os.path.join(self.output_folder, "qa_dataset")
+
        
     def load_settings(self):
         if os.path.exists(self.config_file):
@@ -119,12 +124,18 @@ class Settings:
                 saved_settings = json.load(f)
             for key, value in saved_settings.items():
                 if hasattr(self, key):
-                    setattr(self, key, value)
+                    if key in ['dataset_fields', 'dataset_output_formats']:
+                        setattr(self, key, value if isinstance(value, list) else value.split(','))
+                    else:
+                        setattr(self, key, value)
         else:
             self.save_settings()  # Create default config file if it doesn't exist
 
     def save_settings(self):
         settings_dict = {key: value for key, value in self.__dict__.items() if not key.startswith('_')}
+        # Convert list settings to comma-separated strings for JSON serialization
+        settings_dict['dataset_fields'] = ','.join(self.dataset_fields)
+        settings_dict['dataset_output_formats'] = ','.join(self.dataset_output_formats)
         with open(self.config_file, 'w') as f:
             json.dump(settings_dict, f, indent=4)
 
@@ -138,9 +149,9 @@ class Settings:
 
     def update_setting(self, key: str, value: Any):
         if hasattr(self, key):
-            if key == "excluded_question_levels":
-                # Ensure excluded_question_levels is always stored as a list of integers
-                value = [int(x) for x in value if str(x).isdigit()]
+            if key == "dataset_output_file":
+                # Ensure the dataset output file is always in the output folder
+                value = os.path.join(self.output_folder, os.path.basename(value))
             setattr(self, key, value)
             self.save_settings()
         else:

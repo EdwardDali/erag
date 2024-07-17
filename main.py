@@ -278,10 +278,14 @@ class ERAGGUI:
         create_q_button.pack(side="left", padx=5, pady=5)
         ToolTip(create_q_button, "Create questions based on an input document")
 
-        # New 'Gen A' button
         gen_a_button = tk.Button(rag_frame, text="Gen A", command=self.run_gen_a)
         gen_a_button.pack(side="left", padx=5, pady=5)
         ToolTip(gen_a_button, "Generate answers based on existing questions")
+
+        # New Gen DSet button
+        gen_dset_button = tk.Button(rag_frame, text="Gen DSet", command=self.run_gen_dset)
+        gen_dset_button.pack(side="left", padx=5, pady=5)
+        ToolTip(gen_dset_button, "Generate a dataset from Q&A pairs using LLM")
 
     def create_web_rag_frame(self):
         rag_frame = tk.LabelFrame(self.main_tab, text="Web Rag")
@@ -328,11 +332,13 @@ class ERAGGUI:
         web_sum_frame = self.create_labelframe(columns[2], "Web Sum Settings", 0)
         web_rag_frame = self.create_labelframe(columns[2], "Web RAG Settings", 1)
         summarization_frame = self.create_labelframe(columns[2], "Summarization Settings", 2)
+        dataset_frame = self.create_labelframe(columns[2], "Dataset Generation Settings", 3)
 
         api_frame = self.create_labelframe(columns[3], "API Settings", 0)
         question_gen_frame = self.create_labelframe(columns[3], "Question Generation Settings", 1)
         talk2url_frame = self.create_labelframe(columns[3], "Talk2URL Settings", 2)
         github_frame = self.create_labelframe(columns[3], "GitHub Settings", 3)
+        
 
 
         # Create and layout settings fields
@@ -442,6 +448,29 @@ class ERAGGUI:
             ("File Analysis Limit", "file_analysis_limit"),
         ])
 
+        # Dataset fields
+        ttk.Label(dataset_frame, text="Dataset Fields:").grid(row=0, column=0, sticky="w", padx=5, pady=2)
+        self.dataset_fields_vars = {}
+        for i, field in enumerate(["id", "question", "answer", "domain", "difficulty", "keywords", "language", "answer_type"]):
+            var = tk.BooleanVar(value=field in settings.dataset_fields)
+            ttk.Checkbutton(dataset_frame, text=field, variable=var).grid(row=i+1, column=0, sticky="w", padx=20)
+            self.dataset_fields_vars[field] = var
+
+        # Dataset output formats
+        ttk.Label(dataset_frame, text="Output Formats:").grid(row=0, column=1, sticky="w", padx=5, pady=2)
+        self.dataset_output_formats_vars = {}
+        for i, format in enumerate(["jsonl", "csv", "parquet"]):
+            var = tk.BooleanVar(value=format in settings.dataset_output_formats)
+            ttk.Checkbutton(dataset_frame, text=format, variable=var).grid(row=i+1, column=1, sticky="w", padx=20)
+            self.dataset_output_formats_vars[format] = var
+
+        # Dataset output file
+        ttk.Label(dataset_frame, text="Output File Base Name:").grid(row=9, column=0, columnspan=2, sticky="w", padx=5, pady=2)
+        self.dataset_output_file_var = tk.StringVar(value=os.path.basename(settings.dataset_output_file))
+        ttk.Entry(dataset_frame, textvariable=self.dataset_output_file_var).grid(row=10, column=0, columnspan=2, sticky="ew", padx=5, pady=2)
+
+
+
         # Add GitHub Token field separately
         ttk.Label(github_frame, text="GitHub Token:").grid(row=1, column=0, sticky="e", padx=5, pady=2)
         self.github_token_var = tk.StringVar(value=self.github_token)
@@ -501,6 +530,11 @@ class ERAGGUI:
         self.update_env_file("GROQ_API_KEY", self.groq_api_key_var.get())
         self.update_env_file("GITHUB_TOKEN", self.github_token_var.get())
 
+        # Apply dataset generation settings
+        settings.dataset_fields = [field for field, var in self.dataset_fields_vars.items() if var.get()]
+        settings.dataset_output_formats = [format for format, var in self.dataset_output_formats_vars.items() if var.get()]
+        settings.dataset_output_file = os.path.join(settings.output_folder, self.dataset_output_file_var.get())
+
         settings.apply_settings()
         messagebox.showinfo("Settings", "Settings applied successfully")
 
@@ -534,6 +568,13 @@ class ERAGGUI:
         for key in dir(settings):
             if not key.startswith('_') and hasattr(self, f"{key}_var"):
                 getattr(self, f"{key}_var").set(str(getattr(settings, key)))
+
+                # Update dataset generation settings display
+        for field, var in self.dataset_fields_vars.items():
+            var.set(field in settings.dataset_fields)
+        for format, var in self.dataset_output_formats_vars.items():
+            var.set(format in settings.dataset_output_formats)
+        self.dataset_output_file_var.set(os.path.basename(settings.dataset_output_file))
 
     def run_route_query(self):
         try:
@@ -878,6 +919,40 @@ class ERAGGUI:
             messagebox.showinfo("Success", "Answers generated successfully. Check the output file.")
         except Exception as e:
             error_message = f"An error occurred during answer generation: {str(e)}"
+            print(error(error_message))
+            messagebox.showerror("Error", error_message)
+
+
+    def run_gen_dset(self):
+        try:
+            file_path = filedialog.askopenfilename(title="Select Q&A file",
+                                                   filetypes=[("Text files", "*.txt"), ("All files", "*.*")])
+            if not file_path:
+                messagebox.showwarning("Warning", "No file selected.")
+                return
+
+            api_type = self.api_type_var.get()
+            model = self.model_var.get()
+            erag_api = create_erag_api(api_type, model)
+
+            # Apply settings before running the dataset generation
+            self.apply_settings()
+
+            # Run the dataset generation in a separate thread
+            threading.Thread(target=self._gen_dset_thread, args=(file_path, api_type, erag_api), daemon=True).start()
+
+            messagebox.showinfo("Info", f"Dataset generation started for {os.path.basename(file_path)}. Check the console for progress.")
+        except Exception as e:
+            messagebox.showerror("Error", f"An error occurred while starting the dataset generation process: {str(e)}")
+
+    def _gen_dset_thread(self, file_path, api_type, erag_api):
+        try:
+            from src.gen_dset import run_gen_dset
+            result = run_gen_dset(file_path, api_type, erag_api)
+            print(result)
+            messagebox.showinfo("Success", "Dataset generated successfully. Check the output files.")
+        except Exception as e:
+            error_message = f"An error occurred during dataset generation: {str(e)}"
             print(error(error_message))
             messagebox.showerror("Error", error_message)
             
