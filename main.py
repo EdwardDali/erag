@@ -34,6 +34,7 @@ from src.create_q import run_create_q
 from src.server import ServerManager
 from src.gen_a import run_gen_a
 from src.look_and_feel import error, success, warning, info, highlight
+from src.talk2sd import Talk2SD
 
 # Load environment variables from .env file
 load_dotenv()
@@ -107,19 +108,29 @@ class ERAGGUI:
         self.notebook.add(self.settings_tab, text="Settings")
 
         self.server_tab = ttk.Frame(self.notebook)
-        self.notebook.add(self.server_tab, text="llama.cpp server")  # Renamed tab
+        self.notebook.add(self.server_tab, text="llama.cpp server")
 
         self.create_main_tab()
         self.create_settings_tab()
-        self.create_server_tab() 
+        self.create_server_tab()
 
     def create_main_tab(self):
         self.create_model_frame()
         self.create_upload_frame()
         self.create_embeddings_frame()
-        self.create_agent_frame()  # New line
+        self.create_agent_frame()
         self.create_doc_rag_frame()
         self.create_web_rag_frame()
+        self.create_structured_data_rag_frame()
+
+
+    def create_structured_data_rag_frame(self):
+        rag_frame = tk.LabelFrame(self.main_tab, text="Structured Data RAG")
+        rag_frame.pack(fill="x", padx=10, pady=5)
+
+        talk2sd_button = tk.Button(rag_frame, text="Talk2SD", command=self.run_talk2sd)
+        talk2sd_button.pack(side="left", padx=5, pady=5)
+        ToolTip(talk2sd_button, "Start a conversation with the structured data using SQL queries")
 
     def create_upload_frame(self):
         upload_frame = tk.LabelFrame(self.main_tab, text="Upload")
@@ -997,6 +1008,27 @@ class ERAGGUI:
                 messagebox.showwarning("Warning", "Failed to process structured data.")
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred while processing the structured data: {str(e)}")
+
+    def run_talk2sd(self):
+        try:
+            api_type = self.api_type_var.get()
+            model = self.model_var.get()
+            
+            # Create EragAPI instance
+            erag_api = create_erag_api(api_type, model)
+            
+            from src.talk2sd import Talk2SD
+            talk2sd = Talk2SD(erag_api)
+            
+            # Apply settings to Talk2SD
+            settings.apply_settings()
+            
+            # Run Talk2SD in a separate thread to keep the GUI responsive
+            threading.Thread(target=talk2sd.run, daemon=True).start()
+            
+            messagebox.showinfo("Info", f"Talk2SD system started with {api_type} API. Check the console for interaction.")
+        except Exception as e:
+            messagebox.showerror("Error", f"An error occurred while starting the Talk2SD system: {str(e)}")
             
 
     def create_server_tab(self):
