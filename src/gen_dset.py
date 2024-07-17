@@ -6,6 +6,7 @@ from typing import List, Dict, Any
 from src.settings import settings
 from src.look_and_feel import error, success, warning, info
 import time
+from src.api_model import create_erag_api  # Add this import
 
 def read_qa_file(file_path: str) -> List[Dict[str, str]]:
     qa_pairs = []
@@ -95,8 +96,13 @@ def save_parquet(data: List[Dict[str, Any]], output_file: str):
     table = pa.Table.from_pylist(data)
     pq.write_table(table, output_file)
 
-def run_gen_dset(file_path: str, api_type: str, erag_api: Any) -> str:
+def run_gen_dset(file_path: str, api_type: str, model: str) -> str:
     qa_pairs = read_qa_file(file_path)
+    
+    # Create EragAPI instance with the correct model
+    erag_api = create_erag_api(api_type, model)
+    
+    print(info(f"Using {api_type} API with model: {model}"))
     
     enriched_qa_pairs = []
     total_pairs = len(qa_pairs)

@@ -222,4 +222,6 @@ class GroqClient:
 
 # Factory function to create EragAPI instance
 def create_erag_api(api_type, model=None):
+    if model is None:
+        model = settings.get_default_model(api_type)
     return EragAPI(api_type, model)

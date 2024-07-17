@@ -48,7 +48,7 @@ class Settings:
         self.update_threshold = 10
         self.ollama_model = "qwen2:1.5b-instruct-q8_0"
         self.llama_model = "llama-default"
-        self.groq_model = "mixtral-8x7b-32768"  # Add default Groq model
+        self.groq_model = "llama3-groq-8b-8192-tool-use-preview"  # Add default Groq model
         self.temperature = 0.1
         self.model_name = "all-MiniLM-L6-v2"
         self.sentence_transformer_model = "all-MiniLM-L6-v2"
@@ -146,6 +146,17 @@ class Settings:
 
     def get_all_settings(self) -> Dict[str, Any]:
         return {key: value for key, value in self.__dict__.items() if not key.startswith('_')}
+
+    
+    def get_default_model(self, api_type: str) -> str:
+        if api_type == "ollama":
+            return self.ollama_model
+        elif api_type == "llama":
+            return self.llama_model
+        elif api_type == "groq":
+            return self.groq_model
+        else:
+            raise ValueError(f"Unknown API type: {api_type}")
 
     def update_setting(self, key: str, value: Any):
         if hasattr(self, key):

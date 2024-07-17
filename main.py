@@ -190,9 +190,15 @@ class ERAGGUI:
             elif api_type == "llama" and self.server_manager.current_model in models:
                 self.model_var.set(self.server_manager.current_model)
             elif api_type == "groq":
-                # Set to the first available Groq model or a default one if specified in settings
-                default_groq_model = getattr(settings, 'groq_model', models[0])
-                self.model_var.set(default_groq_model if default_groq_model in models else models[0])
+                # Check if the default Groq model from settings is available
+                if settings.groq_model in models:
+                    self.model_var.set(settings.groq_model)
+                else:
+                    # If not available, set to the first available model and update settings
+                    new_default = models[0]
+                    self.model_var.set(new_default)
+                    settings.update_setting("groq_model", new_default)
+                    print(warning(f"Default Groq model not available. Updated to: {new_default}"))
             else:
                 self.model_var.set(models[0])
             if not self.is_initializing:
@@ -940,7 +946,6 @@ class ERAGGUI:
 
             api_type = self.api_type_var.get()
             model = self.model_var.get()
-            erag_api = create_erag_api(api_type, model)
 
             # Apply settings before running the dataset generation
             self.apply_settings()
@@ -948,7 +953,7 @@ class ERAGGUI:
             # Run the dataset generation
             from src.gen_dset import run_gen_dset
             print(info("Starting dataset generation. Please check the console for progress updates."))
-            result = run_gen_dset(file_path, api_type, erag_api)
+            result = run_gen_dset(file_path, api_type, model)
             print(result)
             messagebox.showinfo("Success", "Dataset generated successfully. Check the console for details and output file locations.")
         except Exception as e:
