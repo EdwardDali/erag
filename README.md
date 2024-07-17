@@ -91,14 +91,6 @@ ERAG is composed of several interconnected components:
    - Manage local LLaMA.cpp servers
    - Run various RAG operations (Talk2Doc, WebRAG, etc.)
 
-3. For command-line interactions, use specific modules:
-   - `python src/talk2doc.py <api_type>`: Interact with documents using RAG
-   - `python src/web_rag.py <api_type>`: Use web-based RAG for answering queries
-   - `python src/web_sum.py <api_type>`: Summarize web content
-   - `python src/talk2model.py <api_type> <model>`: Directly interact with a language model
-   - `python src/talk2url.py <api_type>`: Interact with web content
-   - `python src/talk2git.py <api_type>`: Analyze GitHub repositories
-   - `python src/route_query.py <api_type>`: Use the query routing system
 
 ## Configuration
 
