@@ -1,4 +1,4 @@
-# ERAG (Embeddings and Retrieval-Augmented Generation)
+# ERAG 
 
 ## Overview
 
