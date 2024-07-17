@@ -132,6 +132,12 @@ class ERAGGUI:
             button.pack(side="left", padx=5, pady=5)
             ToolTip(button, f"Upload and process a {file_type} file")
 
+        # Add new button for structured data
+        structured_data_button = tk.Button(upload_frame, text="Upload Structured Data", 
+                                           command=self.upload_structured_data)
+        structured_data_button.pack(side="left", padx=5, pady=5)
+        ToolTip(structured_data_button, "Upload and process structured data (CSV or XLSX)")
+
     def create_embeddings_frame(self):
         embeddings_frame = tk.LabelFrame(self.main_tab, text="Embeddings and Graph")
         embeddings_frame.pack(fill="x", padx=10, pady=5)
@@ -971,6 +977,26 @@ class ERAGGUI:
             error_message = f"An error occurred during dataset generation: {str(e)}"
             print(error(error_message))
             messagebox.showerror("Error", error_message)
+
+    def upload_structured_data(self):
+        try:
+            file_path = filedialog.askopenfilename(
+                title="Select Structured Data File",
+                filetypes=[("CSV files", "*.csv"), ("Excel files", "*.xlsx"), ("All files", "*.*")]
+            )
+            if not file_path:
+                messagebox.showwarning("Warning", "No file selected.")
+                return
+
+            from src.sd_processing import process_structured_data
+            result = process_structured_data(file_path)
+            
+            if result:
+                messagebox.showinfo("Success", "Structured data processed and saved to SQLite database.")
+            else:
+                messagebox.showwarning("Warning", "Failed to process structured data.")
+        except Exception as e:
+            messagebox.showerror("Error", f"An error occurred while processing the structured data: {str(e)}")
             
 
     def create_server_tab(self):
