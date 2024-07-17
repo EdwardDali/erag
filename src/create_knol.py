@@ -190,6 +190,7 @@ Please provide a comprehensive answer to the question using the information from
     def run_knol_creator(self):
         print(highlight("Welcome to the Knol Creation System. Type 'exit' to quit."))
         print(info(f"All generated files will be saved in: {settings.output_folder}"))
+        print(info(f"Using EragAPI with {self.erag_api.api_type} backend."))
 
         while True:
             user_input = input(color_user_input("Which subject do you want to create a knol about? ")).strip()
@@ -238,5 +239,5 @@ if __name__ == "__main__":
     else:
         print(error("Error: No API type provided."))
         print(warning("Usage: python src/create_knol.py <api_type>"))
-        print(info("Available API types: ollama, llama"))
+        print(info("Available API types: ollama, llama, groq"))
         sys.exit(1)

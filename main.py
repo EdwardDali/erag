@@ -598,9 +598,13 @@ class ERAGGUI:
         try:
             api_type = self.api_type_var.get()
             model = self.model_var.get()
+            
+            # Create EragAPI instance
             erag_api = create_erag_api(api_type, model)
+            
             creator = KnolCreator(erag_api)
             
+            # Set up RAG components
             if os.path.exists(settings.db_file_path):
                 with open(settings.db_file_path, "r", encoding="utf-8") as db_file:
                     creator.db_content = db_file.readlines()
@@ -622,13 +626,15 @@ class ERAGGUI:
                 creator.knowledge_graph = None
 
             if all([creator.db_embeddings is not None, creator.db_content is not None, creator.knowledge_graph is not None]):
-                creator.search_utils = SearchUtils(creator.model, creator.db_embeddings, creator.db_content, creator.knowledge_graph)
+                creator.search_utils = SearchUtils(erag_api, creator.db_embeddings, creator.db_content, creator.knowledge_graph)
             else:
                 creator.search_utils = None
-                print("Some components are missing. The knol creation process will not use RAG capabilities.")
+                print(warning("Some components are missing. The knol creation process will not use RAG capabilities."))
 
+            # Run the knol creator in a separate thread
             threading.Thread(target=creator.run_knol_creator, daemon=True).start()
-            messagebox.showinfo("Info", "Knol creation process started. Check the console for interaction.")
+            
+            messagebox.showinfo("Info", f"Knol creation process started with {api_type} API and model: {model}. Check the console for interaction.")
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred while starting the knol creation process: {str(e)}")
 
