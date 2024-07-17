@@ -109,9 +109,10 @@ def update_settings(settings, api_type, model):
         settings.update_setting("ollama_model", model)
     elif api_type == "llama":
         settings.update_setting("llama_model", model)
-    # We don't update settings for Groq model anymore
+    elif api_type == "groq":
+        settings.update_setting("groq_model", model)
     settings.apply_settings()
-    print(success(f"Settings updated. Using {model} with {api_type} API."))
+    print(success(f"Settings updated. Using {model} with {api_type} backend."))
 
 class LlamaClient:
     def __init__(self, base_url='http://localhost:8080/v1'):

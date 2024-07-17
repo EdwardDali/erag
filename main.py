@@ -244,19 +244,17 @@ class ERAGGUI:
         if model:
             update_settings(settings, api_type, model)
             if api_type == "llama":
-                if self.server_manager.set_current_model(model):
-                    if show_message:
-                        messagebox.showinfo("Model Selected", f"Selected API: {api_type}, Model: {model}")
-                else:
+                if not self.server_manager.set_current_model(model):
                     messagebox.showwarning("Model Selection", f"Failed to set model: {model}")
-            else:
-                if show_message:
-                    messagebox.showinfo("Model Selected", f"Selected API: {api_type}, Model: {model}")
+                    return
             
             # Update the EragAPI instance with the new model
             self.erag_api = create_erag_api(api_type, model)
             
-            print(success(f"Settings updated. Using {model} with {api_type} API."))
+            print(info(f"EragAPI initialized with {api_type} backend for model: {model}"))
+            
+            if show_message:
+                messagebox.showinfo("Model Selected", f"Selected model: {model}\nUsing EragAPI with {api_type} backend")
         elif show_message:
             messagebox.showwarning("Model Selection", "No model selected")
 
