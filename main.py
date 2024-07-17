@@ -252,6 +252,11 @@ class ERAGGUI:
             else:
                 if show_message:
                     messagebox.showinfo("Model Selected", f"Selected API: {api_type}, Model: {model}")
+            
+            # Update the EragAPI instance with the new model
+            self.erag_api = create_erag_api(api_type, model)
+            
+            print(success(f"Settings updated. Using {model} with {api_type} API."))
         elif show_message:
             messagebox.showwarning("Model Selection", "No model selected")
 
@@ -968,45 +973,32 @@ class ERAGGUI:
             api_type = self.api_type_var.get()
             model = self.model_var.get()
             
-            # Create EragAPI instance
+            # Ensure the EragAPI instance is up-to-date
             self.erag_api = create_erag_api(api_type, model)
             
-            if api_type == "ollama":
-                self.rag_system = RAGSystem(self.erag_api)
-                # Apply settings to RAGSystem
-                settings.apply_settings()
-                # Run the CLI in a separate thread to keep the GUI responsive
-                threading.Thread(target=self.rag_system.run, daemon=True).start()
-            elif api_type == "llama":
+            print(info(f"EragAPI initialized with {self.erag_api.api_type} backend."))
+            print(info(f"Talking to {model} using EragAPI (backed by {self.erag_api.api_type}). Type 'exit' to end the conversation."))
+            
+            if api_type == "llama":
                 if not self.server_manager.can_start_server():
-                    messagebox.showerror("Error", "Server cannot be started. Please check your settings.")
-                    return
+                    raise Exception("Server cannot be started. Please check your settings.")
                 # Ensure the server is running with the selected model
                 if not self.server_manager.start_server():
-                    messagebox.showerror("Error", "Failed to start the llama.cpp server.")
-                    return
-                # Start the llama.cpp client
-                threading.Thread(target=self.run_llama_client, daemon=True).start()
+                    raise Exception("Failed to start the llama.cpp server.")
             
-            messagebox.showinfo("Info", f"System started with {api_type} API and model: {model}. Check the console for interaction.")
-        except Exception as e:
-            messagebox.showerror("Error", f"An error occurred while starting the system: {str(e)}")
-
-    def run_llama_client(self):
-        try:
+            # Create and run the RAG system
             from src.talk2doc import RAGSystem
-            rag_system = RAGSystem(self.erag_api)
-            rag_system.run()
+            self.rag_system = RAGSystem(self.erag_api)
+            settings.apply_settings()
+            
+            # Run the RAG system in a separate thread
+            threading.Thread(target=self.rag_system.run, daemon=True).start()
+            
+            messagebox.showinfo("Info", f"System started with EragAPI (backed by {self.erag_api.api_type}) and model: {model}. Check the console for interaction.")
         except Exception as e:
-            print(f"An error occurred while running the RAG system: {str(e)}")
-
-    def run_groq_client(self):
-        try:
-            from src.talk2doc import RAGSystem
-            rag_system = RAGSystem(self.erag_api)
-            rag_system.run()
-        except Exception as e:
-            print(f"An error occurred while running the RAG system with Groq: {str(e)}")
+            error_message = f"An error occurred while starting the system: {str(e)}"
+            print(error(error_message))
+            messagebox.showerror("Error", error_message)
 
     def check_groq_api_key(self):
         if not self.groq_api_key:
