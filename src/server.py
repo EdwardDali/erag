@@ -24,59 +24,6 @@ class ServerManager:
             self.model_folder = config.get('model_folder', '')
             self.current_model = config.get('current_model', '')
             self.additional_args = config.get('additional_args', '-c 8192')
-            self.output_mode = config.get('output_mode', 'file')  # 'file' or 'window'
-        else:
-            self.enable_on_start = False
-            self.server_executable = ''
-            self.model_folder = ''
-            self.current_model = ''
-            self.additional_args = '-c 8192'
-            self.output_mode = 'file'
-
-    def save_config(self):
-        config = {
-            'enable_on_start': self.enable_on_start,
-            'server_executable': self.server_executable,
-            'model_folder': self.model_folder,
-            'current_model': self.current_model,
-            'additional_args': self.additional_args,
-            'output_mode': self.output_mode
-        }
-        with open(self.config_file, 'w') as f:
-            json.dump(config, f, indent=4)
-
-    def get_gguf_models(self):
-        if not self.model_folder:
-            return []
-        model_files = glob.glob(os.path.join(self.model_folder, "*.gguf"))
-        return [os.path.basename(f) for f in model_files]
-
-    import subprocess
-import json
-import os
-from pathlib import Path
-import tkinter as tk
-from tkinter import scrolledtext
-import threading
-import glob
-
-class ServerManager:
-    def __init__(self):
-        self.config_file = Path(__file__).parent.parent / "output" / "server_config.json"
-        self.load_config()
-        self.server_process = None
-        self.output_window = None
-        self.log_file = Path(__file__).parent.parent / "output" / "server_log.txt"
-
-    def load_config(self):
-        if self.config_file.exists():
-            with open(self.config_file, 'r') as f:
-                config = json.load(f)
-            self.enable_on_start = config.get('enable_on_start', False)
-            self.server_executable = config.get('server_executable', '')
-            self.model_folder = config.get('model_folder', '')
-            self.current_model = config.get('current_model', '')
-            self.additional_args = config.get('additional_args', '-c 8192')
             self.output_mode = config.get('output_mode', 'file')
         else:
             self.enable_on_start = False
@@ -135,7 +82,6 @@ class ServerManager:
                 return False
         return True  # Server was already running
 
-
     def stop_server(self):
         if self.server_process and self.server_process.poll() is None:
             self.server_process.terminate()
@@ -179,11 +125,27 @@ class ServerManager:
         self.save_config()
 
     def set_current_model(self, model_name):
-        self.current_model = model_name
-        self.save_config()
+        if model_name in self.get_gguf_models():
+            self.current_model = model_name
+            self.save_config()
+            return True
+        else:
+            print(f"Model {model_name} not found in the models folder.")
+            return False
 
     def can_start_server(self):
         return (self.server_executable and
                 self.model_folder and
                 self.get_gguf_models() and
                 self.current_model in self.get_gguf_models())
+
+# You can add any additional utility functions or classes here if needed
+
+if __name__ == "__main__":
+    # This block can be used for testing the ServerManager independently
+    manager = ServerManager()
+    print("Available GGUF models:", manager.get_gguf_models())
+    if manager.can_start_server():
+        print("Server can be started.")
+    else:
+        print("Server cannot be started. Please check the configuration.")

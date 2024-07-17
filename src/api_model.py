@@ -7,6 +7,8 @@ import os
 from dotenv import load_dotenv
 from groq.types import Model, ModelDeleted, ModelListResponse
 from groq import Groq
+from dotenv import load_dotenv
+
 
 # Load environment variables from .env file
 load_dotenv()
@@ -68,7 +70,7 @@ class EragAPI:
         except Exception as e:
             return error(f"An error occurred: {str(e)}")
 
-def get_available_models(api_type):
+def get_available_models(api_type, server_manager=None):
     if api_type == "ollama":
         try:
             result = subprocess.run(["ollama", "list"], capture_output=True, text=True)
@@ -79,16 +81,10 @@ def get_available_models(api_type):
             print(error("Error running 'ollama list' command"))
             return []
     elif api_type == "llama":
-        try:
-            response = requests.get("http://localhost:8080/v1/models")
-            if response.status_code == 200:
-                models = response.json()['data']
-                return [model['id'] for model in models]
-            else:
-                print(error(f"Error fetching models from llama.cpp server: {response.status_code}"))
-                return []
-        except requests.RequestException as e:
-            print(error(f"Error connecting to llama.cpp server: {e}"))
+        if server_manager:
+            return server_manager.get_gguf_models()
+        else:
+            print(error("Server manager not provided for llama models"))
             return []
     elif api_type == "groq":
         try:
@@ -147,6 +143,18 @@ class LlamaClient:
         else:
             raise Exception(error(f"Error from llama.cpp server: {response.status_code} - {response.text}"))
 
+    def get_models(self):
+        url = f"{self.base_url}/models"
+        try:
+            response = requests.get(url)
+            if response.status_code == 200:
+                models = response.json()['data']
+                return [model['id'] for model in models]
+            else:
+                raise Exception(error(f"Error fetching models: {response.status_code} - {response.text}"))
+        except requests.RequestException as e:
+            raise Exception(error(f"Error connecting to llama.cpp server: {e}"))
+
 class GroqClient:
     def __init__(self, model=None):
         self.api_key = os.getenv("GROQ_API_KEY")
@@ -161,7 +169,6 @@ class GroqClient:
             return models.data[0].id if models.data else None
         except Exception:
             return None
-
 
     def chat(self, messages, temperature=0.7, max_tokens=None, stream=False):
         try:

@@ -177,26 +177,32 @@ class ERAGGUI:
 
     def update_model_list(self, event=None):
         api_type = self.api_type_var.get()
-        models = get_available_models(api_type)
+        
+        if api_type == "llama":
+            models = self.server_manager.get_gguf_models()
+        else:
+            models = get_available_models(api_type)
 
         self.model_menu['values'] = models
         if models:
-            # Set to the default model for the selected API type
-            if api_type == "ollama":
-                default_model = settings.ollama_model
-            elif api_type == "llama":
-                default_model = settings.llama_model
+            if api_type == "ollama" and settings.ollama_model in models:
+                self.model_var.set(settings.ollama_model)
+            elif api_type == "llama" and self.server_manager.current_model in models:
+                self.model_var.set(self.server_manager.current_model)
             elif api_type == "groq":
-                default_model = settings.groq_model
-            else:
-                default_model = models[0]
-            
-            if default_model in models:
-                self.model_var.set(default_model)
+                # Set to the first available Groq model or a default one if specified in settings
+                default_groq_model = getattr(settings, 'groq_model', models[0])
+                self.model_var.set(default_groq_model if default_groq_model in models else models[0])
             else:
                 self.model_var.set(models[0])
+            if not self.is_initializing:
+                self.update_model_setting()
         else:
             self.model_var.set("")
+        
+        if self.is_initializing:
+            self.is_initializing = False
+            self.update_model_setting(show_message=False)
         
         # Update the API type in settings
         settings.update_setting("api_type", api_type)
@@ -232,22 +238,21 @@ class ERAGGUI:
 
 
 
-    def update_model_setting(self, event=None):
+    def update_model_setting(self, event=None, show_message=True):
         api_type = self.api_type_var.get()
         model = self.model_var.get()
         if model:
-            if api_type == "ollama":
-                settings.update_setting("ollama_model", model)
-            elif api_type == "llama":
-                settings.update_setting("llama_model", model)
-                self.server_manager.set_current_model(model)
-            elif api_type == "groq":
-                settings.update_setting("groq_model", model)
-            
-            print(success(f"Selected API: {api_type}, Model: {model}"))
-            messagebox.showinfo("Model Selected", f"Selected API: {api_type}, Model: {model}")
-        else:
-            print(error("No model selected"))
+            update_settings(settings, api_type, model)
+            if api_type == "llama":
+                if self.server_manager.set_current_model(model):
+                    if show_message:
+                        messagebox.showinfo("Model Selected", f"Selected API: {api_type}, Model: {model}")
+                else:
+                    messagebox.showwarning("Model Selection", f"Failed to set model: {model}")
+            else:
+                if show_message:
+                    messagebox.showinfo("Model Selected", f"Selected API: {api_type}, Model: {model}")
+        elif show_message:
             messagebox.showwarning("Model Selection", "No model selected")
 
     def create_doc_rag_frame(self):
@@ -973,14 +978,15 @@ class ERAGGUI:
                 # Run the CLI in a separate thread to keep the GUI responsive
                 threading.Thread(target=self.rag_system.run, daemon=True).start()
             elif api_type == "llama":
+                if not self.server_manager.can_start_server():
+                    messagebox.showerror("Error", "Server cannot be started. Please check your settings.")
+                    return
                 # Ensure the server is running with the selected model
-                self.server_manager.set_current_model(model)
-                self.server_manager.restart_server()
+                if not self.server_manager.start_server():
+                    messagebox.showerror("Error", "Failed to start the llama.cpp server.")
+                    return
                 # Start the llama.cpp client
                 threading.Thread(target=self.run_llama_client, daemon=True).start()
-            elif api_type == "groq":
-                # Start the Groq client
-                threading.Thread(target=self.run_groq_client, daemon=True).start()
             
             messagebox.showinfo("Info", f"System started with {api_type} API and model: {model}. Check the console for interaction.")
         except Exception as e:
