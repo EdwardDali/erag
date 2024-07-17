@@ -412,6 +412,13 @@ class ERAGGUI:
             ("Final Chunk Size", "summarization_final_chunk_size"),
         ])
 
+        self.create_settings_fields(question_gen_frame, [
+            ("Initial Question Chunk Size", "initial_question_chunk_size"),
+            ("Question Chunk Levels", "question_chunk_levels"),
+            ("Excluded Question Levels", "excluded_question_levels"),
+            ("Questions Per Chunk", "questions_per_chunk"),  # New field for questions per chunk
+        ])
+
         # API Settings
         self.create_settings_fields(api_frame, [
             ("Default Ollama Model", "ollama_model"),
@@ -938,12 +945,16 @@ class ERAGGUI:
             # Apply settings before running the dataset generation
             self.apply_settings()
 
-            # Run the dataset generation in a separate thread
-            threading.Thread(target=self._gen_dset_thread, args=(file_path, api_type, erag_api), daemon=True).start()
-
-            messagebox.showinfo("Info", f"Dataset generation started for {os.path.basename(file_path)}. Check the console for progress.")
+            # Run the dataset generation
+            from src.gen_dset import run_gen_dset
+            print(info("Starting dataset generation. Please check the console for progress updates."))
+            result = run_gen_dset(file_path, api_type, erag_api)
+            print(result)
+            messagebox.showinfo("Success", "Dataset generated successfully. Check the console for details and output file locations.")
         except Exception as e:
-            messagebox.showerror("Error", f"An error occurred while starting the dataset generation process: {str(e)}")
+            error_message = f"An error occurred during dataset generation: {str(e)}"
+            print(error(error_message))
+            messagebox.showerror("Error", error_message)
 
     def _gen_dset_thread(self, file_path, api_type, erag_api):
         try:

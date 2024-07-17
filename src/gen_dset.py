@@ -5,6 +5,7 @@ import pyarrow.parquet as pq
 from typing import List, Dict, Any
 from src.settings import settings
 from src.look_and_feel import error, success, warning, info
+import time
 
 def read_qa_file(file_path: str) -> List[Dict[str, str]]:
     qa_pairs = []
@@ -21,9 +22,15 @@ def read_qa_file(file_path: str) -> List[Dict[str, str]]:
                 current_qa['answer'] = line[7:].strip()
     if current_qa:
         qa_pairs.append(current_qa)
+    print(info(f"Number of Q&A pairs identified: {len(qa_pairs)}"))
     return qa_pairs
 
-def enrich_qa_pair(qa_pair: Dict[str, str], erag_api: Any) -> Dict[str, Any]:
+def generate_id(index: int, total: int) -> str:
+    # Calculate the number of digits needed to represent the total number of QA pairs
+    id_length = len(str(total))
+    return f"QA_{index:0{id_length}d}"
+
+def enrich_qa_pair(qa_pair: Dict[str, str], erag_api: Any, qa_id: str) -> Dict[str, Any]:
     prompt = f"""
 Given the following question and answer pair, provide additional metadata in the specified format:
 
@@ -35,7 +42,7 @@ Please provide the following metadata:
 2. Difficulty (Easy, Medium, Hard)
 3. Keywords (comma-separated list)
 4. Language
-5. Answer type (short_answer, long_explanation, multiple_choice)
+5. Answer type (choose one: short, medium, long)
 
 Format your response as follows:
 Domain: [domain]
@@ -56,7 +63,17 @@ Answer type: [answer_type]
 
     # Add the metadata to the qa_pair
     qa_pair.update(metadata)
-    qa_pair['id'] = f"QA_{len(qa_pair):04d}"
+    qa_pair['id'] = qa_id
+    
+    # Ensure answer_type is one of short, medium, or long
+    if qa_pair['answer_type'] not in ['short', 'medium', 'long']:
+        answer_length = len(qa_pair['answer'].split())
+        if answer_length < 30:
+            qa_pair['answer_type'] = 'short'
+        elif answer_length < 100:
+            qa_pair['answer_type'] = 'medium'
+        else:
+            qa_pair['answer_type'] = 'long'
     
     return qa_pair
 
@@ -80,7 +97,24 @@ def save_parquet(data: List[Dict[str, Any]], output_file: str):
 
 def run_gen_dset(file_path: str, api_type: str, erag_api: Any) -> str:
     qa_pairs = read_qa_file(file_path)
-    enriched_qa_pairs = [enrich_qa_pair(qa_pair, erag_api) for qa_pair in qa_pairs]
+    
+    enriched_qa_pairs = []
+    total_pairs = len(qa_pairs)
+    start_time = time.time()
+    
+    for i, qa_pair in enumerate(qa_pairs, 1):
+        qa_id = generate_id(i, total_pairs)
+        enriched_pair = enrich_qa_pair(qa_pair, erag_api, qa_id)
+        enriched_qa_pairs.append(enriched_pair)
+        
+        # Calculate and display progress
+        progress = (i / total_pairs) * 100
+        elapsed_time = time.time() - start_time
+        estimated_total_time = (elapsed_time / i) * total_pairs
+        remaining_time = estimated_total_time - elapsed_time
+        
+        print(info(f"Processed Q&A pair {i} of {total_pairs} ({progress:.2f}%) - ID: {qa_id}"))
+        print(info(f"Estimated time remaining: {remaining_time:.2f} seconds"))
 
     output_formats = settings.dataset_output_formats
     base_output_file = settings.dataset_output_file
@@ -97,4 +131,6 @@ def run_gen_dset(file_path: str, api_type: str, erag_api: Any) -> str:
             save_parquet(enriched_qa_pairs, output_file)
         generated_files.append(output_file)
 
+    total_time = time.time() - start_time
+    print(success(f"Dataset generation completed in {total_time:.2f} seconds"))
     return success(f"Dataset generated successfully. Output files: {', '.join(generated_files)}")
