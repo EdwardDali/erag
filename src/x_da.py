@@ -16,7 +16,7 @@ from src.api_model import EragAPI
 from src.settings import settings
 from src.look_and_feel import error, success, warning, info, highlight
 from reportlab.lib.enums import TA_JUSTIFY, TA_CENTER
-from xml.etree.ElementTree import ParseError
+import re
 
 class ExploratoryDataAnalysis:
     def __init__(self, erag_api, db_path):
@@ -261,20 +261,16 @@ class ExploratoryDataAnalysis:
         # Define custom styles
         styles.add(ParagraphStyle(name='XDA_Title', parent=styles['Title'], fontSize=24, alignment=TA_CENTER, spaceAfter=24))
         styles.add(ParagraphStyle(name='XDA_Heading1', parent=styles['Heading1'], fontSize=18, spaceBefore=12, spaceAfter=6))
-        styles.add(ParagraphStyle(name='XDA_Heading2', parent=styles['Heading2'], fontSize=16, spaceBefore=12, spaceAfter=6))
-        styles.add(ParagraphStyle(name='XDA_Heading3', parent=styles['Heading3'], fontSize=14, spaceBefore=12, spaceAfter=6))
+        styles.add(ParagraphStyle(name='XDA_Heading2', parent=styles['Heading2'], fontSize=14, spaceBefore=12, spaceAfter=6))
+        styles.add(ParagraphStyle(name='XDA_Heading3', parent=styles['Heading3'], fontSize=12, spaceBefore=12, spaceAfter=6))
+        styles.add(ParagraphStyle(name='XDA_Heading4', parent=styles['Heading4'], fontSize=10, spaceBefore=12, spaceAfter=6))
         styles.add(ParagraphStyle(name='XDA_Normal', parent=styles['Normal'], alignment=TA_JUSTIFY, spaceAfter=12))
-     
+        styles.add(ParagraphStyle(name='XDA_Bullet', parent=styles['Normal'], alignment=TA_JUSTIFY, spaceAfter=6, leftIndent=20))
+        
         # Create cover page
         story.append(Paragraph("Exploratory Data Analysis Report", styles['XDA_Title']))
         story.append(Paragraph(f"Generated on: {datetime.now().strftime('%Y-%m-%d')}", styles['XDA_Normal']))
         story.append(Paragraph(f"AI-powered analysis by ERAG using {self.llm_name}", styles['XDA_Normal']))
-        story.append(PageBreak())
-        
-        # Add table of contents
-        story.append(Paragraph("Table of Contents", styles['XDA_Heading1']))
-        for i, entry in enumerate(self.toc_entries):
-            story.append(Paragraph(f"{i+1}. {entry}", styles['XDA_Normal']))
         story.append(PageBreak())
         
         # Executive Summary
@@ -286,7 +282,7 @@ class ExploratoryDataAnalysis:
         if self.findings:
             story.append(Paragraph("Key Findings", styles['XDA_Heading1']))
             for finding in self.findings:
-                story.append(Paragraph(finding, styles['XDA_Normal']))
+                story.extend(self.markdown_to_reportlab(finding, styles))
             story.append(PageBreak())
         
         # Main content
@@ -325,27 +321,33 @@ class ExploratoryDataAnalysis:
             return [Paragraph(md_text, styles['XDA_Normal'])]
 
         elements = []
+        in_list = False
         for line in html.split('\n'):
+            line = line.strip()
+            if not line:
+                continue
+            
             try:
                 if line.startswith('<h1>'):
-                    elements.append(Paragraph(line[4:-5], styles['XDA_Heading1']))
+                    elements.append(Paragraph(re.sub('<[^<]+?>', '', line), styles['XDA_Heading1']))
                 elif line.startswith('<h2>'):
-                    elements.append(Paragraph(line[4:-5], styles['XDA_Heading2']))
+                    elements.append(Paragraph(re.sub('<[^<]+?>', '', line), styles['XDA_Heading2']))
                 elif line.startswith('<h3>'):
-                    elements.append(Paragraph(line[4:-5], styles['XDA_Heading3']))
+                    elements.append(Paragraph(re.sub('<[^<]+?>', '', line), styles['XDA_Heading3']))
+                elif line.startswith('<h4>'):
+                    elements.append(Paragraph(re.sub('<[^<]+?>', '', line), styles['XDA_Heading4']))
                 elif line.startswith('<p>'):
-                    # Remove any remaining HTML tags
-                    cleaned_text = line[3:-4].replace('<', '&lt;').replace('>', '&gt;')
-                    elements.append(Paragraph(cleaned_text, styles['XDA_Normal']))
+                    elements.append(Paragraph(re.sub('<[^<]+?>', '', line), styles['XDA_Normal']))
                 elif line.startswith('<ul>'):
-                    items = line[4:-5].split('<li>')
-                    for item in items[1:]:  # Skip the first empty item
-                        # Remove any remaining HTML tags
-                        cleaned_item = item[:-5].replace('<', '&lt;').replace('>', '&gt;')
-                        elements.append(Paragraph(f"• {cleaned_item}", styles['XDA_Normal']))
+                    in_list = True
+                elif line.startswith('</ul>'):
+                    in_list = False
+                elif line.startswith('<li>'):
+                    bullet_text = re.sub('<[^<]+?>', '', line)
+                    elements.append(Paragraph(f"• {bullet_text}", styles['XDA_Bullet']))
                 else:
                     # For any other content, just add it as normal text
-                    cleaned_line = line.replace('<', '&lt;').replace('>', '&gt;')
+                    cleaned_line = re.sub('<[^<]+?>', '', line)
                     elements.append(Paragraph(cleaned_line, styles['XDA_Normal']))
             except Exception as e:
                 print(warning(f"Error processing line: {line}. Error: {str(e)}"))
