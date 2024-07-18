@@ -18,6 +18,10 @@ from src.look_and_feel import error, success, warning, info, highlight
 from reportlab.lib.enums import TA_JUSTIFY, TA_CENTER
 import re
 
+# Define RGB values for custom colors
+SAGE_GREEN_RGB = (125/255, 169/255, 133/255)
+DUSTY_PINK_RGB = (173/255, 142/255, 148/255)
+
 class ExploratoryDataAnalysis:
     def __init__(self, erag_api, db_path):
         self.erag_api = erag_api
@@ -88,10 +92,15 @@ class ExploratoryDataAnalysis:
             results = []
             for col in numerical_columns:
                 plt.figure(figsize=(10, 6))
-                sns.histplot(df[col], kde=True)
+                
+                # Limit to top 10 most frequent values
+                value_counts = df[col].value_counts().nlargest(10)
+                
+                sns.histplot(df[col], kde=True, color=SAGE_GREEN_RGB)
                 plt.title(f'Distribution of {col}')
                 plt.xlabel(col)
                 plt.ylabel('Count')
+                plt.xticks(rotation=45, ha='right')
                 img_path = os.path.join(self.output_folder, f"{table_name}_{col}_distribution.png")
                 plt.savefig(img_path, dpi=300, bbox_inches='tight')
                 plt.close()
@@ -99,6 +108,7 @@ class ExploratoryDataAnalysis:
         else:
             results = "N/A - No numerical features found"
         self.interpret_results(f"{self.technique_counter}. Numerical Features Distribution", results, table_name)
+
 
     def correlation_analysis(self, df, table_name):
         self.technique_counter += 1
@@ -125,16 +135,16 @@ class ExploratoryDataAnalysis:
             results = []
             for col in categorical_columns:
                 plt.figure(figsize=(10, 6))
-                value_counts = df[col].value_counts()
-                sns.barplot(x=value_counts.index, y=value_counts.values)
-                plt.title(f'Distribution of {col}')
+                value_counts = df[col].value_counts().nlargest(10)  # Limit to top 10
+                sns.barplot(x=value_counts.index, y=value_counts.values, color=DUSTY_PINK_RGB)
+                plt.title(f'Distribution of {col} (Top 10)')
                 plt.xlabel(col)
                 plt.ylabel('Count')
                 plt.xticks(rotation=45, ha='right')
                 img_path = os.path.join(self.output_folder, f"{table_name}_{col}_distribution.png")
                 plt.savefig(img_path, dpi=300, bbox_inches='tight')
                 plt.close()
-                results.append((f"Value counts for {col}:\n{value_counts.to_string()}", img_path))
+                results.append((f"Value counts for {col} (Top 10):\n{value_counts.to_string()}", img_path))
         else:
             results = "N/A - No categorical features found"
         self.interpret_results(f"{self.technique_counter}. Categorical Features Analysis", results, table_name)
@@ -258,18 +268,19 @@ class ExploratoryDataAnalysis:
         
         styles = getSampleStyleSheet()
         
-        # Define custom styles with colors
-        styles.add(ParagraphStyle(name='XDA_Title', parent=styles['Title'], fontSize=24, alignment=TA_CENTER, spaceAfter=24, textColor=colors.white, backColor=colors.darkblue))
-        styles.add(ParagraphStyle(name='XDA_Heading1', parent=styles['Heading1'], fontSize=18, spaceBefore=12, spaceAfter=6, textColor=colors.darkblue))
-        styles.add(ParagraphStyle(name='XDA_Heading2', parent=styles['Heading2'], fontSize=16, spaceBefore=12, spaceAfter=6, textColor=colors.blue))
-        styles.add(ParagraphStyle(name='XDA_Heading3', parent=styles['Heading3'], fontSize=14, spaceBefore=12, spaceAfter=6, textColor=colors.navy))
-        styles.add(ParagraphStyle(name='XDA_Heading4', parent=styles['Heading4'], fontSize=12, spaceBefore=12, spaceAfter=6, textColor=colors.darkblue))
+        # Update custom styles with colors
+        styles.add(ParagraphStyle(name='XDA_Title', parent=styles['Title'], fontSize=24, alignment=TA_CENTER, spaceAfter=24, textColor=colors.white, backColor=colors.Color(*SAGE_GREEN_RGB)))
+        styles.add(ParagraphStyle(name='XDA_Heading1', parent=styles['Heading1'], fontSize=18, spaceBefore=12, spaceAfter=6, textColor=colors.Color(*DUSTY_PINK_RGB)))
+        styles.add(ParagraphStyle(name='XDA_Heading2', parent=styles['Heading2'], fontSize=16, spaceBefore=12, spaceAfter=6, textColor=colors.Color(*SAGE_GREEN_RGB)))
+        styles.add(ParagraphStyle(name='XDA_Heading3', parent=styles['Heading3'], fontSize=14, spaceBefore=12, spaceAfter=6, textColor=colors.Color(*DUSTY_PINK_RGB)))
+        styles.add(ParagraphStyle(name='XDA_Heading4', parent=styles['Heading4'], fontSize=12, spaceBefore=12, spaceAfter=6, textColor=colors.Color(*SAGE_GREEN_RGB)))
         styles.add(ParagraphStyle(name='XDA_Normal', parent=styles['Normal'], alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.black))
-        styles.add(ParagraphStyle(name='XDA_Important', parent=styles['Normal'], alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.darkgrey))
+        styles.add(ParagraphStyle(name='XDA_Important', parent=styles['Normal'], alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.cyan))
         styles.add(ParagraphStyle(name='XDA_Positive', parent=styles['Normal'], alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.green))
         styles.add(ParagraphStyle(name='XDA_Negative', parent=styles['Normal'], alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.red))
-        styles.add(ParagraphStyle(name='XDA_Conclusion', parent=styles['Normal'], alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.darkblue))
+        styles.add(ParagraphStyle(name='XDA_Conclusion', parent=styles['Normal'], alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.Color(*SAGE_GREEN_RGB)))
         styles.add(ParagraphStyle(name='XDA_Bullet', parent=styles['Normal'], alignment=TA_JUSTIFY, spaceAfter=6, leftIndent=20, textColor=colors.black))
+        
         
         # Create cover page with background color
         elements.append(Paragraph("Exploratory Data Analysis Report", styles['XDA_Title']))
