@@ -259,11 +259,11 @@ class ExploratoryDataAnalysis:
         styles = getSampleStyleSheet()
         
         # Define custom styles with colors
-        styles.add(ParagraphStyle(name='XDA_Title', parent=styles['Title'], fontSize=24, alignment=TA_CENTER, spaceAfter=24, textColor=colors.darkblue))
-        styles.add(ParagraphStyle(name='XDA_Heading1', parent=styles['Heading1'], fontSize=18, spaceBefore=12, spaceAfter=6, textColor=colors.blue))
+        styles.add(ParagraphStyle(name='XDA_Title', parent=styles['Title'], fontSize=24, alignment=TA_CENTER, spaceAfter=24, textColor=colors.white, backColor=colors.darkblue))
+        styles.add(ParagraphStyle(name='XDA_Heading1', parent=styles['Heading1'], fontSize=18, spaceBefore=12, spaceAfter=6, textColor=colors.darkblue))
         styles.add(ParagraphStyle(name='XDA_Heading2', parent=styles['Heading2'], fontSize=16, spaceBefore=12, spaceAfter=6, textColor=colors.blue))
-        styles.add(ParagraphStyle(name='XDA_Heading3', parent=styles['Heading3'], fontSize=14, spaceBefore=12, spaceAfter=6, textColor=colors.blue))
-        styles.add(ParagraphStyle(name='XDA_Heading4', parent=styles['Heading4'], fontSize=12, spaceBefore=12, spaceAfter=6, textColor=colors.blue))
+        styles.add(ParagraphStyle(name='XDA_Heading3', parent=styles['Heading3'], fontSize=14, spaceBefore=12, spaceAfter=6, textColor=colors.navy))
+        styles.add(ParagraphStyle(name='XDA_Heading4', parent=styles['Heading4'], fontSize=12, spaceBefore=12, spaceAfter=6, textColor=colors.darkblue))
         styles.add(ParagraphStyle(name='XDA_Normal', parent=styles['Normal'], alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.black))
         styles.add(ParagraphStyle(name='XDA_Important', parent=styles['Normal'], alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.darkgrey))
         styles.add(ParagraphStyle(name='XDA_Positive', parent=styles['Normal'], alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.green))
@@ -271,8 +271,9 @@ class ExploratoryDataAnalysis:
         styles.add(ParagraphStyle(name='XDA_Conclusion', parent=styles['Normal'], alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.darkblue))
         styles.add(ParagraphStyle(name='XDA_Bullet', parent=styles['Normal'], alignment=TA_JUSTIFY, spaceAfter=6, leftIndent=20, textColor=colors.black))
         
-        # Create cover page
+        # Create cover page with background color
         elements.append(Paragraph("Exploratory Data Analysis Report", styles['XDA_Title']))
+        elements.append(Spacer(1, 12))
         elements.append(Paragraph(f"Generated on: {datetime.now().strftime('%Y-%m-%d')}", styles['XDA_Normal']))
         elements.append(Paragraph(f"AI-powered analysis by ERAG using {self.llm_name}", styles['XDA_Normal']))
         elements.append(PageBreak())
@@ -291,7 +292,7 @@ class ExploratoryDataAnalysis:
         
         # Main content
         for analysis_type, results, interpretation in self.pdf_content:
-            elements.append(Paragraph(analysis_type, styles['XDA_Heading2']))
+            elements.append(Paragraph(analysis_type, styles['XDA_Heading1']))
             elements.extend(self.markdown_to_reportlab(interpretation, styles))
             
             if isinstance(results, list):
@@ -332,11 +333,22 @@ class ExploratoryDataAnalysis:
                 continue
             
             try:
-                if line.startswith(('<h1>', '<h2>', '<h3>', '<h4>')):
+                if line.startswith('<h1>'):
                     heading = re.sub('<[^<]+?>', '', line)
-                    # Remove any numbering from the heading
+                    heading = re.sub(r'^\d+\.?\s*', '', heading)
+                    elements.append(Paragraph(heading, styles['XDA_Heading1']))
+                elif line.startswith('<h2>'):
+                    heading = re.sub('<[^<]+?>', '', line)
                     heading = re.sub(r'^\d+\.?\s*', '', heading)
                     elements.append(Paragraph(heading, styles['XDA_Heading2']))
+                elif line.startswith('<h3>'):
+                    heading = re.sub('<[^<]+?>', '', line)
+                    heading = re.sub(r'^\d+\.?\s*', '', heading)
+                    elements.append(Paragraph(heading, styles['XDA_Heading3']))
+                elif line.startswith('<h4>'):
+                    heading = re.sub('<[^<]+?>', '', line)
+                    heading = re.sub(r'^\d+\.?\s*', '', heading)
+                    elements.append(Paragraph(heading, styles['XDA_Heading4']))
                 elif line.lower().startswith('<p>analysis') or line.lower().startswith('<p>the '):
                     current_section = 'Normal'
                     elements.append(Paragraph(re.sub('<[^<]+?>', '', line), styles['XDA_Normal']))
