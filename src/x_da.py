@@ -1,19 +1,22 @@
+# -*- coding: utf-8 -*-
+
 import sqlite3
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import os
 from datetime import datetime
+import markdown
 from reportlab.lib.pagesizes import letter
-from reportlab.platypus import BaseDocTemplate, PageTemplate, Frame, Paragraph, Spacer, PageBreak
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.colors import HexColor
 from reportlab.lib.units import inch
 from src.api_model import EragAPI
 from src.settings import settings
 from src.look_and_feel import error, success, warning, info, highlight
-from reportlab.lib.enums import TA_JUSTIFY
-
+from reportlab.lib.enums import TA_JUSTIFY, TA_CENTER
+from xml.etree.ElementTree import ParseError
 
 class ExploratoryDataAnalysis:
     def __init__(self, erag_api, db_path):
@@ -29,6 +32,7 @@ class ExploratoryDataAnalysis:
         self.llm_name = self.erag_api.model
         self.toc_entries = []
         self.executive_summary = ""
+        self.image_paths = []
 
     def run(self):
         print(info(f"Starting Exploratory Data Analysis on {self.db_path}"))
@@ -151,27 +155,58 @@ class ExploratoryDataAnalysis:
         Results:
         {results_str}
 
-        Please provide a detailed interpretation of these results, highlighting any noteworthy patterns, anomalies, or insights. Focus on the most important aspects that would be valuable for data analysis. If there are no significant findings, state "No significant findings" and briefly explain why.
+        Please provide a detailed interpretation of these results, highlighting any noteworthy patterns, anomalies, or insights. Focus on the most important aspects that would be valuable for data analysis.
 
-        Structure your response in multiple paragraphs, covering different aspects of the analysis. If you identify any important findings, start the relevant sentence with "IMPORTANT:".
+        Structure your response in Markdown format, following this example structure:
+
+        ```markdown
+        # {analysis_type}
+
+        ## Analysis
+        [Provide a detailed description of the analysis performed]
+
+        ### Important: [Any crucial point about the analysis]
+        [Details about the important point]
+
+        ## Positive Findings
+        - [Positive finding 1]
+        - [Positive finding 2]
+        - [N/A if no positive findings]
+
+        ## Negative Findings
+        - [Negative finding 1]
+        - [Negative finding 2]
+        - [N/A if no negative findings]
+
+        ## Conclusion
+        [Summarize the key takeaways and implications of this analysis]
+        ```
+
+        If there are no significant findings, state "No significant findings" in the appropriate sections and briefly explain why.
 
         Interpretation:
         """
-        interpretation = self.erag_api.chat([{"role": "system", "content": "You are a data analyst providing insights on exploratory data analysis results."}, 
+        interpretation = self.erag_api.chat([{"role": "system", "content": "You are a data analyst providing insights on exploratory data analysis results. Respond in Markdown format."}, 
                                              {"role": "user", "content": prompt}])
         
         print(success(f"AI Interpretation for {analysis_type}:"))
         print(interpretation.strip())
         
-        self.text_output += f"\n{analysis_type}\n"
-        self.text_output += f"Results:\n{results_str}\n"
-        self.text_output += f"AI Interpretation:\n{interpretation.strip()}\n\n"
+        self.text_output += f"\n{interpretation.strip()}\n\n"
         
         self.pdf_content.append((analysis_type, results, interpretation.strip()))
         
         for line in interpretation.strip().split('\n'):
-            if line.startswith("IMPORTANT:"):
+            if "### Important:" in line:
                 self.findings.append(f"{analysis_type}: {line}")
+
+        # Add image paths to the list
+        if isinstance(results, tuple) and len(results) == 2 and isinstance(results[1], str) and results[1].endswith('.png'):
+            self.image_paths.append(results[1])
+        elif isinstance(results, list):
+            for item in results:
+                if isinstance(item, tuple) and len(item) == 2 and isinstance(item[1], str) and item[1].endswith('.png'):
+                    self.image_paths.append(item[1])
 
     def generate_executive_summary(self):
         if not self.findings:
@@ -190,11 +225,12 @@ class ExploratoryDataAnalysis:
         4. Conclude with recommendations for next steps or areas to focus on.
 
         Structure the summary in multiple paragraphs for readability.
+        Please format your response in Markdown, using appropriate headers, bullet points, and emphasis where necessary.
         """
         
         try:
             interpretation = self.erag_api.chat([
-                {"role": "system", "content": "You are a data analyst providing an executive summary of an exploratory data analysis."},
+                {"role": "system", "content": "You are a data analyst providing an executive summary of an exploratory data analysis. Respond in Markdown format."},
                 {"role": "user", "content": summary_prompt}
             ])
             
@@ -215,112 +251,105 @@ class ExploratoryDataAnalysis:
             f.write(self.text_output)
 
     def create_enhanced_pdf_report(self):
-        pdf_path = os.path.join(self.output_folder, 'eda_report.pdf')
-        doc = BaseDocTemplate(pdf_path, pagesize=letter)
-        styles = getSampleStyleSheet()
-        
-        # Modify the default style to justify text
-        styles['Normal'].alignment = TA_JUSTIFY
+        pdf_file = os.path.join(self.output_folder, "xda_report.pdf")
+        doc = SimpleDocTemplate(pdf_file, pagesize=letter)
         
         story = []
-
+        
+        styles = getSampleStyleSheet()
+        
+        # Define custom styles
+        styles.add(ParagraphStyle(name='XDA_Title', parent=styles['Title'], fontSize=24, alignment=TA_CENTER, spaceAfter=24))
+        styles.add(ParagraphStyle(name='XDA_Heading1', parent=styles['Heading1'], fontSize=18, spaceBefore=12, spaceAfter=6))
+        styles.add(ParagraphStyle(name='XDA_Heading2', parent=styles['Heading2'], fontSize=16, spaceBefore=12, spaceAfter=6))
+        styles.add(ParagraphStyle(name='XDA_Heading3', parent=styles['Heading3'], fontSize=14, spaceBefore=12, spaceAfter=6))
+        styles.add(ParagraphStyle(name='XDA_Normal', parent=styles['Normal'], alignment=TA_JUSTIFY, spaceAfter=12))
+     
         # Create cover page
-        cover_style = ParagraphStyle(
-            name='CoverTitle',
-            fontSize=24,
-            leading=30,
-            alignment=1,  # Center alignment
-            textColor=HexColor("#000080"),
-            spaceAfter=20
-        )
-        story.append(Paragraph("Exploratory Data Analysis Report", cover_style))
-        story.append(Spacer(1, 12))
-        story.append(Paragraph(f"Generated on: {datetime.now().strftime('%Y-%m-%d')}", styles['Normal']))
-        story.append(Paragraph(f"AI-powered analysis by ERAG using {self.llm_name}", styles['Normal']))
+        story.append(Paragraph("Exploratory Data Analysis Report", styles['XDA_Title']))
+        story.append(Paragraph(f"Generated on: {datetime.now().strftime('%Y-%m-%d')}", styles['XDA_Normal']))
+        story.append(Paragraph(f"AI-powered analysis by ERAG using {self.llm_name}", styles['XDA_Normal']))
         story.append(PageBreak())
-
+        
         # Add table of contents
-        toc_style = ParagraphStyle(
-            name='TOC',
-            fontSize=18,
-            leading=22,
-            spaceAfter=10,
-            textColor=HexColor("#000080"),
-            alignment=TA_JUSTIFY  # Justify alignment for TOC
-        )
-        story.append(Paragraph("Table of Contents", toc_style))
-        story.append(Spacer(1, 12))
+        story.append(Paragraph("Table of Contents", styles['XDA_Heading1']))
         for i, entry in enumerate(self.toc_entries):
-            story.append(Paragraph(f"{i+1}. {entry}", styles['Normal']))
+            story.append(Paragraph(f"{i+1}. {entry}", styles['XDA_Normal']))
         story.append(PageBreak())
-
-        # Add executive summary
-        executive_summary_style = ParagraphStyle(
-            name='ExecutiveSummary',
-            fontSize=16,
-            leading=20,
-            spaceAfter=20,
-            textColor=HexColor("#000080"),
-            alignment=TA_JUSTIFY  # Justify alignment for Executive Summary
-        )
-        story.append(Paragraph("Executive Summary", executive_summary_style))
-        story.append(Spacer(1, 12))
-        for paragraph in self.executive_summary.split('\n\n'):
-            story.append(Paragraph(paragraph, styles['Normal']))
+        
+        # Executive Summary
+        story.append(Paragraph("Executive Summary", styles['XDA_Heading1']))
+        story.extend(self.markdown_to_reportlab(self.executive_summary, styles))
         story.append(PageBreak())
-
-        # Add key findings
+        
+        # Key Findings
         if self.findings:
-            story.append(Paragraph("Key Findings", executive_summary_style))
-            story.append(Spacer(1, 12))
+            story.append(Paragraph("Key Findings", styles['XDA_Heading1']))
             for finding in self.findings:
-                story.append(Paragraph(finding, styles['Normal']))
+                story.append(Paragraph(finding, styles['XDA_Normal']))
             story.append(PageBreak())
-
-        # Add detailed analysis sections
-        for i, (analysis_type, results, interpretation) in enumerate(self.pdf_content):
-            section_title_style = ParagraphStyle(
-                name='SectionTitle',
-                fontSize=14,
-                leading=18,
-                spaceAfter=12,
-                textColor=HexColor("#000080"),
-                alignment=TA_JUSTIFY  # Justify alignment for Section Titles
-            )
-            story.append(Paragraph(f"Section {i+1}: {analysis_type}", section_title_style))
-            story.append(Spacer(1, 12))
+        
+        # Main content
+        for analysis_type, results, interpretation in self.pdf_content:
+            story.append(Paragraph(analysis_type, styles['XDA_Heading2']))
+            story.extend(self.markdown_to_reportlab(interpretation, styles))
             
             if isinstance(results, list):
                 for item in results:
                     if isinstance(item, tuple) and len(item) == 2:
                         description, img_path = item
-                        story.append(Paragraph(f"Reference to image: {os.path.basename(img_path)}", styles['Normal']))
+                        story.append(Paragraph(f"Reference to image: {os.path.basename(img_path)}", styles['XDA_Normal']))
             elif isinstance(results, str) and results.endswith('.png'):
-                story.append(Paragraph(f"Reference to image: {os.path.basename(results)}", styles['Normal']))
+                story.append(Paragraph(f"Reference to image: {os.path.basename(results)}", styles['XDA_Normal']))
             
             story.append(Spacer(1, 12))
-            for paragraph in interpretation.split('\n\n'):
-                story.append(Paragraph(paragraph.replace("IMPORTANT:", "<b>IMPORTANT:</b>"), styles['Normal']))
             story.append(PageBreak())
-
-
         
-        def header_footer(canvas, doc):
-            canvas.saveState()
-            header = Paragraph("Exploratory Data Analysis Report", styles['Normal'])
-            w, h = header.wrap(doc.width, doc.topMargin)
-            header.drawOn(canvas, doc.leftMargin, doc.height + doc.topMargin - h + 20)
+        try:
+            doc.build(story)
+            print(success(f"PDF report saved to {pdf_file}"))
+        except Exception as e:
+            print(error(f"Error building PDF: {str(e)}"))
+            print(warning("Attempting to save partial PDF..."))
+            try:
+                doc.build(story[:len(story)//2])  # Try to build with only half the content
+                print(success(f"Partial PDF report saved to {pdf_file}"))
+            except:
+                print(error("Failed to save even a partial PDF."))
 
-            footer_text = f"Page {doc.page}"
-            footer = Paragraph(footer_text, styles['Normal'])
-            w, h = footer.wrap(doc.width, doc.bottomMargin)
-            footer.drawOn(canvas, doc.leftMargin, h)
+    def markdown_to_reportlab(self, md_text, styles):
+        try:
+            html = markdown.markdown(md_text)
+        except Exception as e:
+            print(error(f"Error converting markdown to HTML: {str(e)}"))
+            return [Paragraph(md_text, styles['XDA_Normal'])]
 
-            canvas.restoreState()
+        elements = []
+        for line in html.split('\n'):
+            try:
+                if line.startswith('<h1>'):
+                    elements.append(Paragraph(line[4:-5], styles['XDA_Heading1']))
+                elif line.startswith('<h2>'):
+                    elements.append(Paragraph(line[4:-5], styles['XDA_Heading2']))
+                elif line.startswith('<h3>'):
+                    elements.append(Paragraph(line[4:-5], styles['XDA_Heading3']))
+                elif line.startswith('<p>'):
+                    # Remove any remaining HTML tags
+                    cleaned_text = line[3:-4].replace('<', '&lt;').replace('>', '&gt;')
+                    elements.append(Paragraph(cleaned_text, styles['XDA_Normal']))
+                elif line.startswith('<ul>'):
+                    items = line[4:-5].split('<li>')
+                    for item in items[1:]:  # Skip the first empty item
+                        # Remove any remaining HTML tags
+                        cleaned_item = item[:-5].replace('<', '&lt;').replace('>', '&gt;')
+                        elements.append(Paragraph(f"• {cleaned_item}", styles['XDA_Normal']))
+                else:
+                    # For any other content, just add it as normal text
+                    cleaned_line = line.replace('<', '&lt;').replace('>', '&gt;')
+                    elements.append(Paragraph(cleaned_line, styles['XDA_Normal']))
+            except Exception as e:
+                print(warning(f"Error processing line: {line}. Error: {str(e)}"))
+                # Add the problematic line as plain text
+                elements.append(Paragraph(line, styles['XDA_Normal']))
 
-        frame = Frame(doc.leftMargin, doc.bottomMargin, doc.width, doc.height, id='normal')
-        template = PageTemplate(id='test', frames=[frame], onPage=header_footer)
-        doc.addPageTemplates([template])
-        
-        doc.build(story)
-        print(success(f"PDF report saved to {pdf_path}"))
+        return elements
