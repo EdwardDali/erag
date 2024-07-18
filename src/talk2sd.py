@@ -13,6 +13,7 @@ class Talk2SD:
         self.conversation_history = []
         self.conversation_context = deque(maxlen=settings.conversation_context_size * 2)
         self.embedding_model = SentenceTransformer(settings.sentence_transformer_model)
+        self.system_prompt = self.generate_system_prompt()
 
     def fetch_schema(self):
         try:
@@ -27,13 +28,58 @@ class Talk2SD:
                 table_name = table[0]
                 cursor.execute(f"PRAGMA table_info({table_name});")
                 columns = cursor.fetchall()
-                schema[table_name] = [column[1] for column in columns]
+                schema[table_name] = [
+                    {"name": column[1], "type": column[2], "notnull": column[3], "default": column[4], "pk": column[5]}
+                    for column in columns
+                ]
             
             conn.close()
             return schema
         except Exception as e:
             print(error(f"Error fetching schema: {str(e)}"))
             return {}
+
+    def generate_system_prompt(self):
+        example_queries = """
+1. SELECT * FROM table_name LIMIT 5;
+2. SELECT COUNT(*) FROM table_name;
+3. SELECT column1, column2 FROM table_name WHERE condition;
+4. SELECT DISTINCT column FROM table_name;
+5. SELECT column, COUNT(*) FROM table_name GROUP BY column;
+6. SELECT t1.column, t2.column FROM table1 t1 JOIN table2 t2 ON t1.id = t2.id;
+7. SELECT column, AVG(numeric_column) FROM table_name GROUP BY column HAVING AVG(numeric_column) > value;
+8. SELECT column, CASE WHEN condition THEN result1 ELSE result2 END FROM table_name;
+9. SELECT column FROM table_name WHERE column IN (SELECT column FROM another_table WHERE condition);
+10. WITH cte_name AS (SELECT column FROM table_name WHERE condition) SELECT * FROM cte_name;
+"""
+
+        return f"""You are an AI assistant designed to help with SQL queries and data analysis. Follow these steps when interacting with the database:
+
+1. Always check the available tables and their structures before querying.
+2. Create a syntactically correct SQLite query based on the user's request.
+3. Ensure that you generate only a single SQL statement. Multiple statements are not allowed.
+4. Limit your query results to at most 5 rows unless specified otherwise.
+5. Only query for relevant columns, not all columns from a table.
+6. Do not make any DML statements (INSERT, UPDATE, DELETE, DROP etc.) to the database.
+7. When responding to queries, focus solely on the SQL results. Do not add any storytelling or unnecessary elaboration.
+8. Provide concise, factual responses based on the data returned by the SQL query.
+
+Available tables and their schemas:
+{self.format_schema_for_prompt()}
+
+Here are some example SQLite queries of increasing complexity:
+{example_queries}
+
+Remember to use these steps for every database interaction and always provide a single SQL statement."""
+
+    def format_schema_for_prompt(self):
+        formatted_schema = ""
+        for table, columns in self.schema.items():
+            formatted_schema += f"Table: {table}\n"
+            for column in columns:
+                formatted_schema += f"  - {column['name']} ({column['type']})\n"
+            formatted_schema += "\n"
+        return formatted_schema
 
     def run(self):
         print(info("Starting Talk2SD. Type 'exit' to end the conversation or 'clear' to clear conversation history."))
@@ -52,18 +98,21 @@ class Talk2SD:
             sql_query, result = self.generate_and_execute_query(user_input)
 
             if result is not None:
+                print(info(f"Generated SQL query: {sql_query}"))
+                print(info(f"Query result: {result}"))
                 response = self.generate_response(user_input, sql_query, result)
                 print(success(f"AI: {response}"))
                 self.update_conversation_context(user_input, response)
             else:
-                print(error("Failed to generate a valid SQL query."))
+                print(error("Failed to generate a valid SQL query after multiple attempts."))
 
     def print_schema_overview(self):
         print(info("Database Schema Overview:"))
         for table, columns in self.schema.items():
             print(highlight(f"Table: {table}"))
-            print(info(f"Columns: {', '.join(columns)}"))
-        print()
+            for column in columns:
+                print(info(f"  - {column['name']} ({column['type']})"))
+            print()
 
     def generate_and_execute_query(self, user_input, max_attempts=3):
         for attempt in range(max_attempts):
@@ -78,26 +127,20 @@ class Talk2SD:
     def generate_sql_query(self, user_input, attempt):
         context = "\n".join(self.conversation_context)
         prompt = f"""
-        Based on the user's question and the conversation context, generate an appropriate SQL query for SQLite.
-        The query should be safe and not allow any harmful operations.
-        Database schema: {self.schema}
-        
+        {self.system_prompt}
+
         Conversation context:
         {context}
-
-        Some helpful SQLite-specific queries:
-        - To get table names: SELECT name FROM sqlite_master WHERE type='table';
-        - To get column info for a table: PRAGMA table_info(table_name);
-        - To count rows in a table: SELECT COUNT(*) FROM table_name;
 
         User question: {user_input}
         Attempt: {attempt + 1}
         
         IMPORTANT: Provide ONLY the SQL query as your response, without any additional text, explanation, or markdown formatting.
+        Ensure it is a single statement query.
         If this is not the first attempt, please try to improve upon the previous query.
         SQL query:
         """
-        response = self.erag_api.chat([{"role": "user", "content": prompt}])
+        response = self.erag_api.chat([{"role": "system", "content": self.system_prompt}, {"role": "user", "content": prompt}])
         return response.strip() if response else None
 
     def execute_sql_query(self, sql_query):
@@ -114,19 +157,18 @@ class Talk2SD:
             return None
 
     def generate_response(self, user_input, sql_query, result):
-        context = "\n".join(self.conversation_context)
         prompt = f"""
-        Conversation context:
-        {context}
-
         User question: {user_input}
         SQL query: {sql_query}
         Query result: {result}
 
-        Based on the conversation context, user's question, and the SQL query result, generate a natural language response.
+        Based on the SQL query result, generate a concise and factual response that directly answers the user's question.
+        Do not add any storytelling or unnecessary elaboration. Focus solely on the data returned by the SQL query.
+        If the result is empty or None, state that no data was found.
+        
         Response:
         """
-        response = self.erag_api.chat([{"role": "user", "content": prompt}])
+        response = self.erag_api.chat([{"role": "system", "content": self.system_prompt}, {"role": "user", "content": prompt}])
         return response.strip() if response else None
 
     def update_conversation_context(self, user_input: str, assistant_response: str):
@@ -135,8 +177,8 @@ class Talk2SD:
         self.conversation_history.append({"role": "user", "content": user_input})
         self.conversation_history.append({"role": "assistant", "content": assistant_response})
 
-        if len(self.conversation_history) > settings.max_history_length * 2:
-            self.conversation_history = self.conversation_history[-settings.max_history_length * 2:]
+        if len(self.conversation_history) > settings.max_history_length * 3:
+            self.conversation_history = self.conversation_history[-settings.max_history_length * 3:]
 
     def encode_text(self, text):
         return self.embedding_model.encode(text, convert_to_tensor=True, show_progress_bar=False)
