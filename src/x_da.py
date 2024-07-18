@@ -258,14 +258,14 @@ class ExploratoryDataAnalysis:
         
         styles = getSampleStyleSheet()
         
-        # Define custom styles
-        styles.add(ParagraphStyle(name='XDA_Title', parent=styles['Title'], fontSize=24, alignment=TA_CENTER, spaceAfter=24))
-        styles.add(ParagraphStyle(name='XDA_Heading1', parent=styles['Heading1'], fontSize=18, spaceBefore=12, spaceAfter=6))
-        styles.add(ParagraphStyle(name='XDA_Heading2', parent=styles['Heading2'], fontSize=14, spaceBefore=12, spaceAfter=6))
-        styles.add(ParagraphStyle(name='XDA_Heading3', parent=styles['Heading3'], fontSize=12, spaceBefore=12, spaceAfter=6))
-        styles.add(ParagraphStyle(name='XDA_Heading4', parent=styles['Heading4'], fontSize=10, spaceBefore=12, spaceAfter=6))
-        styles.add(ParagraphStyle(name='XDA_Normal', parent=styles['Normal'], alignment=TA_JUSTIFY, spaceAfter=12))
-        styles.add(ParagraphStyle(name='XDA_Bullet', parent=styles['Normal'], alignment=TA_JUSTIFY, spaceAfter=6, leftIndent=20))
+        # Define custom styles with colors
+        styles.add(ParagraphStyle(name='XDA_Title', parent=styles['Title'], fontSize=24, alignment=TA_CENTER, spaceAfter=24, textColor=HexColor("#1B4F72")))
+        styles.add(ParagraphStyle(name='XDA_Heading1', parent=styles['Heading1'], fontSize=18, spaceBefore=12, spaceAfter=6, textColor=HexColor("#2E86C1")))
+        styles.add(ParagraphStyle(name='XDA_Heading2', parent=styles['Heading2'], fontSize=16, spaceBefore=12, spaceAfter=6, textColor=HexColor("#3498DB")))
+        styles.add(ParagraphStyle(name='XDA_Heading3', parent=styles['Heading3'], fontSize=14, spaceBefore=12, spaceAfter=6, textColor=HexColor("#5DADE2")))
+        styles.add(ParagraphStyle(name='XDA_Heading4', parent=styles['Heading4'], fontSize=12, spaceBefore=12, spaceAfter=6, textColor=HexColor("#85C1E9")))
+        styles.add(ParagraphStyle(name='XDA_Normal', parent=styles['Normal'], alignment=TA_JUSTIFY, spaceAfter=12, textColor=HexColor("#2C3E50")))
+        styles.add(ParagraphStyle(name='XDA_Bullet', parent=styles['Normal'], alignment=TA_JUSTIFY, spaceAfter=6, leftIndent=20, textColor=HexColor("#2C3E50")))
         
         # Create cover page
         story.append(Paragraph("Exploratory Data Analysis Report", styles['XDA_Title']))
@@ -322,6 +322,7 @@ class ExploratoryDataAnalysis:
 
         elements = []
         in_list = False
+        last_heading = None
         for line in html.split('\n'):
             line = line.strip()
             if not line:
@@ -329,13 +330,25 @@ class ExploratoryDataAnalysis:
             
             try:
                 if line.startswith('<h1>'):
-                    elements.append(Paragraph(re.sub('<[^<]+?>', '', line), styles['XDA_Heading1']))
+                    heading = re.sub('<[^<]+?>', '', line)
+                    if heading != last_heading:
+                        elements.append(Paragraph(heading, styles['XDA_Heading1']))
+                        last_heading = heading
                 elif line.startswith('<h2>'):
-                    elements.append(Paragraph(re.sub('<[^<]+?>', '', line), styles['XDA_Heading2']))
+                    heading = re.sub('<[^<]+?>', '', line)
+                    if heading != last_heading:
+                        elements.append(Paragraph(heading, styles['XDA_Heading2']))
+                        last_heading = heading
                 elif line.startswith('<h3>'):
-                    elements.append(Paragraph(re.sub('<[^<]+?>', '', line), styles['XDA_Heading3']))
+                    heading = re.sub('<[^<]+?>', '', line)
+                    if heading != last_heading:
+                        elements.append(Paragraph(heading, styles['XDA_Heading3']))
+                        last_heading = heading
                 elif line.startswith('<h4>'):
-                    elements.append(Paragraph(re.sub('<[^<]+?>', '', line), styles['XDA_Heading4']))
+                    heading = re.sub('<[^<]+?>', '', line)
+                    if heading != last_heading:
+                        elements.append(Paragraph(heading, styles['XDA_Heading4']))
+                        last_heading = heading
                 elif line.startswith('<p>'):
                     elements.append(Paragraph(re.sub('<[^<]+?>', '', line), styles['XDA_Normal']))
                 elif line.startswith('<ul>'):
