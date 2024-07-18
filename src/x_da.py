@@ -8,9 +8,9 @@ import os
 from datetime import datetime
 import markdown
 from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.colors import HexColor
+from reportlab.lib import colors
 from reportlab.lib.units import inch
 from src.api_model import EragAPI
 from src.settings import settings
@@ -24,7 +24,7 @@ class ExploratoryDataAnalysis:
         self.db_path = db_path
         self.technique_counter = 0
         self.total_techniques = 5
-        self.output_folder = os.path.join(os.path.dirname(db_path), "xda_output")
+        self.output_folder = os.path.join(settings.output_folder, "xda_output")
         os.makedirs(self.output_folder, exist_ok=True)
         self.text_output = ""
         self.pdf_content = []
@@ -254,65 +254,65 @@ class ExploratoryDataAnalysis:
         pdf_file = os.path.join(self.output_folder, "xda_report.pdf")
         doc = SimpleDocTemplate(pdf_file, pagesize=letter)
         
-        story = []
+        elements = []
         
         styles = getSampleStyleSheet()
         
         # Define custom styles with colors
-        styles.add(ParagraphStyle(name='XDA_Title', parent=styles['Title'], fontSize=24, alignment=TA_CENTER, spaceAfter=24, textColor=HexColor("#1B4F72")))
-        styles.add(ParagraphStyle(name='XDA_Heading1', parent=styles['Heading1'], fontSize=18, spaceBefore=12, spaceAfter=6, textColor=HexColor("#2E86C1")))
-        styles.add(ParagraphStyle(name='XDA_Heading2', parent=styles['Heading2'], fontSize=16, spaceBefore=12, spaceAfter=6, textColor=HexColor("#3498DB")))
-        styles.add(ParagraphStyle(name='XDA_Heading3', parent=styles['Heading3'], fontSize=14, spaceBefore=12, spaceAfter=6, textColor=HexColor("#5DADE2")))
-        styles.add(ParagraphStyle(name='XDA_Heading4', parent=styles['Heading4'], fontSize=12, spaceBefore=12, spaceAfter=6, textColor=HexColor("#85C1E9")))
-        styles.add(ParagraphStyle(name='XDA_Normal', parent=styles['Normal'], alignment=TA_JUSTIFY, spaceAfter=12, textColor=HexColor("#000000")))  # Black
-        styles.add(ParagraphStyle(name='XDA_Important', parent=styles['Normal'], alignment=TA_JUSTIFY, spaceAfter=12, textColor=HexColor("#4A4A4A")))  # Dark Grey
-        styles.add(ParagraphStyle(name='XDA_Positive', parent=styles['Normal'], alignment=TA_JUSTIFY, spaceAfter=12, textColor=HexColor("#2ECC71")))  # Light Green
-        styles.add(ParagraphStyle(name='XDA_Negative', parent=styles['Normal'], alignment=TA_JUSTIFY, spaceAfter=12, textColor=HexColor("#E74C3C")))  # Light Red
-        styles.add(ParagraphStyle(name='XDA_Conclusion', parent=styles['Normal'], alignment=TA_JUSTIFY, spaceAfter=12, textColor=HexColor("#2E86C1")))  # Dark Blue
-        styles.add(ParagraphStyle(name='XDA_Bullet', parent=styles['Normal'], alignment=TA_JUSTIFY, spaceAfter=6, leftIndent=20, textColor=HexColor("#000000")))  # Black
+        styles.add(ParagraphStyle(name='XDA_Title', parent=styles['Title'], fontSize=24, alignment=TA_CENTER, spaceAfter=24, textColor=colors.darkblue))
+        styles.add(ParagraphStyle(name='XDA_Heading1', parent=styles['Heading1'], fontSize=18, spaceBefore=12, spaceAfter=6, textColor=colors.blue))
+        styles.add(ParagraphStyle(name='XDA_Heading2', parent=styles['Heading2'], fontSize=16, spaceBefore=12, spaceAfter=6, textColor=colors.blue))
+        styles.add(ParagraphStyle(name='XDA_Heading3', parent=styles['Heading3'], fontSize=14, spaceBefore=12, spaceAfter=6, textColor=colors.blue))
+        styles.add(ParagraphStyle(name='XDA_Heading4', parent=styles['Heading4'], fontSize=12, spaceBefore=12, spaceAfter=6, textColor=colors.blue))
+        styles.add(ParagraphStyle(name='XDA_Normal', parent=styles['Normal'], alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.black))
+        styles.add(ParagraphStyle(name='XDA_Important', parent=styles['Normal'], alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.darkgrey))
+        styles.add(ParagraphStyle(name='XDA_Positive', parent=styles['Normal'], alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.green))
+        styles.add(ParagraphStyle(name='XDA_Negative', parent=styles['Normal'], alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.red))
+        styles.add(ParagraphStyle(name='XDA_Conclusion', parent=styles['Normal'], alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.darkblue))
+        styles.add(ParagraphStyle(name='XDA_Bullet', parent=styles['Normal'], alignment=TA_JUSTIFY, spaceAfter=6, leftIndent=20, textColor=colors.black))
         
         # Create cover page
-        story.append(Paragraph("Exploratory Data Analysis Report", styles['XDA_Title']))
-        story.append(Paragraph(f"Generated on: {datetime.now().strftime('%Y-%m-%d')}", styles['XDA_Normal']))
-        story.append(Paragraph(f"AI-powered analysis by ERAG using {self.llm_name}", styles['XDA_Normal']))
-        story.append(PageBreak())
+        elements.append(Paragraph("Exploratory Data Analysis Report", styles['XDA_Title']))
+        elements.append(Paragraph(f"Generated on: {datetime.now().strftime('%Y-%m-%d')}", styles['XDA_Normal']))
+        elements.append(Paragraph(f"AI-powered analysis by ERAG using {self.llm_name}", styles['XDA_Normal']))
+        elements.append(PageBreak())
         
         # Executive Summary
-        story.append(Paragraph("Executive Summary", styles['XDA_Heading1']))
-        story.extend(self.markdown_to_reportlab(self.executive_summary, styles))
-        story.append(PageBreak())
+        elements.append(Paragraph("Executive Summary", styles['XDA_Heading1']))
+        elements.extend(self.markdown_to_reportlab(self.executive_summary, styles))
+        elements.append(PageBreak())
         
         # Key Findings
         if self.findings:
-            story.append(Paragraph("Key Findings", styles['XDA_Heading1']))
+            elements.append(Paragraph("Key Findings", styles['XDA_Heading1']))
             for finding in self.findings:
-                story.extend(self.markdown_to_reportlab(finding, styles))
-            story.append(PageBreak())
+                elements.extend(self.markdown_to_reportlab(finding, styles))
+            elements.append(PageBreak())
         
         # Main content
         for analysis_type, results, interpretation in self.pdf_content:
-            story.append(Paragraph(analysis_type, styles['XDA_Heading2']))
-            story.extend(self.markdown_to_reportlab(interpretation, styles))
+            elements.append(Paragraph(analysis_type, styles['XDA_Heading2']))
+            elements.extend(self.markdown_to_reportlab(interpretation, styles))
             
             if isinstance(results, list):
                 for item in results:
                     if isinstance(item, tuple) and len(item) == 2:
                         description, img_path = item
-                        story.append(Paragraph(f"Reference to image: {os.path.basename(img_path)}", styles['XDA_Normal']))
+                        elements.append(Paragraph(f"Reference to image: {os.path.basename(img_path)}", styles['XDA_Normal']))
             elif isinstance(results, str) and results.endswith('.png'):
-                story.append(Paragraph(f"Reference to image: {os.path.basename(results)}", styles['XDA_Normal']))
+                elements.append(Paragraph(f"Reference to image: {os.path.basename(results)}", styles['XDA_Normal']))
             
-            story.append(Spacer(1, 12))
-            story.append(PageBreak())
+            elements.append(Spacer(1, 12))
+            elements.append(PageBreak())
         
         try:
-            doc.build(story)
+            doc.build(elements)
             print(success(f"PDF report saved to {pdf_file}"))
         except Exception as e:
             print(error(f"Error building PDF: {str(e)}"))
             print(warning("Attempting to save partial PDF..."))
             try:
-                doc.build(story[:len(story)//2])  # Try to build with only half the content
+                doc.build(elements[:len(elements)//2])  # Try to build with only half the content
                 print(success(f"Partial PDF report saved to {pdf_file}"))
             except:
                 print(error("Failed to save even a partial PDF."))
@@ -325,7 +325,6 @@ class ExploratoryDataAnalysis:
             return [Paragraph(md_text, styles['XDA_Normal'])]
 
         elements = []
-        in_list = False
         current_section = 'Normal'
         for line in html.split('\n'):
             line = line.strip()
@@ -356,9 +355,9 @@ class ExploratoryDataAnalysis:
                 elif line.startswith('<p>'):
                     elements.append(Paragraph(re.sub('<[^<]+?>', '', line), styles[f'XDA_{current_section}']))
                 elif line.startswith('<ul>'):
-                    in_list = True
+                    pass  # We'll handle list items individually
                 elif line.startswith('</ul>'):
-                    in_list = False
+                    pass  # End of list, no specific action needed
                 elif line.startswith('<li>'):
                     bullet_text = re.sub('<[^<]+?>', '', line)
                     elements.append(Paragraph(f"• {bullet_text}", styles[f'XDA_{current_section}']))
