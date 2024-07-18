@@ -264,8 +264,12 @@ class ExploratoryDataAnalysis:
         styles.add(ParagraphStyle(name='XDA_Heading2', parent=styles['Heading2'], fontSize=16, spaceBefore=12, spaceAfter=6, textColor=HexColor("#3498DB")))
         styles.add(ParagraphStyle(name='XDA_Heading3', parent=styles['Heading3'], fontSize=14, spaceBefore=12, spaceAfter=6, textColor=HexColor("#5DADE2")))
         styles.add(ParagraphStyle(name='XDA_Heading4', parent=styles['Heading4'], fontSize=12, spaceBefore=12, spaceAfter=6, textColor=HexColor("#85C1E9")))
-        styles.add(ParagraphStyle(name='XDA_Normal', parent=styles['Normal'], alignment=TA_JUSTIFY, spaceAfter=12, textColor=HexColor("#2C3E50")))
-        styles.add(ParagraphStyle(name='XDA_Bullet', parent=styles['Normal'], alignment=TA_JUSTIFY, spaceAfter=6, leftIndent=20, textColor=HexColor("#2C3E50")))
+        styles.add(ParagraphStyle(name='XDA_Normal', parent=styles['Normal'], alignment=TA_JUSTIFY, spaceAfter=12, textColor=HexColor("#000000")))  # Black
+        styles.add(ParagraphStyle(name='XDA_Important', parent=styles['Normal'], alignment=TA_JUSTIFY, spaceAfter=12, textColor=HexColor("#4A4A4A")))  # Dark Grey
+        styles.add(ParagraphStyle(name='XDA_Positive', parent=styles['Normal'], alignment=TA_JUSTIFY, spaceAfter=12, textColor=HexColor("#2ECC71")))  # Light Green
+        styles.add(ParagraphStyle(name='XDA_Negative', parent=styles['Normal'], alignment=TA_JUSTIFY, spaceAfter=12, textColor=HexColor("#E74C3C")))  # Light Red
+        styles.add(ParagraphStyle(name='XDA_Conclusion', parent=styles['Normal'], alignment=TA_JUSTIFY, spaceAfter=12, textColor=HexColor("#2E86C1")))  # Dark Blue
+        styles.add(ParagraphStyle(name='XDA_Bullet', parent=styles['Normal'], alignment=TA_JUSTIFY, spaceAfter=6, leftIndent=20, textColor=HexColor("#000000")))  # Black
         
         # Create cover page
         story.append(Paragraph("Exploratory Data Analysis Report", styles['XDA_Title']))
@@ -322,49 +326,52 @@ class ExploratoryDataAnalysis:
 
         elements = []
         in_list = False
-        last_heading = None
+        current_section = 'Normal'
         for line in html.split('\n'):
             line = line.strip()
             if not line:
                 continue
             
             try:
-                if line.startswith('<h1>'):
+                if line.startswith(('<h1>', '<h2>', '<h3>', '<h4>')):
                     heading = re.sub('<[^<]+?>', '', line)
-                    if heading != last_heading:
-                        elements.append(Paragraph(heading, styles['XDA_Heading1']))
-                        last_heading = heading
-                elif line.startswith('<h2>'):
-                    heading = re.sub('<[^<]+?>', '', line)
-                    if heading != last_heading:
-                        elements.append(Paragraph(heading, styles['XDA_Heading2']))
-                        last_heading = heading
-                elif line.startswith('<h3>'):
-                    heading = re.sub('<[^<]+?>', '', line)
-                    if heading != last_heading:
-                        elements.append(Paragraph(heading, styles['XDA_Heading3']))
-                        last_heading = heading
-                elif line.startswith('<h4>'):
-                    heading = re.sub('<[^<]+?>', '', line)
-                    if heading != last_heading:
-                        elements.append(Paragraph(heading, styles['XDA_Heading4']))
-                        last_heading = heading
-                elif line.startswith('<p>'):
+                    # Remove any numbering from the heading
+                    heading = re.sub(r'^\d+\.?\s*', '', heading)
+                    elements.append(Paragraph(heading, styles['XDA_Heading2']))
+                elif line.lower().startswith('<p>analysis') or line.lower().startswith('<p>the '):
+                    current_section = 'Normal'
                     elements.append(Paragraph(re.sub('<[^<]+?>', '', line), styles['XDA_Normal']))
+                elif line.lower().startswith('<p>important'):
+                    current_section = 'Important'
+                    elements.append(Paragraph(re.sub('<[^<]+?>', '', line), styles['XDA_Important']))
+                elif line.lower().startswith('<p>positive findings'):
+                    current_section = 'Positive'
+                    elements.append(Paragraph(re.sub('<[^<]+?>', '', line), styles['XDA_Positive']))
+                elif line.lower().startswith('<p>negative findings'):
+                    current_section = 'Negative'
+                    elements.append(Paragraph(re.sub('<[^<]+?>', '', line), styles['XDA_Negative']))
+                elif line.lower().startswith('<p>conclusion'):
+                    current_section = 'Conclusion'
+                    elements.append(Paragraph(re.sub('<[^<]+?>', '', line), styles['XDA_Conclusion']))
+                elif line.startswith('<p>'):
+                    elements.append(Paragraph(re.sub('<[^<]+?>', '', line), styles[f'XDA_{current_section}']))
                 elif line.startswith('<ul>'):
                     in_list = True
                 elif line.startswith('</ul>'):
                     in_list = False
                 elif line.startswith('<li>'):
                     bullet_text = re.sub('<[^<]+?>', '', line)
-                    elements.append(Paragraph(f"• {bullet_text}", styles['XDA_Bullet']))
+                    elements.append(Paragraph(f"• {bullet_text}", styles[f'XDA_{current_section}']))
+                elif line == '<hr />':
+                    elements.append(Spacer(1, 12))
                 else:
                     # For any other content, just add it as normal text
                     cleaned_line = re.sub('<[^<]+?>', '', line)
-                    elements.append(Paragraph(cleaned_line, styles['XDA_Normal']))
+                    elements.append(Paragraph(cleaned_line, styles[f'XDA_{current_section}']))
             except Exception as e:
                 print(warning(f"Error processing line: {line}. Error: {str(e)}"))
                 # Add the problematic line as plain text
                 elements.append(Paragraph(line, styles['XDA_Normal']))
 
         return elements
+
