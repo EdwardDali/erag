@@ -5,8 +5,11 @@ import seaborn as sns
 import os
 from datetime import datetime
 from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak
+from reportlab.platypus import BaseDocTemplate, PageTemplate, Frame, Paragraph, Spacer, PageBreak
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.colors import HexColor
+from reportlab.lib.units import inch
+from src.api_model import EragAPI
 from src.settings import settings
 from src.look_and_feel import error, success, warning, info, highlight
 
@@ -21,7 +24,9 @@ class ExploratoryDataAnalysis:
         self.text_output = ""
         self.pdf_content = []
         self.findings = []
-        self.llm_name = self.erag_api.model   
+        self.llm_name = self.erag_api.model
+        self.toc_entries = []
+        self.executive_summary = ""
 
     def run(self):
         print(info(f"Starting Exploratory Data Analysis on {self.db_path}"))
@@ -35,6 +40,12 @@ class ExploratoryDataAnalysis:
         self.save_text_output()
         self.create_enhanced_pdf_report()
         print(success(f"Exploratory Data Analysis completed. Results saved in {self.output_folder}"))
+
+    def get_tables(self):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+            return [table[0] for table in cursor.fetchall()]
 
     def analyze_table(self, table_name):
         print(highlight(f"\nAnalyzing table: {table_name}"))
@@ -202,56 +213,104 @@ class ExploratoryDataAnalysis:
             f.write(self.text_output)
 
     def create_enhanced_pdf_report(self):
-        pdf_file = os.path.join(self.output_folder, "xda_report.pdf")
-        doc = SimpleDocTemplate(pdf_file, pagesize=letter)
-        
+        pdf_path = os.path.join(self.output_folder, 'eda_report.pdf')
+        doc = BaseDocTemplate(pdf_path, pagesize=letter)
         styles = getSampleStyleSheet()
-        styles.add(ParagraphStyle(name='XDA_Justify', parent=styles['BodyText'], alignment=4, spaceAfter=12))
-        styles.add(ParagraphStyle(name='XDA_Heading1', parent=styles['Heading1'], fontSize=16, spaceBefore=12, spaceAfter=6))
-        styles.add(ParagraphStyle(name='XDA_Heading2', parent=styles['Heading2'], fontSize=14, spaceBefore=12, spaceAfter=6))
-        
         story = []
-        
-        # Cover page
-        story.append(Paragraph("Exploratory Data Analysis Report", styles['Title']))
+
+        # Create cover page
+        cover_style = ParagraphStyle(
+            name='CoverTitle',
+            fontSize=24,
+            leading=30,
+            alignment=1,  # Center alignment
+            textColor=HexColor("#000080"),
+            spaceAfter=20
+        )
+        story.append(Paragraph("Exploratory Data Analysis Report", cover_style))
         story.append(Spacer(1, 12))
-        story.append(Paragraph(f"Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", styles['Normal']))
+        story.append(Paragraph(f"Generated on: {datetime.now().strftime('%Y-%m-%d')}", styles['Normal']))
         story.append(Paragraph(f"AI-powered analysis by ERAG using {self.llm_name}", styles['Normal']))
         story.append(PageBreak())
-        
-        # Executive Summary
-        story.append(Paragraph("Executive Summary", styles['XDA_Heading1']))
-        for paragraph in self.executive_summary.split('\n\n'):
-            story.append(Paragraph(paragraph, styles['XDA_Justify']))
+
+        # Add table of contents
+        toc_style = ParagraphStyle(
+            name='TOC',
+            fontSize=18,
+            leading=22,
+            spaceAfter=10,
+            textColor=HexColor("#000080"),
+        )
+        story.append(Paragraph("Table of Contents", toc_style))
+        story.append(Spacer(1, 12))
+        for i, entry in enumerate(self.toc_entries):
+            story.append(Paragraph(f"{i+1}. {entry}", styles['Normal']))
         story.append(PageBreak())
-        
-        # Key Findings
+
+        # Add executive summary
+        executive_summary_style = ParagraphStyle(
+            name='ExecutiveSummary',
+            fontSize=16,
+            leading=20,
+            spaceAfter=20,
+            textColor=HexColor("#000080"),
+        )
+        story.append(Paragraph("Executive Summary", executive_summary_style))
+        story.append(Spacer(1, 12))
+        for paragraph in self.executive_summary.split('\n\n'):
+            story.append(Paragraph(paragraph, styles['Normal']))
+        story.append(PageBreak())
+
+        # Add key findings
         if self.findings:
-            story.append(Paragraph("Key Findings", styles['XDA_Heading1']))
+            story.append(Paragraph("Key Findings", executive_summary_style))
+            story.append(Spacer(1, 12))
             for finding in self.findings:
-                story.append(Paragraph(finding, styles['BodyText']))
+                story.append(Paragraph(finding, styles['Normal']))
             story.append(PageBreak())
-        
-        # Main content
-        for analysis_type, results, interpretation in self.pdf_content:
-            story.append(Paragraph(analysis_type, styles['XDA_Heading2']))
-            for paragraph in interpretation.split('\n\n'):
-                story.append(Paragraph(paragraph.replace("IMPORTANT:", "<b>IMPORTANT:</b>"), styles['XDA_Justify']))
+
+        # Add detailed analysis sections
+        for i, (analysis_type, results, interpretation) in enumerate(self.pdf_content):
+            section_title_style = ParagraphStyle(
+                name='SectionTitle',
+                fontSize=14,
+                leading=18,
+                spaceAfter=12,
+                textColor=HexColor("#000080"),
+            )
+            story.append(Paragraph(f"Section {i+1}: {analysis_type}", section_title_style))
+            story.append(Spacer(1, 12))
             
             if isinstance(results, list):
                 for item in results:
                     if isinstance(item, tuple) and len(item) == 2:
                         description, img_path = item
-                        story.append(Paragraph(f"Reference to image: {os.path.basename(img_path)}", styles['BodyText']))
+                        story.append(Paragraph(f"Reference to image: {os.path.basename(img_path)}", styles['Normal']))
             elif isinstance(results, str) and results.endswith('.png'):
-                story.append(Paragraph(f"Reference to image: {os.path.basename(results)}", styles['BodyText']))
+                story.append(Paragraph(f"Reference to image: {os.path.basename(results)}", styles['Normal']))
             
             story.append(Spacer(1, 12))
+            for paragraph in interpretation.split('\n\n'):
+                story.append(Paragraph(paragraph.replace("IMPORTANT:", "<b>IMPORTANT:</b>"), styles['Normal']))
+            story.append(PageBreak())
+
+        # Configure page templates with headers and footers
+        def header_footer(canvas, doc):
+            canvas.saveState()
+            header = Paragraph("Exploratory Data Analysis Report", styles['Normal'])
+            w, h = header.wrap(doc.width, doc.topMargin)
+            header.drawOn(canvas, doc.leftMargin, doc.height + doc.topMargin - h + 20)
+
+            footer_text = f"Page {doc.page}"
+            footer = Paragraph(footer_text, styles['Normal'])
+            w, h = footer.wrap(doc.width, doc.bottomMargin)
+            footer.drawOn(canvas, doc.leftMargin, h)
+
+            canvas.restoreState()
+
+        frame = Frame(doc.leftMargin, doc.bottomMargin, doc.width, doc.height, id='normal')
+        template = PageTemplate(id='test', frames=[frame], onPage=header_footer)
+        doc.addPageTemplates([template])
         
         doc.build(story)
-
-    def get_tables(self):
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
-            return [table[0] for table in cursor.fetchall()]
+        print(success(f"PDF report saved to {pdf_path}"))
