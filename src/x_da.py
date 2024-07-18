@@ -12,6 +12,8 @@ from reportlab.lib.units import inch
 from src.api_model import EragAPI
 from src.settings import settings
 from src.look_and_feel import error, success, warning, info, highlight
+from reportlab.lib.enums import TA_JUSTIFY
+
 
 class ExploratoryDataAnalysis:
     def __init__(self, erag_api, db_path):
@@ -216,6 +218,10 @@ class ExploratoryDataAnalysis:
         pdf_path = os.path.join(self.output_folder, 'eda_report.pdf')
         doc = BaseDocTemplate(pdf_path, pagesize=letter)
         styles = getSampleStyleSheet()
+        
+        # Modify the default style to justify text
+        styles['Normal'].alignment = TA_JUSTIFY
+        
         story = []
 
         # Create cover page
@@ -240,6 +246,7 @@ class ExploratoryDataAnalysis:
             leading=22,
             spaceAfter=10,
             textColor=HexColor("#000080"),
+            alignment=TA_JUSTIFY  # Justify alignment for TOC
         )
         story.append(Paragraph("Table of Contents", toc_style))
         story.append(Spacer(1, 12))
@@ -254,6 +261,7 @@ class ExploratoryDataAnalysis:
             leading=20,
             spaceAfter=20,
             textColor=HexColor("#000080"),
+            alignment=TA_JUSTIFY  # Justify alignment for Executive Summary
         )
         story.append(Paragraph("Executive Summary", executive_summary_style))
         story.append(Spacer(1, 12))
@@ -277,6 +285,7 @@ class ExploratoryDataAnalysis:
                 leading=18,
                 spaceAfter=12,
                 textColor=HexColor("#000080"),
+                alignment=TA_JUSTIFY  # Justify alignment for Section Titles
             )
             story.append(Paragraph(f"Section {i+1}: {analysis_type}", section_title_style))
             story.append(Spacer(1, 12))
@@ -294,7 +303,8 @@ class ExploratoryDataAnalysis:
                 story.append(Paragraph(paragraph.replace("IMPORTANT:", "<b>IMPORTANT:</b>"), styles['Normal']))
             story.append(PageBreak())
 
-        # Configure page templates with headers and footers
+
+        
         def header_footer(canvas, doc):
             canvas.saveState()
             header = Paragraph("Exploratory Data Analysis Report", styles['Normal'])
