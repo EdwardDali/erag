@@ -35,6 +35,8 @@ from src.server import ServerManager
 from src.gen_a import run_gen_a
 from src.look_and_feel import error, success, warning, info, highlight
 from src.talk2sd import Talk2SD
+from src.x_da import ExploratoryDataAnalysis
+
 
 # Load environment variables from .env file
 load_dotenv()
@@ -131,6 +133,10 @@ class ERAGGUI:
         talk2sd_button = tk.Button(rag_frame, text="Talk2SD", command=self.run_talk2sd)
         talk2sd_button.pack(side="left", padx=5, pady=5)
         ToolTip(talk2sd_button, "Start a conversation with the structured data using SQL queries")
+
+        xda_button = tk.Button(rag_frame, text="XDA", command=self.run_xda)
+        xda_button.pack(side="left", padx=5, pady=5)
+        ToolTip(xda_button, "Perform Exploratory Data Analysis on a selected SQLite database")
 
     def create_upload_frame(self):
         upload_frame = tk.LabelFrame(self.main_tab, text="Upload")
@@ -1029,6 +1035,52 @@ class ERAGGUI:
             messagebox.showinfo("Info", f"Talk2SD system started with {api_type} API. Check the console for interaction.")
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred while starting the Talk2SD system: {str(e)}")
+
+
+    def run_xda(self):
+        try:
+            db_path = filedialog.askopenfilename(
+                title="Select SQLite Database",
+                filetypes=[("SQLite files", "*.db"), ("All files", "*.*")]
+            )
+            if not db_path:
+                messagebox.showwarning("Warning", "No database selected.")
+                return
+
+            api_type = self.api_type_var.get()
+            model = self.model_var.get()
+            
+            # Create EragAPI instance
+            erag_api = create_erag_api(api_type, model)
+            
+            # Create ExploratoryDataAnalysis instance
+            xda = ExploratoryDataAnalysis(erag_api, db_path)
+            
+            # Apply settings to XDA
+            settings.apply_settings()
+            
+            # Run XDA in a separate thread to keep the GUI responsive
+            threading.Thread(target=self.run_xda_thread, args=(xda,), daemon=True).start()
+            
+            output_folder = os.path.join(os.path.dirname(db_path), "xda_output")
+            messagebox.showinfo("Info", f"Exploratory Data Analysis started on {os.path.basename(db_path)}. "
+                                        f"Check the console for progress updates and AI interpretations. "
+                                        f"Results will be saved in {output_folder}")
+        except Exception as e:
+            error_message = f"An error occurred while starting the XDA process: {str(e)}"
+            print(error(error_message))
+            messagebox.showerror("Error", error_message)
+
+    def run_xda_thread(self, xda):
+        try:
+            xda.run()
+            print(success("Exploratory Data Analysis completed successfully."))
+            messagebox.showinfo("Success", "Exploratory Data Analysis completed successfully. "
+                                           "Check the output folder for the generated report.")
+        except Exception as e:
+            error_message = f"An error occurred during Exploratory Data Analysis: {str(e)}"
+            print(error(error_message))
+            messagebox.showerror("Error", error_message)
             
 
     def create_server_tab(self):
