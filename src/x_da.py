@@ -269,16 +269,12 @@ class ExploratoryDataAnalysis:
 
         # Update custom styles with colors
         styles.add(ParagraphStyle(name='XDA_Title', parent=styles['Title'], fontSize=24, alignment=TA_CENTER, spaceAfter=24, textColor=colors.white, backColor=colors.Color(*SAGE_GREEN_RGB)))
-        styles.add(ParagraphStyle(name='XDA_Heading1', parent=styles['Heading1'], fontSize=18, spaceBefore=12, spaceAfter=6, textColor=colors.Color(*DUSTY_PINK_RGB)))
-        styles.add(ParagraphStyle(name='XDA_Heading2', parent=styles['Heading2'], fontSize=16, spaceBefore=12, spaceAfter=6, textColor=colors.Color(*SAGE_GREEN_RGB)))
-        styles.add(ParagraphStyle(name='XDA_Heading3', parent=styles['Heading3'], fontSize=14, spaceBefore=12, spaceAfter=6, textColor=colors.Color(*DUSTY_PINK_RGB)))
-        styles.add(ParagraphStyle(name='XDA_Heading4', parent=styles['Heading4'], fontSize=12, spaceBefore=12, spaceAfter=6, textColor=colors.Color(*SAGE_GREEN_RGB)))
-        styles.add(ParagraphStyle(name='XDA_Normal', parent=styles['Normal'], alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.black))
-        styles.add(ParagraphStyle(name='XDA_Important', parent=styles['Normal'], alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.cyan))
-        styles.add(ParagraphStyle(name='XDA_Positive', parent=styles['Normal'], alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.green))
-        styles.add(ParagraphStyle(name='XDA_Negative', parent=styles['Normal'], alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.red))
-        styles.add(ParagraphStyle(name='XDA_Conclusion', parent=styles['Normal'], alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.Color(*SAGE_GREEN_RGB)))
-        styles.add(ParagraphStyle(name='XDA_Bullet', parent=styles['Normal'], alignment=TA_JUSTIFY, spaceAfter=6, leftIndent=20, textColor=colors.black))
+        styles.add(ParagraphStyle(name='XDA_Normal', parent=styles['Normal'], fontSize=12, alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.black))
+        styles.add(ParagraphStyle(name='XDA_Important', parent=styles['Normal'], fontSize=12, alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.blue, fontName='Helvetica-Bold'))
+        styles.add(ParagraphStyle(name='XDA_Positive', parent=styles['Normal'], fontSize=12, alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.green, fontName='Helvetica-Bold'))
+        styles.add(ParagraphStyle(name='XDA_Negative', parent=styles['Normal'], fontSize=12, alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.red, fontName='Helvetica-Bold'))
+        styles.add(ParagraphStyle(name='XDA_Conclusion', parent=styles['Normal'], fontSize=12, alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.Color(*SAGE_GREEN_RGB), fontName='Helvetica-Bold'))
+        styles.add(ParagraphStyle(name='XDA_Bullet', parent=styles['Normal'], fontSize=12, alignment=TA_JUSTIFY, spaceAfter=6, leftIndent=20, textColor=colors.black))
 
         def draw_background(canvas, doc):
             canvas.saveState()
@@ -303,20 +299,20 @@ class ExploratoryDataAnalysis:
         doc.addPageTemplates([normal_template])
 
         # Executive Summary
-        elements.append(Paragraph("Executive Summary", styles['XDA_Heading1']))
+        elements.append(Paragraph("Executive Summary", styles['XDA_Important']))
         elements.extend(self.markdown_to_reportlab(self.executive_summary, styles))
         elements.append(PageBreak())
 
         # Key Findings
         if self.findings:
-            elements.append(Paragraph("Key Findings", styles['XDA_Heading1']))
+            elements.append(Paragraph("Key Findings", styles['XDA_Important']))
             for finding in self.findings:
                 elements.extend(self.markdown_to_reportlab(finding, styles))
             elements.append(PageBreak())
 
         # Main content
         for analysis_type, results, interpretation in self.pdf_content:
-            elements.append(Paragraph(analysis_type, styles['XDA_Heading1']))
+            elements.append(Paragraph(analysis_type, styles['XDA_Important']))
             elements.extend(self.markdown_to_reportlab(interpretation, styles))
 
             if isinstance(results, list):
@@ -359,22 +355,10 @@ class ExploratoryDataAnalysis:
                 continue
             
             try:
-                if line.startswith('<h1>'):
+                if line.startswith('<h1>') or line.startswith('<h2>') or line.startswith('<h3>') or line.startswith('<h4>'):
                     heading = re.sub('<[^<]+?>', '', line)
                     heading = re.sub(r'^\d+\.?\s*', '', heading)
-                    elements.append(Paragraph(heading, styles['XDA_Heading1']))
-                elif line.startswith('<h2>'):
-                    heading = re.sub('<[^<]+?>', '', line)
-                    heading = re.sub(r'^\d+\.?\s*', '', heading)
-                    elements.append(Paragraph(heading, styles['XDA_Heading2']))
-                elif line.startswith('<h3>'):
-                    heading = re.sub('<[^<]+?>', '', line)
-                    heading = re.sub(r'^\d+\.?\s*', '', heading)
-                    elements.append(Paragraph(heading, styles['XDA_Heading3']))
-                elif line.startswith('<h4>'):
-                    heading = re.sub('<[^<]+?>', '', line)
-                    heading = re.sub(r'^\d+\.?\s*', '', heading)
-                    elements.append(Paragraph(heading, styles['XDA_Heading4']))
+                    elements.append(Paragraph(heading, styles['XDA_Important']))
                 elif line.lower().startswith('<p>analysis') or line.lower().startswith('<p>the '):
                     current_section = 'Normal'
                     elements.append(Paragraph(re.sub('<[^<]+?>', '', line), styles['XDA_Normal']))
