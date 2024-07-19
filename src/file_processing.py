@@ -8,6 +8,8 @@ import os
 from src.settings import settings
 import json
 from src.look_and_feel import success, info, warning, error
+from queue import Queue
+import threading
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -16,6 +18,10 @@ class FileProcessor:
     def __init__(self):
         self.toc = []
         self.ensure_output_folder()
+        self.file_queue = Queue()
+        self.processing_thread = None
+        self.total_files = 0
+        self.processed_files = 0
 
     def ensure_output_folder(self):
         os.makedirs(settings.output_folder, exist_ok=True)
@@ -71,55 +77,90 @@ class FileProcessor:
                 toc.append((2, f"{full_key} (list of objects)", 0))
         return toc
 
-    def upload_docx(self) -> Optional[Tuple[str, str]]:
-        file_path = filedialog.askopenfilename(filetypes=[("DOCX Files", "*.docx")])
-        if file_path:
+    def upload_multiple_files(self, file_type: str) -> int:
+        filetypes = {
+            "DOCX": [("DOCX Files", "*.docx")],
+            "PDF": [("PDF Files", "*.pdf")],
+            "Text": [("Text Files", "*.txt")],
+            "JSON": [("JSON Files", "*.json")]
+        }
+        
+        file_paths = filedialog.askopenfilenames(filetypes=filetypes[file_type])
+        if file_paths:
+            self.total_files += len(file_paths)
+            for file_path in file_paths:
+                self.file_queue.put((file_type, file_path))
+            
+            print(info(f"{len(file_paths)} {file_type} files added to queue. Total files in queue: {self.total_files}"))
+            
+            if not self.processing_thread or not self.processing_thread.is_alive():
+                self.processing_thread = threading.Thread(target=self.process_file_queue)
+                self.processing_thread.start()
+            
+            return len(file_paths)
+        return 0
+
+    def process_file_queue(self):
+        print(info(f"Starting to process {self.total_files} files..."))
+        while not self.file_queue.empty():
+            file_type, file_path = self.file_queue.get()
+            self.processed_files += 1
             try:
+                text, filename = self.process_single_file(file_type, file_path)
+                if text:
+                    chunks = self.handle_text_chunking(text)
+                    print(info(f"Processing {filename}... ({self.processed_files}/{self.total_files})"))
+                    print(info("Extracting or generating table of contents..."))
+                    
+                    toc_str = self.format_toc()
+                    print(info(f"Method: TOC generated using {file_type}-specific method"))
+                    
+                    if not toc_str or toc_str.strip() == "":
+                        print(warning(f"Warning: Failed to generate a table of contents for {filename}."))
+                        toc_str = f"No table of contents could be generated for {filename}."
+                    
+                    print(info("Appending to db_content.txt..."))
+                    self.append_to_db_content(filename, toc_str)
+                    self.append_to_db(chunks)
+                    print(success(f"Processed and appended {filename} to db.txt and db_content.txt. ({self.processed_files}/{self.total_files})"))
+                else:
+                    print(warning(f"Warning: {filename} was empty or could not be processed. ({self.processed_files}/{self.total_files})"))
+            except Exception as e:
+                print(error(f"Error processing {file_path}: {str(e)} ({self.processed_files}/{self.total_files})"))
+            finally:
+                self.file_queue.task_done()
+
+        print(success(f"All files processed. Total: {self.total_files}"))
+        self.total_files = 0
+        self.processed_files = 0
+
+    def process_single_file(self, file_type: str, file_path: str) -> Optional[Tuple[str, str]]:
+        try:
+            if file_type == "DOCX":
                 doc = docx.Document(file_path)
                 text = " ".join([paragraph.text for paragraph in doc.paragraphs])
                 self.toc = self.generate_toc_docx(doc)
-                return text, os.path.basename(file_path)
-            except Exception as e:
-                logging.error(f"Error processing DOCX file: {str(e)}")
-        return None, None
-
-    def upload_pdf(self) -> Optional[Tuple[str, str]]:
-        file_path = filedialog.askopenfilename(filetypes=[("PDF Files", "*.pdf")])
-        if file_path:
-            try:
+            elif file_type == "PDF":
                 with fitz.open(file_path) as doc:
                     text = " ".join([page.get_text() for page in doc])
                 self.toc = self.generate_toc_pdf(file_path)
-                return text, os.path.basename(file_path)
-            except Exception as e:
-                logging.error(f"Error processing PDF file: {str(e)}")
-        return None, None
-
-    def upload_txt(self) -> Optional[Tuple[str, str]]:
-        file_path = filedialog.askopenfilename(filetypes=[("Text Files", "*.txt")])
-        if file_path:
-            try:
+            elif file_type == "Text":
                 with open(file_path, 'r', encoding="utf-8") as txt_file:
                     text = txt_file.read()
                 toc_text = self.extract_toc_from_text(text)
                 self.toc = [(1, line, 0) for line in toc_text.split('\n') if line.strip()]
-                return text, os.path.basename(file_path)
-            except Exception as e:
-                logging.error(f"Error processing TXT file: {str(e)}")
-        return None, None
-
-    def upload_json(self) -> Optional[Tuple[str, str]]:
-        file_path = filedialog.askopenfilename(filetypes=[("JSON Files", "*.json")])
-        if file_path:
-            try:
+            elif file_type == "JSON":
                 with open(file_path, 'r', encoding="utf-8") as json_file:
                     data = json.load(json_file)
                     text = json.dumps(data, indent=2)
                     self.toc = self.generate_toc_json(data)
-                    return text, os.path.basename(file_path)
-            except Exception as e:
-                logging.error(f"Error processing JSON file: {str(e)}")
-        return None, None
+            else:
+                raise ValueError(f"Unsupported file type: {file_type}")
+            
+            return text, os.path.basename(file_path)
+        except Exception as e:
+            logging.error(f"Error processing {file_type} file: {str(e)}")
+            return None, None
 
     def handle_text_chunking(self, text: str) -> List[str]:
         text = re.sub(r'\s+', ' ', text).strip()
@@ -136,38 +177,6 @@ class FileProcessor:
             chunks.append(chunk_text.strip())
             start = end - settings.file_overlap_size
         return chunks
-
-    def process_file(self, file_type: str) -> Optional[List[str]]:
-        upload_functions = {
-            "DOCX": self.upload_docx,
-            "PDF": self.upload_pdf,
-            "Text": self.upload_txt,
-            "JSON": self.upload_json
-        }
-        
-        if file_type not in upload_functions:
-            raise ValueError(error(f"Unsupported file type: {file_type}"))
-        
-        text, filename = upload_functions[file_type]()
-        if text:
-            print(info(f"Processing {filename}..."))
-            chunks = self.handle_text_chunking(text)
-            print(info("Extracting or generating table of contents..."))
-            
-            toc_str = self.format_toc()
-            print(info(f"Method: TOC generated using {file_type}-specific method"))
-            
-            if not toc_str or toc_str.strip() == "":
-                print(warning("Warning: Failed to generate a table of contents."))
-                toc_str = "No table of contents could be generated for this file."
-            
-            print(info("TOC content:"))
-            print(toc_str)
-            
-            print(info("Appending to db_content.txt..."))
-            self.append_to_db_content(filename, toc_str)
-            return chunks
-        return None
 
     def format_toc(self) -> str:
         formatted_toc = []
@@ -197,17 +206,12 @@ class FileProcessor:
 # Create a global instance of FileProcessor
 file_processor = FileProcessor()
 
-# Expose the process_file and append_to_db functions
-def process_file(file_type: str) -> Optional[List[str]]:
-    return file_processor.process_file(file_type)
-
-def append_to_db(chunks: List[str], db_file: str = "db.txt"):
-    file_processor.append_to_db(chunks, db_file)
+# Expose the upload_multiple_files function
+def upload_multiple_files(file_type: str) -> int:
+    return file_processor.upload_multiple_files(file_type)
 
 if __name__ == "__main__":
     settings.load_settings()
     file_types = ["DOCX", "PDF", "Text", "JSON"]
     for file_type in file_types:
-        chunks = process_file(file_type)
-        if chunks:
-            append_to_db(chunks)
+        upload_multiple_files(file_type)

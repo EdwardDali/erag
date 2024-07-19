@@ -14,7 +14,6 @@ import threading
 import asyncio
 import os
 from dotenv import load_dotenv, set_key  # Add set_key here
-from src.file_processing import process_file, append_to_db
 from src.talk2doc import RAGSystem
 from src.embeddings_utils import compute_and_save_embeddings, load_or_compute_embeddings
 from sentence_transformers import SentenceTransformer
@@ -36,6 +35,8 @@ from src.gen_a import run_gen_a
 from src.look_and_feel import error, success, warning, info, highlight
 from src.talk2sd import Talk2SD
 from src.x_da import ExploratoryDataAnalysis
+from src.file_processing import upload_multiple_files, FileProcessor
+
 
 
 # Load environment variables from .env file
@@ -89,6 +90,7 @@ class ERAGGUI:
         load_dotenv()
         self.groq_api_key = os.getenv("GROQ_API_KEY", "")
         self.github_token = os.getenv("GITHUB_TOKEN", "")
+        self.file_processor = FileProcessor()
 
         # Create output folder if it doesn't exist
         os.makedirs(settings.output_folder, exist_ok=True)
@@ -139,15 +141,15 @@ class ERAGGUI:
         ToolTip(xda_button, "Perform Exploratory Data Analysis on a selected SQLite database")
 
     def create_upload_frame(self):
-        upload_frame = tk.LabelFrame(self.main_tab, text="Upload")
+        upload_frame = tk.LabelFrame(self.main_tab, text="Upload Unstructured Data")
         upload_frame.pack(fill="x", padx=10, pady=5)
 
         file_types = ["DOCX", "JSON", "PDF", "Text"]
         for file_type in file_types:
             button = tk.Button(upload_frame, text=f"Upload {file_type}", 
-                               command=lambda ft=file_type: self.upload_and_chunk(ft))
+                               command=lambda ft=file_type: self.upload_multiple_files(ft))
             button.pack(side="left", padx=5, pady=5)
-            ToolTip(button, f"Upload and process a {file_type} file")
+            ToolTip(button, f"Upload and process multiple unstructured data {file_type} files")
 
         # Add new button for structured data
         structured_data_button = tk.Button(upload_frame, text="Upload Structured Data", 
@@ -715,16 +717,16 @@ class ERAGGUI:
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred while starting the knol creation process: {str(e)}")
 
-    def upload_and_chunk(self, file_type: str):
+
+    def upload_multiple_files(self, file_type: str):
         try:
-            content = process_file(file_type)
-            if content:
-                append_to_db(content)
-                messagebox.showinfo("Success", f"{file_type} file content processed and appended to db.txt with table of contents in db_content.txt.")
+            files_added = self.file_processor.upload_multiple_files(file_type)
+            if files_added > 0:
+                print(info(f"{files_added} {file_type} queued for processing. Check the console for progress. File content processed and appended to db.txt with table of contents in db_content.txt."))
             else:
-                messagebox.showwarning("Warning", "No file selected or file was empty.")
+                print(info("No files selected for processing."))
         except Exception as e:
-            messagebox.showerror("Error", f"An error occurred while processing the file: {str(e)}")
+            messagebox.showerror("Error", f"An error occurred while queueing files for processing: {str(e)}")
 
 
     def execute_embeddings(self):
