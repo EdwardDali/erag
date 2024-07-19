@@ -29,6 +29,8 @@ class ExploratoryDataAnalysis:
         self.toc_entries = []
         self.executive_summary = ""
         self.image_paths = []
+        self.DARK_BLUE_RGB = (34/255, 34/255, 59/255)
+        self.LIGHT_GREY_RGB = (242/255, 242/255, 242/255)
 
     def run(self):
         print(info(f"Starting Exploratory Data Analysis on {self.db_path}"))
@@ -84,9 +86,10 @@ class ExploratoryDataAnalysis:
             results = []
             for col in numerical_columns:
                 plt.figure(figsize=(12, 6))
+                plt.rcParams['axes.facecolor'] = self.LIGHT_GREY_RGB
                 
                 # Plot histogram for all data
-                sns.histplot(df[col], kde=True, color=SAGE_GREEN_RGB)
+                sns.histplot(df[col], kde=True, color=self.DARK_BLUE_RGB)
                 
                 # Get top 10 most frequent values
                 top_10_values = df[col].value_counts().nlargest(10)
@@ -98,7 +101,7 @@ class ExploratoryDataAnalysis:
                 plt.title(f'Distribution of {col}')
                 plt.xlabel(col)
                 plt.ylabel('Count')
-                plt.xticks(xticks, xlabels, rotation=45, ha='right')
+                plt.xticks(xticks, xlabels, rotation=0, ha='center')
                 plt.tight_layout()
                 img_path = os.path.join(self.output_folder, f"{table_name}_{col}_distribution.png")
                 plt.savefig(img_path, dpi=300, bbox_inches='tight')
@@ -135,20 +138,21 @@ class ExploratoryDataAnalysis:
             results = []
             for col in categorical_columns:
                 plt.figure(figsize=(12, 6))
+                plt.rcParams['axes.facecolor'] = self.LIGHT_GREY_RGB
                 value_counts = df[col].value_counts()
                 
                 # Get top 10 categories
                 top_10 = value_counts.nlargest(10)
                 
                 # Plot bar chart for all data
-                sns.barplot(x=value_counts.index, y=value_counts.values, color=DUSTY_PINK_RGB)
+                sns.barplot(x=value_counts.index, y=value_counts.values, color=self.DARK_BLUE_RGB)
                 
                 plt.title(f'Distribution of {col}')
                 plt.xlabel(col)
                 plt.ylabel('Count')
                 
                 # Set x-ticks and labels for top 10 categories
-                plt.xticks(range(len(top_10)), top_10.index, rotation=45, ha='right')
+                plt.xticks(range(len(top_10)), top_10.index, rotation=0, ha='center')
                 
                 plt.tight_layout()
                 img_path = os.path.join(self.output_folder, f"{table_name}_{col}_distribution.png")
@@ -210,16 +214,19 @@ class ExploratoryDataAnalysis:
         interpretation = self.erag_api.chat([{"role": "system", "content": "You are a data analyst providing insights on exploratory data analysis results. Respond in Markdown format."}, 
                                              {"role": "user", "content": prompt}])
         
-        # Updated second LLM call to focus on direct improvements
+        # Updated second LLM call to include original data for accuracy checking
         check_prompt = f"""
-        Please review and improve the following interpretation:
+        Original data and analysis type:
+        {prompt}
 
+        Previous interpretation:
         {interpretation}
 
-        Enhance the text by:
-        1. Ensuring the Markdown formatting is correct.
-        2. Making the interpretation more narrative and detailed by adding context and explanations.
-        3. Addressing any important aspects of the data that weren't covered.
+        Please review and improve the above interpretation. Ensure it accurately reflects the original data and analysis type. Enhance the text by:
+        1. Verifying the accuracy of the interpretation against the original data.
+        2. Ensuring the Markdown formatting is correct.
+        3. Making the interpretation more narrative and detailed by adding context and explanations.
+        4. Addressing any important aspects of the data that weren't covered.
 
         Provide your response in the same Markdown format, maintaining the original structure. 
         Do not add comments, questions, or explanations about the changes - simply provide the improved version.
