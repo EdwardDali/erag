@@ -85,10 +85,16 @@ class ExploratoryDataAnalysis:
             for col in numerical_columns:
                 plt.figure(figsize=(10, 6))
                 
-                # Limit to top 10 most frequent values
-                value_counts = df[col].value_counts().nlargest(10)
-                
+                # Plot histogram for all data
                 sns.histplot(df[col], kde=True, color=SAGE_GREEN_RGB)
+                
+                # Get top 10 most frequent values for text labels
+                top_10_values = df[col].value_counts().nlargest(10)
+                
+                # Add text labels only for top 10 values
+                for value, count in top_10_values.items():
+                    plt.text(value, count, f'{count}', ha='center', va='bottom')
+                
                 plt.title(f'Distribution of {col}')
                 plt.xlabel(col)
                 plt.ylabel('Count')
@@ -100,6 +106,7 @@ class ExploratoryDataAnalysis:
         else:
             results = "N/A - No numerical features found"
         self.interpret_results(f"{self.technique_counter}. Numerical Features Distribution", results, table_name)
+
 
     def correlation_analysis(self, df, table_name):
         self.technique_counter += 1
@@ -126,19 +133,27 @@ class ExploratoryDataAnalysis:
             results = []
             for col in categorical_columns:
                 plt.figure(figsize=(10, 6))
-                value_counts = df[col].value_counts().nlargest(10)  # Limit to top 10
+                value_counts = df[col].value_counts()
+                
+                # Plot bar chart for all data
                 sns.barplot(x=value_counts.index, y=value_counts.values, color=DUSTY_PINK_RGB)
-                plt.title(f'Distribution of {col} (Top 10)')
+                
+                # Add text labels only for top 10 values
+                for i, (value, count) in enumerate(value_counts.nlargest(10).items()):
+                    plt.text(i, count, f'{count}', ha='center', va='bottom')
+                
+                plt.title(f'Distribution of {col}')
                 plt.xlabel(col)
                 plt.ylabel('Count')
                 plt.xticks(rotation=45, ha='right')
                 img_path = os.path.join(self.output_folder, f"{table_name}_{col}_distribution.png")
                 plt.savefig(img_path, dpi=300, bbox_inches='tight')
                 plt.close()
-                results.append((f"Value counts for {col} (Top 10):\n{value_counts.to_string()}", img_path))
+                results.append((f"Value counts for {col} (Top 10):\n{value_counts.nlargest(10).to_string()}", img_path))
         else:
             results = "N/A - No categorical features found"
         self.interpret_results(f"{self.technique_counter}. Categorical Features Analysis", results, table_name)
+
 
     def interpret_results(self, analysis_type, results, table_name):
         if isinstance(results, pd.DataFrame):
@@ -190,14 +205,34 @@ class ExploratoryDataAnalysis:
         interpretation = self.erag_api.chat([{"role": "system", "content": "You are a data analyst providing insights on exploratory data analysis results. Respond in Markdown format."}, 
                                              {"role": "user", "content": prompt}])
         
+        # Updated second LLM call to focus on direct improvements
+        check_prompt = f"""
+        Please review and improve the following interpretation:
+
+        {interpretation}
+
+        Enhance the text by:
+        1. Ensuring the Markdown formatting is correct.
+        2. Making the interpretation more narrative and detailed by adding context and explanations.
+        3. Addressing any important aspects of the data that weren't covered.
+
+        Provide your response in the same Markdown format, maintaining the original structure. 
+        Do not add comments, questions, or explanations about the changes - simply provide the improved version.
+        """
+
+        enhanced_interpretation = self.erag_api.chat([
+            {"role": "system", "content": "You are a data analyst improving interpretations of exploratory data analysis results. Provide direct enhancements without adding meta-comments."},
+            {"role": "user", "content": check_prompt}
+        ])
+
         print(success(f"AI Interpretation for {analysis_type}:"))
-        print(interpretation.strip())
+        print(enhanced_interpretation.strip())
         
-        self.text_output += f"\n{interpretation.strip()}\n\n"
+        self.text_output += f"\n{enhanced_interpretation.strip()}\n\n"
         
-        self.pdf_content.append((analysis_type, results, interpretation.strip()))
+        self.pdf_content.append((analysis_type, results, enhanced_interpretation.strip()))
         
-        for line in interpretation.strip().split('\n'):
+        for line in enhanced_interpretation.strip().split('\n'):
             if "### Important:" in line:
                 self.findings.append(f"{analysis_type}: {line}")
 
@@ -236,14 +271,36 @@ class ExploratoryDataAnalysis:
             ])
             
             if interpretation is not None:
-                self.executive_summary = interpretation.strip()
+                # Updated second LLM call to focus on direct improvements
+                check_prompt = f"""
+                Please review and improve the following executive summary:
+
+                {interpretation}
+
+                Enhance the summary by:
+                1. Ensuring the Markdown formatting is correct.
+                2. Making it more comprehensive and narrative by adding context and explanations.
+                3. Addressing any important aspects of the analysis that weren't covered.
+                4. Ensuring it includes a clear introduction, highlights of significant insights, mention of potential issues, and recommendations for next steps.
+
+                Provide your response in the same Markdown format, maintaining the original structure.
+                Do not add comments, questions, or explanations about the changes - simply provide the improved version.
+                """
+
+                enhanced_summary = self.erag_api.chat([
+                    {"role": "system", "content": "You are a data analyst improving an executive summary of an exploratory data analysis. Provide direct enhancements without adding meta-comments."},
+                    {"role": "user", "content": check_prompt}
+                ])
+
+                self.executive_summary = enhanced_summary.strip()
             else:
                 self.executive_summary = "Error: Unable to generate executive summary."
         except Exception as e:
             print(error(f"An error occurred while generating the executive summary: {str(e)}"))
             self.executive_summary = "Error: Unable to generate executive summary due to an exception."
 
-        print(success("Executive Summary generated successfully."))
+
+        print(success("Enhanced Executive Summary generated successfully."))
         print(self.executive_summary)
 
     def save_text_output(self):
