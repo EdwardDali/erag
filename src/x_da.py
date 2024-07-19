@@ -8,7 +8,6 @@ import os
 from datetime import datetime
 import markdown
 from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 from reportlab.lib.units import inch
@@ -16,6 +15,7 @@ from src.api_model import EragAPI
 from src.settings import settings
 from src.look_and_feel import error, success, warning, info, highlight
 from reportlab.lib.enums import TA_JUSTIFY, TA_CENTER
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Table, TableStyle, Image, Frame, PageTemplate
 import re
 
 # Define RGB values for custom colors
@@ -108,7 +108,6 @@ class ExploratoryDataAnalysis:
         else:
             results = "N/A - No numerical features found"
         self.interpret_results(f"{self.technique_counter}. Numerical Features Distribution", results, table_name)
-
 
     def correlation_analysis(self, df, table_name):
         self.technique_counter += 1
@@ -263,11 +262,11 @@ class ExploratoryDataAnalysis:
     def create_enhanced_pdf_report(self):
         pdf_file = os.path.join(self.output_folder, "xda_report.pdf")
         doc = SimpleDocTemplate(pdf_file, pagesize=letter)
-        
+
         elements = []
-        
+
         styles = getSampleStyleSheet()
-        
+
         # Update custom styles with colors
         styles.add(ParagraphStyle(name='XDA_Title', parent=styles['Title'], fontSize=24, alignment=TA_CENTER, spaceAfter=24, textColor=colors.white, backColor=colors.Color(*SAGE_GREEN_RGB)))
         styles.add(ParagraphStyle(name='XDA_Heading1', parent=styles['Heading1'], fontSize=18, spaceBefore=12, spaceAfter=6, textColor=colors.Color(*DUSTY_PINK_RGB)))
@@ -280,43 +279,59 @@ class ExploratoryDataAnalysis:
         styles.add(ParagraphStyle(name='XDA_Negative', parent=styles['Normal'], alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.red))
         styles.add(ParagraphStyle(name='XDA_Conclusion', parent=styles['Normal'], alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.Color(*SAGE_GREEN_RGB)))
         styles.add(ParagraphStyle(name='XDA_Bullet', parent=styles['Normal'], alignment=TA_JUSTIFY, spaceAfter=6, leftIndent=20, textColor=colors.black))
-        
-        
+
+        def draw_background(canvas, doc):
+            canvas.saveState()
+            canvas.setFillColor(colors.Color(*SAGE_GREEN_RGB))
+            canvas.rect(0, 0, doc.pagesize[0], doc.pagesize[1], fill=1)
+            canvas.restoreState()
+
+        cover_frame = Frame(doc.leftMargin, doc.bottomMargin, doc.width, doc.height, id='CoverFrame')
+        cover_template = PageTemplate(id='CoverPage', frames=[cover_frame], onPage=draw_background)
+        doc.addPageTemplates([cover_template])
+
         # Create cover page with background color
         elements.append(Paragraph("Exploratory Data Analysis Report", styles['XDA_Title']))
         elements.append(Spacer(1, 12))
         elements.append(Paragraph(f"Generated on: {datetime.now().strftime('%Y-%m-%d')}", styles['XDA_Normal']))
         elements.append(Paragraph(f"AI-powered analysis by ERAG using {self.llm_name}", styles['XDA_Normal']))
         elements.append(PageBreak())
-        
+
+        # Add a normal template for subsequent pages
+        normal_frame = Frame(doc.leftMargin, doc.bottomMargin, doc.width, doc.height, id='NormalFrame')
+        normal_template = PageTemplate(id='NormalPage', frames=[normal_frame])
+        doc.addPageTemplates([normal_template])
+
         # Executive Summary
         elements.append(Paragraph("Executive Summary", styles['XDA_Heading1']))
         elements.extend(self.markdown_to_reportlab(self.executive_summary, styles))
         elements.append(PageBreak())
-        
+
         # Key Findings
         if self.findings:
             elements.append(Paragraph("Key Findings", styles['XDA_Heading1']))
             for finding in self.findings:
                 elements.extend(self.markdown_to_reportlab(finding, styles))
             elements.append(PageBreak())
-        
+
         # Main content
         for analysis_type, results, interpretation in self.pdf_content:
             elements.append(Paragraph(analysis_type, styles['XDA_Heading1']))
             elements.extend(self.markdown_to_reportlab(interpretation, styles))
-            
+
             if isinstance(results, list):
                 for item in results:
                     if isinstance(item, tuple) and len(item) == 2:
                         description, img_path = item
                         elements.append(Paragraph(f"Reference to image: {os.path.basename(img_path)}", styles['XDA_Normal']))
-            elif isinstance(results, str) and results.endswith('.png'):
-                elements.append(Paragraph(f"Reference to image: {os.path.basename(results)}", styles['XDA_Normal']))
-            
+                        elements.append(Image(img_path, width=6*inch, height=4*inch))
+            elif isinstance(results, tuple) and len(results) == 2 and isinstance(results[1], str) and results[1].endswith('.png'):
+                elements.append(Paragraph(f"Reference to image: {os.path.basename(results[1])}", styles['XDA_Normal']))
+                elements.append(Image(results[1], width=6*inch, height=4*inch))
+
             elements.append(Spacer(1, 12))
             elements.append(PageBreak())
-        
+
         try:
             doc.build(elements)
             print(success(f"PDF report saved to {pdf_file}"))
@@ -383,7 +398,7 @@ class ExploratoryDataAnalysis:
                     pass  # End of list, no specific action needed
                 elif line.startswith('<li>'):
                     bullet_text = re.sub('<[^<]+?>', '', line)
-                    elements.append(Paragraph(f"• {bullet_text}", styles[f'XDA_{current_section}']))
+                    elements.append(Paragraph(f"• {bullet_text}", styles['XDA_Bullet']))
                 elif line == '<hr />':
                     elements.append(Spacer(1, 12))
                 else:
@@ -396,4 +411,3 @@ class ExploratoryDataAnalysis:
                 elements.append(Paragraph(line, styles['XDA_Normal']))
 
         return elements
-
