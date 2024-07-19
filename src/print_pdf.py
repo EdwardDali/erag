@@ -22,8 +22,8 @@ class PDFReportGenerator:
         self.output_folder = output_folder
         self.llm_name = llm_name
 
-    def create_enhanced_pdf_report(self, executive_summary, findings, pdf_content, image_paths):
-        pdf_file = os.path.join(self.output_folder, "xda_report.pdf")
+    def create_enhanced_pdf_report(self, executive_summary, findings, pdf_content, image_paths, filename="xda_report"):
+        pdf_file = os.path.join(self.output_folder, f"{filename}.pdf")
         doc = SimpleDocTemplate(pdf_file, pagesize=A4)
 
         elements = []
@@ -80,15 +80,15 @@ class PDFReportGenerator:
 
     def _create_styles(self):
         styles = getSampleStyleSheet()
-        styles.add(ParagraphStyle(name='XDA_Title', parent=styles['Title'], fontSize=24, alignment=TA_LEFT, spaceAfter=24, textColor=colors.white, backColor=colors.Color(*SAGE_GREEN_RGB)))
-        styles.add(ParagraphStyle(name='XDA_Normal', parent=styles['Normal'], fontSize=12, alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.black, fontName='Helvetica'))
-        styles.add(ParagraphStyle(name='XDA_Important', parent=styles['Normal'], fontSize=14, alignment=TA_LEFT, spaceAfter=12, textColor=colors.Color(*DARK_BLUE_RGB), fontName='Helvetica-Bold'))
-        styles.add(ParagraphStyle(name='XDA_Positive', parent=styles['Normal'], fontSize=12, alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.green, fontName='Helvetica-Bold'))
-        styles.add(ParagraphStyle(name='XDA_Negative', parent=styles['Normal'], fontSize=12, alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.red, fontName='Helvetica-Bold'))
+        styles.add(ParagraphStyle(name='XDA_Title', parent=styles['Title'], fontSize=20, alignment=TA_LEFT, spaceAfter=24, textColor=colors.white, backColor=colors.Color(*SAGE_GREEN_RGB)))
+        styles.add(ParagraphStyle(name='XDA_Normal', parent=styles['Normal'], fontSize=10, alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.black, fontName='Helvetica'))
+        styles.add(ParagraphStyle(name='XDA_Important', parent=styles['Normal'], fontSize=10, alignment=TA_LEFT, spaceAfter=12, textColor=colors.Color(*DARK_BLUE_RGB), fontName='Helvetica-Bold'))
+        styles.add(ParagraphStyle(name='XDA_Positive', parent=styles['Normal'], fontSize=10, alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.green, fontName='Helvetica-Bold'))
+        styles.add(ParagraphStyle(name='XDA_Negative', parent=styles['Normal'], fontSize=10, alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.red, fontName='Helvetica-Bold'))
         styles.add(ParagraphStyle(name='XDA_Conclusion', parent=styles['Normal'], fontSize=12, alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.Color(*SAGE_GREEN_RGB), fontName='Helvetica-Bold'))
-        styles.add(ParagraphStyle(name='XDA_Bullet', parent=styles['Normal'], fontSize=12, alignment=TA_JUSTIFY, spaceAfter=6, leftIndent=20, textColor=colors.black))
-        styles.add(ParagraphStyle(name='XDA_Code', parent=styles['Code'], fontSize=10, textColor=colors.black, backColor=colors.lightgrey, fontName='Courier'))
-        styles.add(ParagraphStyle(name='XDA_Limitations', parent=styles['Normal'], fontSize=12, alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.black, fontName='Helvetica-Bold'))
+        styles.add(ParagraphStyle(name='XDA_Bullet', parent=styles['Normal'], fontSize=10, alignment=TA_JUSTIFY, spaceAfter=6, leftIndent=20, textColor=colors.black))
+        styles.add(ParagraphStyle(name='XDA_Code', parent=styles['Code'], fontSize=8, textColor=colors.black, backColor=colors.lightgrey, fontName='Courier'))
+        styles.add(ParagraphStyle(name='XDA_Limitations', parent=styles['Normal'], fontSize=10, alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.black, fontName='Helvetica-Bold'))
         return styles
 
     def _create_cover_page(self, doc, styles):

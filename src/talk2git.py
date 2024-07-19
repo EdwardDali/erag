@@ -8,6 +8,7 @@ from src.look_and_feel import success, info, warning, error
 import base64
 import time
 from dotenv import load_dotenv
+from src.print_pdf import PDFReportGenerator
 
 class Talk2Git:
     def __init__(self, erag_api: EragAPI, github_token: str = ""):
@@ -34,6 +35,11 @@ class Talk2Git:
         self.repo_contents = {}
         self.github_api_url = "https://api.github.com"
         self.project_name = ""
+        self.pdf_content = []
+        self.findings = []
+        self.image_paths = []
+        self.project_summary = ""
+        self.pdf_generator = PDFReportGenerator(settings.output_folder, erag_api.model)
 
     def parse_github_url(self, url):
         parsed = urlparse(url)
@@ -65,7 +71,7 @@ class Talk2Git:
             elif response.status_code == 403 and 'rate limit exceeded' in response.text:
                 reset_time = int(response.headers.get('X-RateLimit-Reset', 0))
                 wait_time = max(reset_time - int(time.time()), 0) + 1
-                print(f"{ANSIColor.YELLOW.value}Rate limit exceeded. Waiting for {wait_time} seconds...{ANSIColor.RESET.value}")
+                print(warning(f"Rate limit exceeded. Waiting for {wait_time} seconds..."))
                 time.sleep(wait_time)
             else:
                 response.raise_for_status()
@@ -97,6 +103,59 @@ class Talk2Git:
                 f.write("\n\n" + "="*50 + "\n\n")
         print(success(f"Repository contents saved to {repo_file_path}"))
 
+    def save_results(self, analysis_type: str, text_content: str):
+        # Save text file
+        text_file = os.path.join(settings.output_folder, f"{self.project_name}_{analysis_type}.txt")
+        with open(text_file, "w", encoding="utf-8") as f:
+            f.write(text_content)
+        print(success(f"{analysis_type} results saved to {text_file}"))
+
+        # Generate and save PDF report
+        pdf_file = self.pdf_generator.create_enhanced_pdf_report(
+            self.project_summary,
+            self.findings,
+            self.pdf_content,
+            self.image_paths,
+            f"{self.project_name}_{analysis_type}"  # Pass the desired PDF filename (without extension)
+        )
+        if pdf_file:
+            print(success(f"PDF report for {analysis_type} generated: {pdf_file}"))
+        else:
+            print(error(f"Failed to generate PDF report for {analysis_type}"))
+
+        # Clear the lists for the next analysis
+        self.pdf_content.clear()
+        self.findings.clear()
+        self.image_paths.clear()
+
+    def run_all_analyses(self):
+        print(info("Running all analyses..."))
+        self.static_code_analysis()
+        self.summarize_project()
+        self.analyze_dependencies()
+        self.detect_code_smells()
+        
+        # Combine all results for a final "All Analyses" report
+        all_text_content = ""
+        all_pdf_content = []
+        all_findings = []
+        
+        for analysis_type in ["static_code_analysis", "project_summary", "dependency_analysis", "code_smell_detection"]:
+            text_file = os.path.join(settings.output_folder, f"{self.project_name}_{analysis_type}.txt")
+            if os.path.exists(text_file):
+                with open(text_file, "r", encoding="utf-8") as f:
+                    all_text_content += f"\n\n{'='*50}\n\n{analysis_type.upper()}\n\n"
+                    all_text_content += f.read()
+            
+            pdf_file = os.path.join(settings.output_folder, f"{self.project_name}_{analysis_type}.pdf")
+            if os.path.exists(pdf_file):
+                all_pdf_content.append((f"{analysis_type.capitalize()} Report", "", f"See detailed report: {pdf_file}"))
+            
+            all_findings.append(f"Completed {analysis_type}")
+        
+        self.save_results("all_analyses", all_text_content)
+        print(success("All analyses completed and combined report generated."))
+
     def static_code_analysis(self):
         analysis_results = []
         for file_path, content in self.repo_contents.items():
@@ -127,15 +186,16 @@ Your analysis should be concise but informative."""
 
                 analysis_results.append(f"Analysis for {file_path}:\n\n{response}\n\n{'='*50}\n")
                 print(success(f"Analysis complete for {file_path}"))
+                
+                # Add to pdf_content and findings
+                self.pdf_content.append((f"Static Code Analysis for {file_path}", "", response))
+                self.findings.append(f"Static Code Analysis: {file_path}")
             except Exception as e:
                 logging.error(f"Error analyzing {file_path}: {str(e)}")
                 analysis_results.append(f"Error analyzing {file_path}: {str(e)}\n\n{'='*50}\n")
 
-        analysis_file = os.path.join(settings.output_folder, f"{self.project_name}_static_analysis.txt")
-        with open(analysis_file, "w", encoding="utf-8") as f:
-            f.write("\n".join(analysis_results))
-        
-        print(success(f"Static code analysis completed. Results saved to {analysis_file}"))
+        # Save results
+        self.save_results("static_code_analysis", "\n".join(analysis_results))
 
     def summarize_project(self):
         file_summaries = {}
@@ -160,6 +220,9 @@ Please provide a concise summary (2-3 sentences) describing the file's main purp
 
                 file_summaries[file_path] = response
                 print(success(f"Summary complete for {file_path}"))
+                
+                # Add to pdf_content
+                self.pdf_content.append((f"Summary for {file_path}", "", response))
             except Exception as e:
                 logging.error(f"Error summarizing {file_path}: {str(e)}")
                 file_summaries[file_path] = f"Error summarizing file: {str(e)}"
@@ -176,49 +239,48 @@ Please provide a concise summary (3-5 sentences) describing the overall purpose 
                 {"role": "system", "content": "You are an expert programmer summarizing software projects."},
                 {"role": "user", "content": project_summary_prompt}
             ]
-            project_summary = self.erag_api.chat(messages, temperature=0.2)
+            self.project_summary = self.erag_api.chat(messages, temperature=0.2)
         except Exception as e:
             logging.error(f"Error creating project summary: {str(e)}")
-            project_summary = f"Error creating project summary: {str(e)}"
+            self.project_summary = f"Error creating project summary: {str(e)}"
 
-        summary_file = os.path.join(settings.output_folder, f"{self.project_name}_summary.txt")
-        with open(summary_file, "w", encoding="utf-8") as f:
-            f.write("Project Summary:\n")
-            f.write(project_summary)
-            f.write("\n\n" + "="*50 + "\n\n")
-            f.write("File Summaries:\n\n")
-            for file_path, summary in file_summaries.items():
-                f.write(f"File: {file_path}\n")
-                f.write(f"Summary: {summary}\n\n")
+        # Prepare text content
+        text_content = f"Project Summary:\n{self.project_summary}\n\n{'='*50}\n\nFile Summaries:\n\n"
+        for file_path, summary in file_summaries.items():
+            text_content += f"File: {file_path}\nSummary: {summary}\n\n"
 
-        print(success(f"Project summarization completed. Results saved to {summary_file}"))
+        # Save results
+        self.save_results("project_summary", text_content)
+
 
     def analyze_dependencies(self):
         dependency_files = [file for file in self.repo_contents.keys() if file.endswith(('requirements.txt', 'package.json', 'pom.xml'))]
         
         if not dependency_files:
-            print(warning("No dependency files found in the repository."))
+            message = "No dependency files found in the repository."
+            print(warning(message))
+            self.save_results("dependency_analysis", message)
             return
 
         analysis_results = []
         for file in dependency_files:
-            content = self.repo_contents[file][:settings.file_analysis_limit]  # Use settings directly
+            content = self.repo_contents[file][:settings.file_analysis_limit]
             print(info(f"Analyzing dependencies in {file}..."))
             
             prompt = f"""Analyze the dependencies in the following file:
 
-    File: {file}
+File: {file}
 
-    Content:
-    {content}
+Content:
+{content}
 
-    Please provide a brief analysis covering the following aspects:
-    1. List of main dependencies and their versions
-    2. Potential outdated dependencies
-    3. Possible security vulnerabilities (based on known common vulnerabilities)
-    4. Suggestions for dependency updates or replacements
+Please provide a brief analysis covering the following aspects:
+1. List of main dependencies and their versions
+2. Potential outdated dependencies
+3. Possible security vulnerabilities (based on known common vulnerabilities)
+4. Suggestions for dependency updates or replacements
 
-    Your analysis should be concise but informative."""
+Your analysis should be concise but informative."""
 
             try:
                 messages = [
@@ -229,21 +291,24 @@ Please provide a concise summary (3-5 sentences) describing the overall purpose 
 
                 analysis_results.append(f"Analysis for {file}:\n\n{response}\n\n{'='*50}\n")
                 print(success(f"Analysis complete for {file}"))
+                
+                # Add to pdf_content and findings
+                self.pdf_content.append((f"Dependency Analysis for {file}", "", response))
+                self.findings.append(f"Dependency Analysis: {file}")
             except Exception as e:
                 logging.error(f"Error analyzing dependencies in {file}: {str(e)}")
                 analysis_results.append(f"Error analyzing dependencies in {file}: {str(e)}\n\n{'='*50}\n")
 
-        analysis_file = os.path.join(settings.output_folder, f"{self.project_name}_dependency_analysis.txt")
-        with open(analysis_file, "w", encoding="utf-8") as f:
-            f.write("\n".join(analysis_results))
-        
-        print(success(f"Dependency analysis completed. Results saved to {analysis_file}"))
+        # Save results
+        self.save_results("dependency_analysis", "\n".join(analysis_results))
 
     def detect_code_smells(self):
         code_files = [file for file in self.repo_contents.keys() if file.endswith(('.py', '.js', '.java', '.cpp', '.c', '.h', '.cs'))]
         
         if not code_files:
-            print(warning("No supported code files found in the repository."))
+            message = "No supported code files found in the repository."
+            print(warning(message))
+            self.save_results("code_smell_detection", message)
             return
 
         analysis_results = []
@@ -253,18 +318,18 @@ Please provide a concise summary (3-5 sentences) describing the overall purpose 
             
             prompt = f"""Analyze the following code for potential code smells:
 
-    File: {file}
+File: {file}
 
-    Content:
-    {content}
+Content:
+{content}
 
-    Please provide a brief analysis covering the following aspects:
-    1. Identify any common code smells (e.g., long methods, large classes, duplicate code)
-    2. Highlight areas of the code that might be difficult to understand or maintain
-    3. Suggest potential refactoring opportunities
-    4. Comment on the overall code quality and structure
+Please provide a brief analysis covering the following aspects:
+1. Identify any common code smells (e.g., long methods, large classes, duplicate code)
+2. Highlight areas of the code that might be difficult to understand or maintain
+3. Suggest potential refactoring opportunities
+4. Comment on the overall code quality and structure
 
-    Your analysis should be concise but informative."""
+Your analysis should be concise but informative."""
 
             try:
                 messages = [
@@ -275,24 +340,17 @@ Please provide a concise summary (3-5 sentences) describing the overall purpose 
 
                 analysis_results.append(f"Analysis for {file}:\n\n{response}\n\n{'='*50}\n")
                 print(success(f"Analysis complete for {file}"))
+                
+                # Add to pdf_content and findings
+                self.pdf_content.append((f"Code Smell Detection for {file}", "", response))
+                self.findings.append(f"Code Smell Detection: {file}")
             except Exception as e:
                 logging.error(f"Error detecting code smells in {file}: {str(e)}")
                 analysis_results.append(f"Error detecting code smells in {file}: {str(e)}\n\n{'='*50}\n")
 
-        analysis_file = os.path.join(settings.output_folder, f"{self.project_name}_code_smell_analysis.txt")
-        with open(analysis_file, "w", encoding="utf-8") as f:
-            f.write("\n".join(analysis_results))
-        
-        print(success(f"Code smell detection completed. Results saved to {analysis_file}"))
+        # Save results
+        self.save_results("code_smell_detection", "\n".join(analysis_results))
 
-    def display_menu(self):
-        print(info("\nTalk2Git Menu:"))
-        print("1. Analyze repository")
-        print("2. Summarize project")
-        print("3. Analyze dependencies")
-        print("4. Detect code smells")
-        print("5. Change repository")
-        print("6. Exit")
 
     def run(self):
         print(info("Welcome to Talk2Git."))
@@ -307,7 +365,7 @@ Please provide a concise summary (3-5 sentences) describing the overall purpose 
                 print(success(processing_result))
 
             self.display_menu()
-            choice = input(info("Enter your choice (1-6): ")).strip()
+            choice = input(info("Enter your choice (1-7): ")).strip()
 
             if choice == '1':
                 self.static_code_analysis()
@@ -318,14 +376,26 @@ Please provide a concise summary (3-5 sentences) describing the overall purpose 
             elif choice == '4':
                 self.detect_code_smells()
             elif choice == '5':
+                self.run_all_analyses()
+            elif choice == '6':
                 self.repo_url = ""
                 self.repo_contents.clear()
                 print(info("Current repository cleared. Please enter a new repository URL."))
-            elif choice == '6':
+            elif choice == '7':
                 print(success("Thank you for using Talk2Git. Goodbye!"))
                 break
             else:
-                print(error("Invalid choice. Please enter a number between 1 and 6."))
+                print(error("Invalid choice. Please enter a number between 1 and 7."))
+
+    def display_menu(self):
+        print(info("\nTalk2Git Menu:"))
+        print("1. Analyze repository")
+        print("2. Summarize project")
+        print("3. Analyze dependencies")
+        print("4. Detect code smells")
+        print("5. All (Run all analyses)")
+        print("6. Change repository")
+        print("7. Exit")
 
 def main(api_type: str):
     erag_api = create_erag_api(api_type)
