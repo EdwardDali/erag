@@ -3,12 +3,12 @@
 import os
 from datetime import datetime
 import markdown
-from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Table, TableStyle, Image, Frame, PageTemplate
+from reportlab.lib.pagesizes import A4
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Table, TableStyle, Image, Frame, PageTemplate, Preformatted
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 from reportlab.lib.units import inch
-from reportlab.lib.enums import TA_JUSTIFY, TA_CENTER, TA_LEFT
+from reportlab.lib.enums import TA_JUSTIFY, TA_LEFT
 import re
 
 # Define RGB values for custom colors
@@ -24,7 +24,7 @@ class PDFReportGenerator:
 
     def create_enhanced_pdf_report(self, executive_summary, findings, pdf_content, image_paths):
         pdf_file = os.path.join(self.output_folder, "xda_report.pdf")
-        doc = SimpleDocTemplate(pdf_file, pagesize=letter)
+        doc = SimpleDocTemplate(pdf_file, pagesize=A4)
 
         elements = []
         styles = self._create_styles()
@@ -56,7 +56,8 @@ class PDFReportGenerator:
                         elements.append(Paragraph(f"Reference to image: {os.path.basename(img_path)}", styles['XDA_Normal']))
                         elements.append(Image(img_path, width=6*inch, height=4*inch))
             elif isinstance(results, tuple) and len(results) == 2 and isinstance(results[1], str) and results[1].endswith('.png'):
-                elements.append(Paragraph(f"Reference to image: {os.path.basename(results[1])}", styles['XDA_Normal']))
+                elements.append(Paragraph(f"Reference to image: {os.path.basename(results[1])}", styles['XDA_Normal'])
+)
                 elements.append(Image(results[1], width=6*inch, height=4*inch))
 
             elements.append(Spacer(1, 12))
@@ -79,13 +80,15 @@ class PDFReportGenerator:
 
     def _create_styles(self):
         styles = getSampleStyleSheet()
-        styles.add(ParagraphStyle(name='XDA_Title', parent=styles['Title'], fontSize=24, alignment=TA_CENTER, spaceAfter=24, textColor=colors.white, backColor=colors.Color(*SAGE_GREEN_RGB)))
+        styles.add(ParagraphStyle(name='XDA_Title', parent=styles['Title'], fontSize=24, alignment=TA_LEFT, spaceAfter=24, textColor=colors.white, backColor=colors.Color(*SAGE_GREEN_RGB)))
         styles.add(ParagraphStyle(name='XDA_Normal', parent=styles['Normal'], fontSize=12, alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.black, fontName='Helvetica'))
         styles.add(ParagraphStyle(name='XDA_Important', parent=styles['Normal'], fontSize=14, alignment=TA_LEFT, spaceAfter=12, textColor=colors.Color(*DARK_BLUE_RGB), fontName='Helvetica-Bold'))
         styles.add(ParagraphStyle(name='XDA_Positive', parent=styles['Normal'], fontSize=12, alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.green, fontName='Helvetica-Bold'))
         styles.add(ParagraphStyle(name='XDA_Negative', parent=styles['Normal'], fontSize=12, alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.red, fontName='Helvetica-Bold'))
         styles.add(ParagraphStyle(name='XDA_Conclusion', parent=styles['Normal'], fontSize=12, alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.Color(*SAGE_GREEN_RGB), fontName='Helvetica-Bold'))
         styles.add(ParagraphStyle(name='XDA_Bullet', parent=styles['Normal'], fontSize=12, alignment=TA_JUSTIFY, spaceAfter=6, leftIndent=20, textColor=colors.black))
+        styles.add(ParagraphStyle(name='XDA_Code', parent=styles['Code'], fontSize=10, textColor=colors.black, backColor=colors.lightgrey, fontName='Courier'))
+        styles.add(ParagraphStyle(name='XDA_Limitations', parent=styles['Normal'], fontSize=12, alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.black, fontName='Helvetica-Bold'))
         return styles
 
     def _create_cover_page(self, doc, styles):
@@ -120,7 +123,7 @@ class PDFReportGenerator:
         # Header
         canvas.setFillColor(colors.Color(*DARK_BLUE_RGB))
         canvas.setFont('Helvetica-Bold', 12)
-        canvas.drawString(inch, doc.pagesize[1] - inch, "Exploratory Data Analysis Report")
+        canvas.drawString(inch, doc.pagesize[1] - inch + 10, "Exploratory Data Analysis Report")
         
         # Footer
         canvas.setFillColor(colors.grey)
@@ -130,25 +133,43 @@ class PDFReportGenerator:
 
         canvas.restoreState()
 
-    def _markdown_to_reportlab(self, md_text, styles):
-        try:
-            html = markdown.markdown(md_text)
-        except Exception as e:
-            print(f"Error converting markdown to HTML: {str(e)}")
-            return [Paragraph(md_text, styles['XDA_Normal'])]
 
+    def _markdown_to_reportlab(self, md_text, styles):
         elements = []
-        current_section = 'Normal'
-        for line in html.split('\n'):
-            line = line.strip()
-            if not line:
-                continue
-            
-            try:
+        try:
+            # Pre-process the markdown to remove "```markdown" lines
+            md_text = re.sub(r'^```markdown\s*$', '', md_text, flags=re.MULTILINE)
+            md_text = re.sub(r'^```\s*$', '', md_text, flags=re.MULTILINE)
+
+            html = markdown.markdown(md_text)
+            current_section = 'Normal'
+            in_code_block = False
+            code_block_content = []
+
+            for line in html.split('\n'):
+                line = line.strip()
+                if not line:
+                    continue
+                
+                if line.startswith('<pre><code>'):
+                    in_code_block = True
+                    continue
+                
+                if in_code_block:
+                    if line == '</code></pre>':
+                        in_code_block = False
+                        elements.append(Preformatted('\n'.join(code_block_content), styles['XDA_Code']))
+                        code_block_content = []
+                    else:
+                        code_block_content.append(line)
+                    continue
+
                 if line.startswith('<h1>') or line.startswith('<h2>') or line.startswith('<h3>') or line.startswith('<h4>'):
                     heading = re.sub('<[^<]+?>', '', line)
                     heading = re.sub(r'^\d+\.?\s*', '', heading)
                     elements.append(Paragraph(heading, styles['XDA_Important']))
+                elif line.lower().startswith('<p>limitations'):
+                    elements.append(Paragraph(re.sub('<[^<]+?>', '', line), styles['XDA_Limitations']))
                 elif line.lower().startswith('<p>analysis') or line.lower().startswith('<p>the '):
                     current_section = 'Normal'
                     elements.append(Paragraph(re.sub('<[^<]+?>', '', line), styles['XDA_Normal']))
@@ -179,9 +200,8 @@ class PDFReportGenerator:
                     # For any other content, just add it as normal text
                     cleaned_line = re.sub('<[^<]+?>', '', line)
                     elements.append(Paragraph(cleaned_line, styles[f'XDA_{current_section}']))
-            except Exception as e:
-                print(f"Error processing line: {line}. Error: {str(e)}")
-                # Add the problematic line as plain text
-                elements.append(Paragraph(line, styles['XDA_Normal']))
+        except Exception as e:
+            print(f"Error processing markdown: {str(e)}")
+            elements.append(Paragraph(md_text, styles['XDA_Normal']))
 
         return elements
