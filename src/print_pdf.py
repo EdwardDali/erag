@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 
-
 import os
 from datetime import datetime
 import markdown
@@ -9,12 +8,14 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, 
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 from reportlab.lib.units import inch
-from reportlab.lib.enums import TA_JUSTIFY, TA_CENTER
+from reportlab.lib.enums import TA_JUSTIFY, TA_CENTER, TA_LEFT
 import re
 
 # Define RGB values for custom colors
 SAGE_GREEN_RGB = (125/255, 169/255, 133/255)
 DUSTY_PINK_RGB = (173/255, 142/255, 148/255)
+DARK_BLUE_RGB = (34/255, 34/255, 59/255)
+LIGHT_GREY_RGB = (242/255, 242/255, 242/255)
 
 class PDFReportGenerator:
     def __init__(self, output_folder, llm_name):
@@ -62,7 +63,7 @@ class PDFReportGenerator:
             elements.append(PageBreak())
 
         try:
-            doc.build(elements)
+            doc.build(elements, onFirstPage=self._add_header_footer, onLaterPages=self._add_header_footer)
             print(f"PDF report saved to {pdf_file}")
             return pdf_file
         except Exception as e:
@@ -79,8 +80,8 @@ class PDFReportGenerator:
     def _create_styles(self):
         styles = getSampleStyleSheet()
         styles.add(ParagraphStyle(name='XDA_Title', parent=styles['Title'], fontSize=24, alignment=TA_CENTER, spaceAfter=24, textColor=colors.white, backColor=colors.Color(*SAGE_GREEN_RGB)))
-        styles.add(ParagraphStyle(name='XDA_Normal', parent=styles['Normal'], fontSize=12, alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.black))
-        styles.add(ParagraphStyle(name='XDA_Important', parent=styles['Normal'], fontSize=12, alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.blue, fontName='Helvetica-Bold'))
+        styles.add(ParagraphStyle(name='XDA_Normal', parent=styles['Normal'], fontSize=12, alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.black, fontName='Helvetica'))
+        styles.add(ParagraphStyle(name='XDA_Important', parent=styles['Normal'], fontSize=14, alignment=TA_LEFT, spaceAfter=12, textColor=colors.Color(*DARK_BLUE_RGB), fontName='Helvetica-Bold'))
         styles.add(ParagraphStyle(name='XDA_Positive', parent=styles['Normal'], fontSize=12, alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.green, fontName='Helvetica-Bold'))
         styles.add(ParagraphStyle(name='XDA_Negative', parent=styles['Normal'], fontSize=12, alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.red, fontName='Helvetica-Bold'))
         styles.add(ParagraphStyle(name='XDA_Conclusion', parent=styles['Normal'], fontSize=12, alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.Color(*SAGE_GREEN_RGB), fontName='Helvetica-Bold'))
@@ -99,6 +100,7 @@ class PDFReportGenerator:
         doc.addPageTemplates([cover_template])
 
         elements = []
+        elements.append(Spacer(1, 2*inch))
         elements.append(Paragraph("Exploratory Data Analysis Report", styles['XDA_Title']))
         elements.append(Spacer(1, 12))
         elements.append(Paragraph(f"Generated on: {datetime.now().strftime('%Y-%m-%d')}", styles['XDA_Normal']))
@@ -111,6 +113,22 @@ class PDFReportGenerator:
         doc.addPageTemplates([normal_template])
 
         return elements
+
+    def _add_header_footer(self, canvas, doc):
+        canvas.saveState()
+        
+        # Header
+        canvas.setFillColor(colors.Color(*DARK_BLUE_RGB))
+        canvas.setFont('Helvetica-Bold', 12)
+        canvas.drawString(inch, doc.pagesize[1] - inch, "Exploratory Data Analysis Report")
+        
+        # Footer
+        canvas.setFillColor(colors.grey)
+        canvas.setFont('Helvetica', 9)
+        canvas.drawString(inch, 0.75 * inch, f"Page {doc.page}")
+        canvas.drawRightString(doc.pagesize[0] - inch, 0.75 * inch, "Powered by ERAG")
+
+        canvas.restoreState()
 
     def _markdown_to_reportlab(self, md_text, styles):
         try:
