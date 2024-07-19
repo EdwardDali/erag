@@ -83,22 +83,23 @@ class ExploratoryDataAnalysis:
         if len(numerical_columns) > 0:
             results = []
             for col in numerical_columns:
-                plt.figure(figsize=(10, 6))
+                plt.figure(figsize=(12, 6))
                 
                 # Plot histogram for all data
                 sns.histplot(df[col], kde=True, color=SAGE_GREEN_RGB)
                 
-                # Get top 10 most frequent values for text labels
+                # Get top 10 most frequent values
                 top_10_values = df[col].value_counts().nlargest(10)
                 
-                # Add text labels only for top 10 values
-                for value, count in top_10_values.items():
-                    plt.text(value, count, f'{count}', ha='center', va='bottom')
+                # Prepare x-ticks and labels for top 10 values
+                xticks = list(top_10_values.index)
+                xlabels = [f'{x:.2f}' if isinstance(x, float) else str(x) for x in xticks]
                 
                 plt.title(f'Distribution of {col}')
                 plt.xlabel(col)
                 plt.ylabel('Count')
-                plt.xticks(rotation=45, ha='right')
+                plt.xticks(xticks, xlabels, rotation=45, ha='right')
+                plt.tight_layout()
                 img_path = os.path.join(self.output_folder, f"{table_name}_{col}_distribution.png")
                 plt.savefig(img_path, dpi=300, bbox_inches='tight')
                 plt.close()
@@ -106,6 +107,7 @@ class ExploratoryDataAnalysis:
         else:
             results = "N/A - No numerical features found"
         self.interpret_results(f"{self.technique_counter}. Numerical Features Distribution", results, table_name)
+
 
 
     def correlation_analysis(self, df, table_name):
@@ -132,24 +134,27 @@ class ExploratoryDataAnalysis:
         if len(categorical_columns) > 0:
             results = []
             for col in categorical_columns:
-                plt.figure(figsize=(10, 6))
+                plt.figure(figsize=(12, 6))
                 value_counts = df[col].value_counts()
+                
+                # Get top 10 categories
+                top_10 = value_counts.nlargest(10)
                 
                 # Plot bar chart for all data
                 sns.barplot(x=value_counts.index, y=value_counts.values, color=DUSTY_PINK_RGB)
                 
-                # Add text labels only for top 10 values
-                for i, (value, count) in enumerate(value_counts.nlargest(10).items()):
-                    plt.text(i, count, f'{count}', ha='center', va='bottom')
-                
                 plt.title(f'Distribution of {col}')
                 plt.xlabel(col)
                 plt.ylabel('Count')
-                plt.xticks(rotation=45, ha='right')
+                
+                # Set x-ticks and labels for top 10 categories
+                plt.xticks(range(len(top_10)), top_10.index, rotation=45, ha='right')
+                
+                plt.tight_layout()
                 img_path = os.path.join(self.output_folder, f"{table_name}_{col}_distribution.png")
                 plt.savefig(img_path, dpi=300, bbox_inches='tight')
                 plt.close()
-                results.append((f"Value counts for {col} (Top 10):\n{value_counts.nlargest(10).to_string()}", img_path))
+                results.append((f"Value counts for {col} (Top 10):\n{top_10.to_string()}", img_path))
         else:
             results = "N/A - No categorical features found"
         self.interpret_results(f"{self.technique_counter}. Categorical Features Analysis", results, table_name)
