@@ -53,11 +53,10 @@ class PDFReportGenerator:
                 for item in results:
                     if isinstance(item, tuple) and len(item) == 2:
                         description, img_path = item
-                        elements.append(Paragraph(f"Reference to image: {os.path.basename(img_path)}", styles['XDA_Normal']))
+                        elements.append(Paragraph(description, styles['XDA_Caption']))
                         elements.append(Image(img_path, width=6*inch, height=4*inch))
             elif isinstance(results, tuple) and len(results) == 2 and isinstance(results[1], str) and results[1].endswith('.png'):
-                elements.append(Paragraph(f"Reference to image: {os.path.basename(results[1])}", styles['XDA_Normal'])
-)
+                elements.append(Paragraph(results[0], styles['XDA_Caption']))
                 elements.append(Image(results[1], width=6*inch, height=4*inch))
 
             elements.append(Spacer(1, 12))
@@ -89,6 +88,7 @@ class PDFReportGenerator:
         styles.add(ParagraphStyle(name='XDA_Bullet', parent=styles['Normal'], fontSize=10, alignment=TA_JUSTIFY, spaceAfter=6, leftIndent=20, textColor=colors.black))
         styles.add(ParagraphStyle(name='XDA_Code', parent=styles['Code'], fontSize=8, textColor=colors.black, backColor=colors.lightgrey, fontName='Courier'))
         styles.add(ParagraphStyle(name='XDA_Limitations', parent=styles['Normal'], fontSize=10, alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.black, fontName='Helvetica-Bold'))
+        styles.add(ParagraphStyle(name='XDA_Caption', parent=styles['Normal'], fontSize=8, alignment=TA_LEFT, spaceAfter=6, textColor=colors.black, fontName='Helvetica-Bold'))
         return styles
 
     def _create_cover_page(self, doc, styles):
@@ -137,7 +137,6 @@ class PDFReportGenerator:
     def _markdown_to_reportlab(self, md_text, styles):
         elements = []
         try:
-            # Pre-process the markdown to remove "```markdown" lines
             md_text = re.sub(r'^```markdown\s*$', '', md_text, flags=re.MULTILINE)
             md_text = re.sub(r'^```\s*$', '', md_text, flags=re.MULTILINE)
 
@@ -200,8 +199,15 @@ class PDFReportGenerator:
                     # For any other content, just add it as normal text
                     cleaned_line = re.sub('<[^<]+?>', '', line)
                     elements.append(Paragraph(cleaned_line, styles[f'XDA_{current_section}']))
+
         except Exception as e:
             print(f"Error processing markdown: {str(e)}")
             elements.append(Paragraph(md_text, styles['XDA_Normal']))
+
+        # Add captions to images
+        for i, element in enumerate(elements):
+            if isinstance(element, Image):
+                caption = elements[i-1].text if i > 0 and isinstance(elements[i-1], Paragraph) else "Figure"
+                elements[i-1] = Paragraph(f"<b>{caption}</b>", styles['XDA_Caption'])
 
         return elements

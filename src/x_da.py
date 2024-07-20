@@ -9,6 +9,13 @@ from src.api_model import EragAPI
 from src.settings import settings
 from src.look_and_feel import error, success, warning, info, highlight
 from src.print_pdf import PDFReportGenerator
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend
+import matplotlib.pyplot as plt
+import seaborn as sns
+from matplotlib.font_manager import FontProperties
+import threading
+import numpy as np
 
 # Define RGB values for custom colors
 SAGE_GREEN_RGB = (125/255, 169/255, 133/255)
@@ -31,6 +38,19 @@ class ExploratoryDataAnalysis:
         self.image_paths = []
         self.DARK_BLUE_RGB = (34/255, 34/255, 59/255)
         self.LIGHT_GREY_RGB = (242/255, 242/255, 242/255)
+        self.cmap = plt.cm.coolwarm
+        self.max_pixels = 3000000  # Reduced from 5000000 to 3000000
+
+    def calculate_figure_size(self, aspect_ratio=16/9):
+        max_width = int(np.sqrt(self.max_pixels * aspect_ratio))
+        max_height = int(max_width / aspect_ratio)
+        return (max_width / 100, max_height / 100)
+
+    def _setup_plot(self, title):
+        fig, ax = plt.subplots(figsize=self.calculate_figure_size())
+        plt.rcParams['font.size'] = 12  # Increase font size
+        ax.set_title(title, fontsize=14)
+        return fig, ax
 
     def run(self):
         print(info(f"Starting Exploratory Data Analysis on {self.db_path}"))
@@ -57,11 +77,18 @@ class ExploratoryDataAnalysis:
         with sqlite3.connect(self.db_path) as conn:
             df = pd.read_sql_query(f"SELECT * FROM {table_name}", conn)
 
-        self.basic_statistics(df, table_name)
-        self.data_types_and_missing_values(df, table_name)
-        self.numerical_features_distribution(df, table_name)
-        self.correlation_analysis(df, table_name)
-        self.categorical_features_analysis(df, table_name)
+        analysis_methods = [
+            self.basic_statistics,
+            self.data_types_and_missing_values,
+            self.numerical_features_distribution,
+            self.correlation_analysis,
+            self.categorical_features_analysis
+        ]
+
+        for method in analysis_methods:
+            thread = threading.Thread(target=method, args=(df, table_name))
+            thread.start()
+            thread.join()
 
     def basic_statistics(self, df, table_name):
         self.technique_counter += 1
@@ -85,28 +112,27 @@ class ExploratoryDataAnalysis:
         if len(numerical_columns) > 0:
             results = []
             for col in numerical_columns:
-                plt.figure(figsize=(12, 6))
-                plt.rcParams['axes.facecolor'] = self.LIGHT_GREY_RGB
+                fig, ax = self._setup_plot(f'Distribution of {col}')
+                plt.rcParams['axes.facecolor'] = 'white'
                 
-                # Plot histogram for all data
-                sns.histplot(df[col], kde=True, color=self.DARK_BLUE_RGB)
+                n, bins, patches = ax.hist(df[col], bins=30, edgecolor='black')
                 
-                # Get top 10 most frequent values
-                top_10_values = df[col].value_counts().nlargest(10)
+                bin_centers = 0.5 * (bins[:-1] + bins[1:])
+                col_val = bin_centers - min(bin_centers)
+                col_val = col_val / max(col_val)
+                for c, p in zip(col_val, patches):
+                    plt.setp(p, 'facecolor', self.cmap(c))
                 
-                # Prepare x-ticks and labels for top 10 values
-                xticks = list(top_10_values.index)
-                xlabels = [f'{x:.2f}' if isinstance(x, float) else str(x) for x in xticks]
+                sns.kdeplot(df[col], ax=ax, color='black', linewidth=2)
                 
-                plt.title(f'Distribution of {col}')
-                plt.xlabel(col)
-                plt.ylabel('Count')
-                plt.xticks(xticks, xlabels, rotation=0, ha='center')
+                ax.set_xlabel(col)
+                ax.set_ylabel('Count')
+                ax.tick_params(axis='both', which='major', labelsize=10)  # Increase tick label size
                 plt.tight_layout()
                 img_path = os.path.join(self.output_folder, f"{table_name}_{col}_distribution.png")
-                plt.savefig(img_path, dpi=300, bbox_inches='tight')
-                plt.close()
-                results.append((f"Distribution stats for {col}:\n{df[col].describe().to_string()}", img_path))
+                plt.savefig(img_path, dpi=100, bbox_inches='tight')
+                plt.close(fig)
+                results.append((f"Distribution of {col}", img_path))
         else:
             results = "N/A - No numerical features found"
         self.interpret_results(f"{self.technique_counter}. Numerical Features Distribution", results, table_name)
@@ -119,13 +145,13 @@ class ExploratoryDataAnalysis:
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
         if len(numerical_columns) > 1:
             correlation_matrix = df[numerical_columns].corr()
-            plt.figure(figsize=(12, 10))
-            sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', vmin=-1, vmax=1, center=0)
-            plt.title('Correlation Matrix Heatmap')
+            fig, ax = self._setup_plot('Correlation Matrix Heatmap')
+            sns.heatmap(correlation_matrix, annot=True, cmap=self.cmap, vmin=-1, vmax=1, center=0, ax=ax, annot_kws={"size": 8})
+            plt.tight_layout()
             img_path = os.path.join(self.output_folder, f"{table_name}_correlation_matrix.png")
-            plt.savefig(img_path, dpi=300, bbox_inches='tight')
-            plt.close()
-            results = (correlation_matrix, img_path)
+            plt.savefig(img_path, dpi=100, bbox_inches='tight')
+            plt.close(fig)
+            results = ("Correlation Matrix", img_path)
         else:
             results = "N/A - Not enough numerical features for correlation analysis"
         self.interpret_results(f"{self.technique_counter}. Correlation Analysis", results, table_name)
@@ -137,28 +163,35 @@ class ExploratoryDataAnalysis:
         if len(categorical_columns) > 0:
             results = []
             for col in categorical_columns:
-                plt.figure(figsize=(12, 6))
-                plt.rcParams['axes.facecolor'] = self.LIGHT_GREY_RGB
-                value_counts = df[col].value_counts()
+                fig, ax = self._setup_plot(f'Top 10 Categories Distribution of {col}')
+                plt.rcParams['axes.facecolor'] = 'white'
                 
-                # Get top 10 categories
-                top_10 = value_counts.nlargest(10)
+                value_counts = df[col].value_counts().nlargest(10)
                 
-                # Plot bar chart for all data
-                sns.barplot(x=value_counts.index, y=value_counts.values, color=self.DARK_BLUE_RGB)
+                bars = ax.bar(range(len(value_counts)), value_counts.values)
                 
-                plt.title(f'Distribution of {col}')
-                plt.xlabel(col)
-                plt.ylabel('Count')
+                for i, bar in enumerate(bars):
+                    bar.set_facecolor(self.cmap(i / len(value_counts)))
+                    bar.set_edgecolor('black')
                 
-                # Set x-ticks and labels for top 10 categories
-                plt.xticks(range(len(top_10)), top_10.index, rotation=0, ha='center')
+                ax.set_xlabel(col)
+                ax.set_ylabel('Count')
                 
+                ax.set_xticks(range(len(value_counts)))
+                ax.set_xticklabels(value_counts.index, rotation=45, ha='right')
+                
+                font = FontProperties(family='DejaVu Sans', size=8)
+                for label in ax.get_xticklabels():
+                    label.set_fontproperties(font)
+                
+                ax.tick_params(axis='both', which='major', labelsize=8)  # Adjust tick label size
                 plt.tight_layout()
                 img_path = os.path.join(self.output_folder, f"{table_name}_{col}_distribution.png")
-                plt.savefig(img_path, dpi=300, bbox_inches='tight')
-                plt.close()
-                results.append((f"Value counts for {col} (Top 10):\n{top_10.to_string()}", img_path))
+                plt.savefig(img_path, dpi=100, bbox_inches='tight')
+                plt.close(fig)
+                
+                all_categories_summary = df[col].value_counts().to_string()
+                results.append((f"Distribution of {col}", img_path))
         else:
             results = "N/A - No categorical features found"
         self.interpret_results(f"{self.technique_counter}. Categorical Features Analysis", results, table_name)
