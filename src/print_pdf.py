@@ -24,7 +24,7 @@ class PDFReportGenerator:
         self.output_folder = output_folder
         self.llm_name = llm_name
 
-    def create_enhanced_pdf_report(self, executive_summary, findings, pdf_content, image_paths, filename="xda_report"):
+    def create_enhanced_pdf_report(self, executive_summary, findings, pdf_content, image_data, filename="xda_report"):
         pdf_file = os.path.join(self.output_folder, f"{filename}.pdf")
         doc = SimpleDocTemplate(pdf_file, pagesize=A4)
 
@@ -47,21 +47,20 @@ class PDFReportGenerator:
             elements.append(PageBreak())
 
         # Main content
+         # Main content
         for analysis_type, results, interpretation in pdf_content:
             elements.append(Paragraph(analysis_type, styles['XDA_Important']))
             elements.extend(self._markdown_to_reportlab(interpretation, styles))
 
-            if isinstance(results, list):
-                for item in results:
-                    if isinstance(item, tuple) and len(item) == 2:
-                        description, img_path = item
-                        elements.append(Paragraph(description, styles['XDA_Caption']))
-                        elements.append(Image(img_path, width=6*inch, height=4*inch))
-            elif isinstance(results, tuple) and len(results) == 2 and isinstance(results[1], str) and results[1].endswith('.png'):
-                elements.append(Paragraph(results[0], styles['XDA_Caption']))
-                elements.append(Image(results[1], width=6*inch, height=4*inch))
+            # Add images for this analysis type
+            analysis_images = [img for img in image_data if img[0].startswith(analysis_type)]
+            for description, img_path in analysis_images:
+                if os.path.exists(img_path):
+                    elements.append(Paragraph(description, styles['XDA_Caption']))
+                    img = Image(img_path, width=6*inch, height=4*inch)
+                    elements.append(img)
+                    elements.append(Spacer(1, 12))
 
-            elements.append(Spacer(1, 12))
             elements.append(PageBreak())
 
         try:

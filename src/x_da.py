@@ -428,16 +428,16 @@ class ExploratoryDataAnalysis:
         
         self.text_output += f"\n{enhanced_interpretation.strip()}\n\n"
         
-        # Prepare image data for PDF content
+        # Handle images
         image_data = []
-        if isinstance(results, tuple) and len(results) == 2 and isinstance(results[1], str) and results[1].endswith('.png'):
+        if isinstance(results, tuple) and len(results) == 2 and isinstance(results[1], str) and results[1].endswith(('.png', '.jpg', '.jpeg', '.gif')):
             image_data.append((f"{analysis_type} - Image", results[1]))
-            self.image_paths.append(results[1])
         elif isinstance(results, list):
             for i, item in enumerate(results):
-                if isinstance(item, tuple) and len(item) == 2 and isinstance(item[1], str) and item[1].endswith('.png'):
-                    image_data.append((f"{analysis_type} - Image {i+1}", item[1]))
-                    self.image_paths.append(item[1])
+                if isinstance(item, str) and item.endswith(('.png', '.jpg', '.jpeg', '.gif')):
+                    image_data.append((f"{analysis_type} - Image {i+1}", item))
+                elif isinstance(item, tuple) and len(item) == 2 and isinstance(item[1], str) and item[1].endswith(('.png', '.jpg', '.jpeg', '.gif')):
+                    image_data.append((f"{analysis_type} - {item[0]}", item[1]))
         
         self.pdf_content.append((analysis_type, image_data, enhanced_interpretation.strip()))
         
@@ -450,6 +450,9 @@ class ExploratoryDataAnalysis:
                         self.findings.append(f"{analysis_type}: {finding.strip()}")
                     elif finding.startswith(("3.", "4.", "5.")):
                         break
+
+        # Update self.image_data
+        self.image_data.extend(image_data)
 
     
     def generate_executive_summary(self):
@@ -520,7 +523,7 @@ class ExploratoryDataAnalysis:
             self.executive_summary,
             self.findings,
             self.pdf_content,
-            self.image_paths
+            self.image_data  # Pass self.image_data to the PDF generator
         )
         if pdf_file:
             print(success(f"PDF report generated successfully: {pdf_file}"))
