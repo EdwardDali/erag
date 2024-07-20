@@ -1,9 +1,9 @@
-# -*- coding: utf-8 -*-
-
 import sqlite3
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+import numpy as np
+from scipy.stats import norm, anderson, pearsonr, probplot
 import os
 from src.api_model import EragAPI
 from src.settings import settings
@@ -11,15 +11,12 @@ from src.look_and_feel import error, success, warning, info, highlight
 from src.print_pdf import PDFReportGenerator
 import matplotlib
 matplotlib.use('Agg')  # Use non-interactive backend
-import matplotlib.pyplot as plt
-import seaborn as sns
-from matplotlib.font_manager import FontProperties
 import threading
-import numpy as np
+import time
+from functools import wraps
 
-# Define RGB values for custom colors
-SAGE_GREEN_RGB = (125/255, 169/255, 133/255)
-DUSTY_PINK_RGB = (173/255, 142/255, 148/255)
+class TimeoutException(Exception):
+    pass
 
 class ExploratoryDataAnalysis:
     def __init__(self, erag_api, db_path):
@@ -36,21 +33,44 @@ class ExploratoryDataAnalysis:
         self.toc_entries = []
         self.executive_summary = ""
         self.image_paths = []
-        self.DARK_BLUE_RGB = (34/255, 34/255, 59/255)
-        self.LIGHT_GREY_RGB = (242/255, 242/255, 242/255)
-        self.cmap = plt.cm.coolwarm
-        self.max_pixels = 400000  
+        self.max_pixels = 400000
+        self.timeout_seconds = 10
+        self.image_data = []
 
     def calculate_figure_size(self, aspect_ratio=16/9):
         max_width = int(np.sqrt(self.max_pixels * aspect_ratio))
         max_height = int(max_width / aspect_ratio)
         return (max_width / 100, max_height / 100)
 
-    def _setup_plot(self, title):
-        fig, ax = plt.subplots(figsize=self.calculate_figure_size())
-        plt.rcParams['font.size'] = 12  # Increase font size
-        ax.set_title(title, fontsize=14)
-        return fig, ax
+    def timeout(timeout_duration):
+        def decorator(func):
+            @wraps(func)
+            def wrapper(self, *args, **kwargs):
+                result = [TimeoutException("Function call timed out")]
+
+                def target():
+                    try:
+                        result[0] = func(self, *args, **kwargs)
+                    except Exception as e:
+                        result[0] = e
+
+                thread = threading.Thread(target=target)
+                thread.start()
+                thread.join(timeout_duration)
+
+                if thread.is_alive():
+                    print(f"Warning: {func.__name__} timed out after {timeout_duration} seconds. Skipping this graphic.")
+                    return None
+                else:
+                    if isinstance(result[0], Exception):
+                        raise result[0]
+                    return result[0]
+            return wrapper
+        return decorator
+
+    @timeout(10)
+    def generate_plot(self, plot_function, *args, **kwargs):
+        return plot_function(*args, **kwargs)
 
     def run(self):
         print(info(f"Starting Exploratory Data Analysis on {self.db_path}"))
@@ -83,18 +103,137 @@ class ExploratoryDataAnalysis:
             self.numerical_features_distribution,
             self.correlation_analysis,
             self.categorical_features_analysis
+            # Target vs Features Analysis removed
         ]
 
         for method in analysis_methods:
-            thread = threading.Thread(target=method, args=(df, table_name))
-            thread.start()
-            thread.join()
+            method(df, table_name)
 
     def basic_statistics(self, df, table_name):
         self.technique_counter += 1
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Basic Statistics"))
-        stats = df.describe()
-        self.interpret_results(f"{self.technique_counter}. Basic Statistics", stats, table_name)
+        
+        numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
+        image_paths = []
+        for col in numerical_columns:
+            data = df[col].dropna()
+            
+            # Calculate statistics
+            mean = np.mean(data)
+            std_dev = np.std(data, ddof=1)
+            median = np.median(data)
+            variance = np.var(data, ddof=1)
+            skewness = data.skew()
+            kurtosis = data.kurt()
+            n = len(data)
+            ci_mean = [mean - 1.96 * (std_dev / np.sqrt(n)), mean + 1.96 * (std_dev / np.sqrt(n))]
+            ci_median = [np.percentile(data, 25), np.percentile(data, 75)]
+            ci_std_dev = [std_dev - 1.96 * (std_dev / np.sqrt(2 * (n - 1))), std_dev + 1.96 * (std_dev / np.sqrt(2 * (n - 1)))]
+            ad_stat, _, ad_significance = anderson(data)
+
+            # Histogram with normal curve
+            def plot_histogram():
+                fig, ax = plt.subplots(figsize=self.calculate_figure_size())
+                sns.histplot(data, kde=False, bins=30, ax=ax, color='skyblue', edgecolor='black')
+                xmin, xmax = ax.get_xlim()
+                x = np.linspace(xmin, xmax, 100)
+                p = norm.pdf(x, mean, std_dev)
+                ax.plot(x, p * len(data) * (xmax - xmin) / 30, 'r--', linewidth=2)
+                ax.set_title(f'{col}: Histogram with Normal Curve')
+                ax.set_xlabel('Data')
+                ax.set_ylabel('Frequency')
+                return fig, ax
+
+            result = self.generate_plot(plot_histogram)
+            if result is not None:
+                fig, ax = result
+                img_path = os.path.join(self.output_folder, f"{table_name}_{col}_histogram.png")
+                plt.savefig(img_path, dpi=100, bbox_inches='tight')
+                plt.close(fig)
+                image_paths.append(img_path)
+            else:
+                print(f"Skipping histogram for {col} due to timeout.")
+
+            # Boxplot
+            def plot_boxplot():
+                fig, ax = plt.subplots(figsize=self.calculate_figure_size())
+                sns.boxplot(x=data, ax=ax)
+                ax.set_title(f'{col}: Boxplot')
+                ax.set_xlabel('Data')
+                return fig, ax
+
+            result = self.generate_plot(plot_boxplot)
+            if result is not None:
+                fig, ax = result
+                img_path = os.path.join(self.output_folder, f"{table_name}_{col}_boxplot.png")
+                plt.savefig(img_path, dpi=100, bbox_inches='tight')
+                plt.close(fig)
+                image_paths.append(img_path)
+            else:
+                print(f"Skipping boxplot for {col} due to timeout.")
+
+            # Confidence Intervals
+            def plot_confidence_intervals():
+                fig, ax = plt.subplots(figsize=self.calculate_figure_size())
+                ax.errorbar(mean, 0, xerr=[[mean - ci_mean[0]], [ci_mean[1] - mean]], fmt='o', color='blue', label='Mean')
+                ax.errorbar(median, 0, xerr=[[median - ci_median[0]], [ci_median[1] - median]], fmt='o', color='green', label='Median')
+                ax.errorbar(std_dev, 0, xerr=[[std_dev - ci_std_dev[0]], [ci_std_dev[1] - std_dev]], fmt='o', color='red', label='Std Dev')
+                ax.legend()
+                ax.set_title(f'{col}: 95% Confidence Intervals')
+                ax.set_yticks([])
+                return fig, ax
+
+            result = self.generate_plot(plot_confidence_intervals)
+            if result is not None:
+                fig, ax = result
+                img_path = os.path.join(self.output_folder, f"{table_name}_{col}_confidence_intervals.png")
+                plt.savefig(img_path, dpi=100, bbox_inches='tight')
+                plt.close(fig)
+                image_paths.append(img_path)
+            else:
+                print(f"Skipping confidence intervals for {col} due to timeout.")
+
+            # Anderson-Darling Normality Test
+            def plot_anderson_darling():
+                fig, ax = plt.subplots(figsize=self.calculate_figure_size())
+                summary_text = f"""
+                Anderson-Darling Normality Test
+                A-Squared: {ad_stat:.2f}
+                P-Value: {ad_significance[2] if ad_stat < ad_significance[2] else ad_significance[-1]:.3f}
+
+                Mean: {mean:.2f}
+                StDev: {std_dev:.4f}
+                Variance: {variance:.4f}
+                Skewness: {skewness:.6f}
+                Kurtosis: {kurtosis:.6f}
+                N: {n}
+
+                Minimum: {np.min(data):.2f}
+                1st Quartile: {np.percentile(data, 25):.2f}
+                Median: {median:.2f}
+                3rd Quartile: {np.percentile(data, 75):.2f}
+                Maximum: {np.max(data):.2f}
+
+                95% CI for Mean: {ci_mean[0]:.4f}, {ci_mean[1]:.4f}
+                95% CI for Median: {ci_median[0]:.4f}, {ci_median[1]:.4f}
+                95% CI for Std Dev: {ci_std_dev[0]:.4f}, {ci_std_dev[1]:.4f}
+                """
+                ax.text(0.5, 0.5, summary_text, ha='center', va='center', fontsize=10, bbox=dict(facecolor='white', alpha=0.8))
+                ax.set_title(f'{col}: Anderson-Darling Normality Test')
+                ax.axis('off')
+                return fig, ax
+
+            result = self.generate_plot(plot_anderson_darling)
+            if result is not None:
+                fig, ax = result
+                img_path = os.path.join(self.output_folder, f"{table_name}_{col}_anderson_darling.png")
+                plt.savefig(img_path, dpi=100, bbox_inches='tight')
+                plt.close(fig)
+                image_paths.append(img_path)
+            else:
+                print(f"Skipping Anderson-Darling test for {col} due to timeout.")
+
+        self.interpret_results("Basic Statistics", image_paths, table_name)
 
     def data_types_and_missing_values(self, df, table_name):
         self.technique_counter += 1
@@ -108,95 +247,116 @@ class ExploratoryDataAnalysis:
     def numerical_features_distribution(self, df, table_name):
         self.technique_counter += 1
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Numerical Features Distribution"))
+        
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
+        image_paths = []
         if len(numerical_columns) > 0:
-            results = []
             for col in numerical_columns:
-                fig, ax = self._setup_plot(f'Distribution of {col}')
-                plt.rcParams['axes.facecolor'] = 'white'
+                data = df[col].dropna()
                 
-                n, bins, patches = ax.hist(df[col], bins=30, edgecolor='black')
+                # Histogram with KDE
+                def plot_histogram_kde():
+                    fig, ax = plt.subplots(figsize=self.calculate_figure_size())
+                    sns.histplot(data, kde=True, ax=ax, color='skyblue', edgecolor='black')
+                    ax.set_title(f'Distribution of {col}')
+                    ax.set_xlabel(col)
+                    ax.set_ylabel('Frequency')
+                    return fig, ax
+
+                result = self.generate_plot(plot_histogram_kde)
+                if result is not None:
+                    fig, ax = result
+                    img_path = os.path.join(self.output_folder, f"{table_name}_{col}_distribution.png")
+                    plt.savefig(img_path, dpi=100, bbox_inches='tight')
+                    plt.close(fig)
+                    image_paths.append(img_path)
+                else:
+                    print(f"Skipping histogram with KDE for {col} due to timeout.")
                 
-                bin_centers = 0.5 * (bins[:-1] + bins[1:])
-                col_val = bin_centers - min(bin_centers)
-                col_val = col_val / max(col_val)
-                for c, p in zip(col_val, patches):
-                    plt.setp(p, 'facecolor', self.cmap(c))
-                
-                sns.kdeplot(df[col], ax=ax, color='black', linewidth=2)
-                
-                ax.set_xlabel(col)
-                ax.set_ylabel('Count')
-                ax.tick_params(axis='both', which='major', labelsize=10)  # Increase tick label size
-                plt.tight_layout()
-                img_path = os.path.join(self.output_folder, f"{table_name}_{col}_distribution.png")
-                plt.savefig(img_path, dpi=100, bbox_inches='tight')
-                plt.close(fig)
-                results.append((f"Distribution of {col}", img_path))
+                # Q-Q plot
+                def plot_qq():
+                    fig, ax = plt.subplots(figsize=self.calculate_figure_size())
+                    probplot(data, dist="norm", plot=ax)
+                    ax.set_title(f'Q-Q Plot of {col}')
+                    return fig, ax
+
+                result = self.generate_plot(plot_qq)
+                if result is not None:
+                    fig, ax = result
+                    img_path = os.path.join(self.output_folder, f"{table_name}_{col}_qq_plot.png")
+                    plt.savefig(img_path, dpi=100, bbox_inches='tight')
+                    plt.close(fig)
+                    image_paths.append(img_path)
+                else:
+                    print(f"Skipping Q-Q plot for {col} due to timeout.")
+            
+            self.interpret_results("Numerical Features Distribution", image_paths, table_name)
         else:
-            results = "N/A - No numerical features found"
-        self.interpret_results(f"{self.technique_counter}. Numerical Features Distribution", results, table_name)
-
-
+            self.interpret_results("Numerical Features Distribution", "N/A - No numerical features found", table_name)
 
     def correlation_analysis(self, df, table_name):
         self.technique_counter += 1
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Correlation Analysis"))
+        
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
         if len(numerical_columns) > 1:
             correlation_matrix = df[numerical_columns].corr()
-            fig, ax = self._setup_plot('Correlation Matrix Heatmap')
-            sns.heatmap(correlation_matrix, annot=True, cmap=self.cmap, vmin=-1, vmax=1, center=0, ax=ax, annot_kws={"size": 8})
-            plt.tight_layout()
-            img_path = os.path.join(self.output_folder, f"{table_name}_correlation_matrix.png")
-            plt.savefig(img_path, dpi=100, bbox_inches='tight')
-            plt.close(fig)
-            results = ("Correlation Matrix", img_path)
+            
+            def plot_correlation_heatmap():
+                fig, ax = plt.subplots(figsize=self.calculate_figure_size())
+                sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', vmin=-1, vmax=1, center=0, ax=ax)
+                ax.set_title('Correlation Matrix Heatmap')
+                return fig, ax
+
+            result = self.generate_plot(plot_correlation_heatmap)
+            if result is not None:
+                fig, ax = result
+                img_path = os.path.join(self.output_folder, f"{table_name}_correlation_matrix.png")
+                plt.savefig(img_path, dpi=100, bbox_inches='tight')
+                plt.close(fig)
+                self.interpret_results("Correlation Analysis", img_path, table_name)
+            else:
+                print("Skipping correlation heatmap due to timeout.")
+                self.interpret_results("Correlation Analysis", "N/A - Correlation heatmap generation timed out", table_name)
         else:
-            results = "N/A - Not enough numerical features for correlation analysis"
-        self.interpret_results(f"{self.technique_counter}. Correlation Analysis", results, table_name)
+            self.interpret_results("Correlation Analysis", "N/A - Not enough numerical features for correlation analysis", table_name)
 
     def categorical_features_analysis(self, df, table_name):
         self.technique_counter += 1
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Categorical Features Analysis"))
+        
         categorical_columns = df.select_dtypes(include=['object']).columns
+        image_paths = []
         if len(categorical_columns) > 0:
-            results = []
             for col in categorical_columns:
-                fig, ax = self._setup_plot(f'Top 10 Categories Distribution of {col}')
-                plt.rcParams['axes.facecolor'] = 'white'
-                
-                value_counts = df[col].value_counts().nlargest(10)
-                
-                bars = ax.bar(range(len(value_counts)), value_counts.values)
-                
-                for i, bar in enumerate(bars):
-                    bar.set_facecolor(self.cmap(i / len(value_counts)))
-                    bar.set_edgecolor('black')
-                
-                ax.set_xlabel(col)
-                ax.set_ylabel('Count')
-                
-                ax.set_xticks(range(len(value_counts)))
-                ax.set_xticklabels(value_counts.index, rotation=45, ha='right')
-                
-                font = FontProperties(family='DejaVu Sans', size=8)
-                for label in ax.get_xticklabels():
-                    label.set_fontproperties(font)
-                
-                ax.tick_params(axis='both', which='major', labelsize=8)  # Adjust tick label size
-                plt.tight_layout()
-                img_path = os.path.join(self.output_folder, f"{table_name}_{col}_distribution.png")
-                plt.savefig(img_path, dpi=100, bbox_inches='tight')
-                plt.close(fig)
-                
-                all_categories_summary = df[col].value_counts().to_string()
-                results.append((f"Distribution of {col}", img_path))
+                def plot_categorical_distribution():
+                    fig, ax = plt.subplots(figsize=self.calculate_figure_size())
+                    value_counts = df[col].value_counts().nlargest(10)  # Get top 10 categories
+                    sns.barplot(x=value_counts.index, y=value_counts.values, ax=ax, palette='Set3')
+                    ax.set_title(f'Top 10 Categories in {col}')
+                    ax.set_xlabel(col)
+                    ax.set_ylabel('Count')
+                    ax.tick_params(axis='x', rotation=45)
+                    for i, v in enumerate(value_counts.values):
+                        ax.text(i, v, str(v), ha='center', va='bottom')
+                    plt.tight_layout()
+                    return fig, ax
+
+                result = self.generate_plot(plot_categorical_distribution)
+                if result is not None:
+                    fig, ax = result
+                    img_path = os.path.join(self.output_folder, f"{table_name}_{col}_top10_categorical_distribution.png")
+                    plt.savefig(img_path, dpi=100, bbox_inches='tight')
+                    plt.close(fig)
+                    image_paths.append(img_path)
+                else:
+                    print(f"Skipping categorical distribution for {col} due to timeout.")
+            
+            self.interpret_results("Categorical Features Analysis (Top 10 Categories)", image_paths, table_name)
         else:
-            results = "N/A - No categorical features found"
-        self.interpret_results(f"{self.technique_counter}. Categorical Features Analysis", results, table_name)
+            self.interpret_results("Categorical Features Analysis", "N/A - No categorical features found", table_name)
 
-
+    
     def interpret_results(self, analysis_type, results, table_name):
         if isinstance(results, pd.DataFrame):
             results_str = f"DataFrame with shape {results.shape}:\n{results.to_string()}"
@@ -268,7 +428,18 @@ class ExploratoryDataAnalysis:
         
         self.text_output += f"\n{enhanced_interpretation.strip()}\n\n"
         
-        self.pdf_content.append((analysis_type, results, enhanced_interpretation.strip()))
+        # Prepare image data for PDF content
+        image_data = []
+        if isinstance(results, tuple) and len(results) == 2 and isinstance(results[1], str) and results[1].endswith('.png'):
+            image_data.append((f"{analysis_type} - Image", results[1]))
+            self.image_paths.append(results[1])
+        elif isinstance(results, list):
+            for i, item in enumerate(results):
+                if isinstance(item, tuple) and len(item) == 2 and isinstance(item[1], str) and item[1].endswith('.png'):
+                    image_data.append((f"{analysis_type} - Image {i+1}", item[1]))
+                    self.image_paths.append(item[1])
+        
+        self.pdf_content.append((analysis_type, image_data, enhanced_interpretation.strip()))
         
         # Extract important findings
         lines = enhanced_interpretation.strip().split('\n')
@@ -280,14 +451,7 @@ class ExploratoryDataAnalysis:
                     elif finding.startswith(("3.", "4.", "5.")):
                         break
 
-        # Add image paths to the list
-        if isinstance(results, tuple) and len(results) == 2 and isinstance(results[1], str) and results[1].endswith('.png'):
-            self.image_paths.append(results[1])
-        elif isinstance(results, list):
-            for item in results:
-                if isinstance(item, tuple) and len(item) == 2 and isinstance(item[1], str) and item[1].endswith('.png'):
-                    self.image_paths.append(item[1])
-
+    
     def generate_executive_summary(self):
         if not self.findings:
             self.executive_summary = "No significant findings were identified during the analysis. This could be due to a lack of data, uniform data distribution, or absence of notable patterns or anomalies in the dataset."
