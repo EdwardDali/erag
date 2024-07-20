@@ -215,39 +215,31 @@ class ExploratoryDataAnalysis:
 
         Please provide a detailed interpretation of these results, highlighting any noteworthy patterns, anomalies, or insights. Focus on the most important aspects that would be valuable for data analysis.
 
-        Structure your response in Markdown format, following this example structure:
+        Structure your response in the following format:
 
-        ```markdown
-        # {analysis_type}
-
-        ## Analysis
+        1. Analysis:
         [Provide a detailed description of the analysis performed]
 
-        ### Important: [Any crucial point about the analysis]
-        [Details about the important point]
+        2. SQLite Statements:
+        [Provide the SQLite statements that would be used to perform this analysis]
 
-        ## Positive Findings
-        - [Positive finding 1]
-        - [Positive finding 2]
-        - [N/A if no positive findings]
+        3. Positive Findings:
+        [List any positive findings, or state "No significant positive findings" if none]
 
-        ## Negative Findings
-        - [Negative finding 1]
-        - [Negative finding 2]
-        - [N/A if no negative findings]
+        4. Negative Findings:
+        [List any negative findings, or state "No significant negative findings" if none]
 
-        ## Conclusion
+        5. Conclusion:
         [Summarize the key takeaways and implications of this analysis]
-        ```
 
         If there are no significant findings, state "No significant findings" in the appropriate sections and briefly explain why.
 
         Interpretation:
         """
-        interpretation = self.erag_api.chat([{"role": "system", "content": "You are a data analyst providing insights on exploratory data analysis results. Respond in Markdown format."}, 
+        interpretation = self.erag_api.chat([{"role": "system", "content": "You are a data analyst providing insights on exploratory data analysis results. Respond in the requested format."}, 
                                              {"role": "user", "content": prompt}])
         
-        # Updated second LLM call to include original data for accuracy checking
+        # Second LLM call to review and enhance the interpretation
         check_prompt = f"""
         Original data and analysis type:
         {prompt}
@@ -257,11 +249,12 @@ class ExploratoryDataAnalysis:
 
         Please review and improve the above interpretation. Ensure it accurately reflects the original data and analysis type. Enhance the text by:
         1. Verifying the accuracy of the interpretation against the original data.
-        2. Ensuring the Markdown formatting is correct.
+        2. Ensuring the structure (Analysis, SQLite Statements, Positive Findings, Negative Findings, Conclusion) is maintained.
         3. Making the interpretation more narrative and detailed by adding context and explanations.
         4. Addressing any important aspects of the data that weren't covered.
+        5. Verifying and improving the SQLite statements if necessary.
 
-        Provide your response in the same Markdown format, maintaining the original structure. 
+        Provide your response in the same format, maintaining the original structure. 
         Do not add comments, questions, or explanations about the changes - simply provide the improved version.
         """
 
@@ -277,9 +270,15 @@ class ExploratoryDataAnalysis:
         
         self.pdf_content.append((analysis_type, results, enhanced_interpretation.strip()))
         
-        for line in enhanced_interpretation.strip().split('\n'):
-            if "### Important:" in line:
-                self.findings.append(f"{analysis_type}: {line}")
+        # Extract important findings
+        lines = enhanced_interpretation.strip().split('\n')
+        for i, line in enumerate(lines):
+            if line.startswith("3. Positive Findings:") or line.startswith("4. Negative Findings:"):
+                for finding in lines[i+1:]:
+                    if finding.strip() and not finding.startswith(("3.", "4.", "5.")):
+                        self.findings.append(f"{analysis_type}: {finding.strip()}")
+                    elif finding.startswith(("3.", "4.", "5.")):
+                        break
 
         # Add image paths to the list
         if isinstance(results, tuple) and len(results) == 2 and isinstance(results[1], str) and results[1].endswith('.png'):
@@ -306,12 +305,12 @@ class ExploratoryDataAnalysis:
         4. Conclude with recommendations for next steps or areas to focus on.
 
         Structure the summary in multiple paragraphs for readability.
-        Please format your response in Markdown, using appropriate headers, bullet points, and emphasis where necessary.
+        Please provide your response in plain text format, without any special formatting or markup.
         """
         
         try:
             interpretation = self.erag_api.chat([
-                {"role": "system", "content": "You are a data analyst providing an executive summary of an exploratory data analysis. Respond in Markdown format."},
+                {"role": "system", "content": "You are a data analyst providing an executive summary of an exploratory data analysis. Respond in plain text format."},
                 {"role": "user", "content": summary_prompt}
             ])
             
@@ -323,12 +322,11 @@ class ExploratoryDataAnalysis:
                 {interpretation}
 
                 Enhance the summary by:
-                1. Ensuring the Markdown formatting is correct.
-                2. Making it more comprehensive and narrative by adding context and explanations.
-                3. Addressing any important aspects of the analysis that weren't covered.
-                4. Ensuring it includes a clear introduction, highlights of significant insights, mention of potential issues, and recommendations for next steps.
+                1. Making it more comprehensive and narrative by adding context and explanations.
+                2. Addressing any important aspects of the analysis that weren't covered.
+                3. Ensuring it includes a clear introduction, highlights of significant insights, mention of potential issues, and recommendations for next steps.
 
-                Provide your response in the same Markdown format, maintaining the original structure.
+                Provide your response in plain text format, without any special formatting or markup.
                 Do not add comments, questions, or explanations about the changes - simply provide the improved version.
                 """
 
@@ -343,7 +341,6 @@ class ExploratoryDataAnalysis:
         except Exception as e:
             print(error(f"An error occurred while generating the executive summary: {str(e)}"))
             self.executive_summary = "Error: Unable to generate executive summary due to an exception."
-
 
         print(success("Enhanced Executive Summary generated successfully."))
         print(self.executive_summary)
