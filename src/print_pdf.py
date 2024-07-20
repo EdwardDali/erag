@@ -8,7 +8,7 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, 
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 from reportlab.lib.units import inch
-from reportlab.lib.enums import TA_JUSTIFY, TA_LEFT
+from reportlab.lib.enums import TA_JUSTIFY, TA_LEFT, TA_CENTER
 import re
 
 # Define RGB values for custom colors
@@ -20,11 +20,15 @@ DARK_GREEN_RGB = (0/255, 100/255, 0/255)  # Dark Green
 DARK_RED_RGB = (139/255, 0/255, 0/255)  # Dark Red
 
 class PDFReportGenerator:
-    def __init__(self, output_folder, llm_name):
+    def __init__(self, output_folder, llm_name, project_name):
         self.output_folder = output_folder
         self.llm_name = llm_name
+        self.project_name = project_name
+        self.report_title = None
 
-    def create_enhanced_pdf_report(self, executive_summary, findings, pdf_content, image_data, filename="xda_report"):
+    
+    def create_enhanced_pdf_report(self, executive_summary, findings, pdf_content, image_data, filename="report", report_title=None):
+        self.report_title = report_title or f"Analysis Report for {self.project_name}"
         pdf_file = os.path.join(self.output_folder, f"{filename}.pdf")
         doc = SimpleDocTemplate(pdf_file, pagesize=A4)
 
@@ -80,12 +84,12 @@ class PDFReportGenerator:
 
     def _create_styles(self):
         styles = getSampleStyleSheet()
-        styles.add(ParagraphStyle(name='XDA_Title', parent=styles['Title'], fontSize=20, alignment=TA_LEFT, spaceAfter=24, textColor=colors.white, backColor=colors.Color(*DARK_BLUE_RGB)))
+        styles.add(ParagraphStyle(name='XDA_Title', parent=styles['Title'], fontSize=20, alignment=TA_CENTER, spaceAfter=24, textColor=colors.white, backColor=colors.Color(*DARK_BLUE_RGB)))
         styles.add(ParagraphStyle(name='XDA_Normal', parent=styles['Normal'], fontSize=10, alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.black, fontName='Helvetica'))
-        styles.add(ParagraphStyle(name='XDA_Important', parent=styles['Normal'], fontSize=12, alignment=TA_LEFT, spaceAfter=12, textColor=colors.Color(*MEDIUM_BLUE_RGB), fontName='Helvetica-Bold'))
+        styles.add(ParagraphStyle(name='XDA_Important', parent=styles['Normal'], fontSize=10, alignment=TA_LEFT, spaceAfter=12, textColor=colors.Color(*MEDIUM_BLUE_RGB), fontName='Helvetica-Bold'))
         styles.add(ParagraphStyle(name='XDA_Positive', parent=styles['Normal'], fontSize=10, alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.Color(*DARK_GREEN_RGB), fontName='Helvetica-Bold'))
         styles.add(ParagraphStyle(name='XDA_Negative', parent=styles['Normal'], fontSize=10, alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.Color(*DARK_RED_RGB), fontName='Helvetica-Bold'))
-        styles.add(ParagraphStyle(name='XDA_Conclusion', parent=styles['Normal'], fontSize=12, alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.Color(*MEDIUM_BLUE_RGB), fontName='Helvetica-Bold'))
+        styles.add(ParagraphStyle(name='XDA_Conclusion', parent=styles['Normal'], fontSize=10, alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.Color(*MEDIUM_BLUE_RGB), fontName='Helvetica-Bold'))
         styles.add(ParagraphStyle(name='XDA_Bullet', parent=styles['Normal'], fontSize=10, alignment=TA_JUSTIFY, spaceAfter=6, leftIndent=20, textColor=colors.black))
         styles.add(ParagraphStyle(name='XDA_Code', parent=styles['Code'], fontSize=8, textColor=colors.black, backColor=colors.Color(*LIGHT_GREY_RGB), fontName='Courier'))
         styles.add(ParagraphStyle(name='XDA_Limitations', parent=styles['Normal'], fontSize=10, alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.black, fontName='Helvetica-Bold'))
@@ -105,7 +109,7 @@ class PDFReportGenerator:
 
         elements = []
         elements.append(Spacer(1, 2*inch))
-        elements.append(Paragraph("Exploratory Data Analysis Report", styles['XDA_Title']))
+        elements.append(Paragraph(self.report_title, styles['XDA_Title']))
         elements.append(Spacer(1, 12))
         elements.append(Paragraph(f"Generated on: {datetime.now().strftime('%Y-%m-%d')}", styles['XDA_Normal']))
         elements.append(Paragraph(f"AI-powered analysis by ERAG using {self.llm_name}", styles['XDA_Normal']))
@@ -113,7 +117,7 @@ class PDFReportGenerator:
 
         # Add a normal template for subsequent pages
         normal_frame = Frame(doc.leftMargin, doc.bottomMargin, doc.width, doc.height, id='NormalFrame')
-        normal_template = PageTemplate(id='NormalPage', frames=[normal_frame])
+        normal_template = PageTemplate(id='NormalPage', frames=[normal_frame], onPage=self._add_header_footer)
         doc.addPageTemplates([normal_template])
 
         return elements
@@ -124,7 +128,7 @@ class PDFReportGenerator:
         # Header
         canvas.setFillColor(colors.Color(*MEDIUM_BLUE_RGB))
         canvas.setFont('Helvetica-Bold', 8)
-        canvas.drawString(inch, doc.pagesize[1] - 0.5*inch, "Exploratory Data Analysis Report")
+        canvas.drawString(inch, doc.pagesize[1] - 0.5*inch, self.report_title)
         
         # Footer
         canvas.setFillColor(colors.Color(*DARK_BLUE_RGB))

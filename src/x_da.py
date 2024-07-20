@@ -24,8 +24,8 @@ class ExploratoryDataAnalysis:
         self.db_path = db_path
         self.technique_counter = 0
         self.total_techniques = 5
-        self.output_folder = os.path.join(settings.output_folder, "xda_output")
-        os.makedirs(self.output_folder, exist_ok=True)
+        self.table_name = None  # Will be set in analyze_table method
+        self.output_folder = None  # Will be set in analyze_table method
         self.text_output = ""
         self.pdf_content = []
         self.findings = []
@@ -36,6 +36,7 @@ class ExploratoryDataAnalysis:
         self.max_pixels = 400000
         self.timeout_seconds = 10
         self.image_data = []
+        self.pdf_generator = None
 
     def calculate_figure_size(self, aspect_ratio=16/9):
         max_width = int(np.sqrt(self.max_pixels * aspect_ratio))
@@ -92,6 +93,13 @@ class ExploratoryDataAnalysis:
             return [table[0] for table in cursor.fetchall()]
 
     def analyze_table(self, table_name):
+        self.table_name = table_name
+        self.output_folder = os.path.join(settings.output_folder, f"xda_{self.table_name}")
+        os.makedirs(self.output_folder, exist_ok=True)
+        
+        # Initialize PDFReportGenerator with table name
+        self.pdf_generator = PDFReportGenerator(self.output_folder, self.llm_name, self.table_name)
+        
         print(highlight(f"\nAnalyzing table: {table_name}"))
         self.text_output += f"\nAnalyzing table: {table_name}\n"
         with sqlite3.connect(self.db_path) as conn:
@@ -103,11 +111,11 @@ class ExploratoryDataAnalysis:
             self.numerical_features_distribution,
             self.correlation_analysis,
             self.categorical_features_analysis
-            # Target vs Features Analysis removed
         ]
 
         for method in analysis_methods:
             method(df, table_name)
+
 
     def basic_statistics(self, df, table_name):
         self.technique_counter += 1
@@ -518,12 +526,14 @@ class ExploratoryDataAnalysis:
             f.write(self.text_output)
 
     def generate_pdf_report(self):
-        pdf_generator = PDFReportGenerator(self.output_folder, self.llm_name)
-        pdf_file = pdf_generator.create_enhanced_pdf_report(
+        report_title = f"Exploratory Data Analysis Report for {self.table_name}"
+        pdf_file = self.pdf_generator.create_enhanced_pdf_report(
             self.executive_summary,
             self.findings,
             self.pdf_content,
-            self.image_data  # Pass self.image_data to the PDF generator
+            self.image_data,
+            filename=f"xda_{self.table_name}_report",
+            report_title=report_title
         )
         if pdf_file:
             print(success(f"PDF report generated successfully: {pdf_file}"))

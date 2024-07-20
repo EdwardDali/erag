@@ -39,7 +39,7 @@ class Talk2Git:
         self.findings = []
         self.image_paths = []
         self.project_summary = ""
-        self.pdf_generator = PDFReportGenerator(settings.output_folder, erag_api.model)
+        self.pdf_generator = None
 
     def parse_github_url(self, url):
         parsed = urlparse(url)
@@ -79,8 +79,13 @@ class Talk2Git:
     def process_repo(self, repo_url):
         self.repo_url = repo_url
         owner, repo = self.parse_github_url(repo_url)
+        self.project_name = repo
         self.traverse_repo(owner, repo)
         self.create_repo_file()
+        
+        # Initialize PDFReportGenerator with project name
+        self.pdf_generator = PDFReportGenerator(settings.output_folder, self.erag_api.model, self.project_name)
+        
         return f"Processed {len(self.repo_contents)} files from the repository."
 
     def traverse_repo(self, owner, repo, path=""):
@@ -111,12 +116,14 @@ class Talk2Git:
         print(success(f"{analysis_type} results saved to {text_file}"))
 
         # Generate and save PDF report
+        report_title = f"{analysis_type.replace('_', ' ').title()} for {self.project_name}"
         pdf_file = self.pdf_generator.create_enhanced_pdf_report(
             self.project_summary,
             self.findings,
             self.pdf_content,
             self.image_paths,
-            f"{self.project_name}_{analysis_type}"  # Pass the desired PDF filename (without extension)
+            f"{self.project_name}_{analysis_type}",  # PDF filename (without extension)
+            report_title  # Pass the report title
         )
         if pdf_file:
             print(success(f"PDF report for {analysis_type} generated: {pdf_file}"))
@@ -149,10 +156,12 @@ class Talk2Git:
             
             pdf_file = os.path.join(settings.output_folder, f"{self.project_name}_{analysis_type}.pdf")
             if os.path.exists(pdf_file):
-                all_pdf_content.append((f"{analysis_type.capitalize()} Report", "", f"See detailed report: {pdf_file}"))
+                all_pdf_content.append((f"{analysis_type.replace('_', ' ').title()}", "", f"See detailed report: {pdf_file}"))
             
             all_findings.append(f"Completed {analysis_type}")
         
+        self.pdf_content = all_pdf_content
+        self.findings = all_findings
         self.save_results("all_analyses", all_text_content)
         print(success("All analyses completed and combined report generated."))
 
@@ -248,7 +257,9 @@ Please provide a concise summary (3-5 sentences) describing the overall purpose 
         text_content = f"Project Summary:\n{self.project_summary}\n\n{'='*50}\n\nFile Summaries:\n\n"
         for file_path, summary in file_summaries.items():
             text_content += f"File: {file_path}\nSummary: {summary}\n\n"
+            self.pdf_content.append((f"Summary for {file_path}", "", summary))
 
+        self.findings.append("Project Summary")
         # Save results
         self.save_results("project_summary", text_content)
 
@@ -301,6 +312,7 @@ Your analysis should be concise but informative."""
 
         # Save results
         self.save_results("dependency_analysis", "\n".join(analysis_results))
+
 
     def detect_code_smells(self):
         code_files = [file for file in self.repo_contents.keys() if file.endswith(('.py', '.js', '.java', '.cpp', '.c', '.h', '.cs'))]
