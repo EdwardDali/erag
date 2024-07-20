@@ -39,7 +39,7 @@ class ExploratoryDataAnalysis:
         self.DARK_BLUE_RGB = (34/255, 34/255, 59/255)
         self.LIGHT_GREY_RGB = (242/255, 242/255, 242/255)
         self.cmap = plt.cm.coolwarm
-        self.max_pixels = 3000000  # Reduced from 5000000 to 3000000
+        self.max_pixels = 400000  
 
     def calculate_figure_size(self, aspect_ratio=16/9):
         max_width = int(np.sqrt(self.max_pixels * aspect_ratio))

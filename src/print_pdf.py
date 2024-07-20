@@ -12,10 +12,12 @@ from reportlab.lib.enums import TA_JUSTIFY, TA_LEFT
 import re
 
 # Define RGB values for custom colors
-SAGE_GREEN_RGB = (125/255, 169/255, 133/255)
-DUSTY_PINK_RGB = (173/255, 142/255, 148/255)
+ERAG_RGB = (252/255, 243/255, 207/255)
 DARK_BLUE_RGB = (34/255, 34/255, 59/255)
 LIGHT_GREY_RGB = (242/255, 242/255, 242/255)
+MEDIUM_BLUE_RGB = (70/255, 130/255, 180/255)  # Steel Blue
+DARK_GREEN_RGB = (0/255, 100/255, 0/255)  # Dark Green
+DARK_RED_RGB = (139/255, 0/255, 0/255)  # Dark Red
 
 class PDFReportGenerator:
     def __init__(self, output_folder, llm_name):
@@ -79,22 +81,22 @@ class PDFReportGenerator:
 
     def _create_styles(self):
         styles = getSampleStyleSheet()
-        styles.add(ParagraphStyle(name='XDA_Title', parent=styles['Title'], fontSize=20, alignment=TA_LEFT, spaceAfter=24, textColor=colors.white, backColor=colors.Color(*SAGE_GREEN_RGB)))
+        styles.add(ParagraphStyle(name='XDA_Title', parent=styles['Title'], fontSize=20, alignment=TA_LEFT, spaceAfter=24, textColor=colors.white, backColor=colors.Color(*DARK_BLUE_RGB)))
         styles.add(ParagraphStyle(name='XDA_Normal', parent=styles['Normal'], fontSize=10, alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.black, fontName='Helvetica'))
-        styles.add(ParagraphStyle(name='XDA_Important', parent=styles['Normal'], fontSize=10, alignment=TA_LEFT, spaceAfter=12, textColor=colors.Color(*DARK_BLUE_RGB), fontName='Helvetica-Bold'))
-        styles.add(ParagraphStyle(name='XDA_Positive', parent=styles['Normal'], fontSize=10, alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.green, fontName='Helvetica-Bold'))
-        styles.add(ParagraphStyle(name='XDA_Negative', parent=styles['Normal'], fontSize=10, alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.red, fontName='Helvetica-Bold'))
-        styles.add(ParagraphStyle(name='XDA_Conclusion', parent=styles['Normal'], fontSize=12, alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.Color(*SAGE_GREEN_RGB), fontName='Helvetica-Bold'))
+        styles.add(ParagraphStyle(name='XDA_Important', parent=styles['Normal'], fontSize=12, alignment=TA_LEFT, spaceAfter=12, textColor=colors.Color(*MEDIUM_BLUE_RGB), fontName='Helvetica-Bold'))
+        styles.add(ParagraphStyle(name='XDA_Positive', parent=styles['Normal'], fontSize=10, alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.Color(*DARK_GREEN_RGB), fontName='Helvetica-Bold'))
+        styles.add(ParagraphStyle(name='XDA_Negative', parent=styles['Normal'], fontSize=10, alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.Color(*DARK_RED_RGB), fontName='Helvetica-Bold'))
+        styles.add(ParagraphStyle(name='XDA_Conclusion', parent=styles['Normal'], fontSize=12, alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.Color(*MEDIUM_BLUE_RGB), fontName='Helvetica-Bold'))
         styles.add(ParagraphStyle(name='XDA_Bullet', parent=styles['Normal'], fontSize=10, alignment=TA_JUSTIFY, spaceAfter=6, leftIndent=20, textColor=colors.black))
-        styles.add(ParagraphStyle(name='XDA_Code', parent=styles['Code'], fontSize=8, textColor=colors.black, backColor=colors.lightgrey, fontName='Courier'))
+        styles.add(ParagraphStyle(name='XDA_Code', parent=styles['Code'], fontSize=8, textColor=colors.black, backColor=colors.Color(*LIGHT_GREY_RGB), fontName='Courier'))
         styles.add(ParagraphStyle(name='XDA_Limitations', parent=styles['Normal'], fontSize=10, alignment=TA_JUSTIFY, spaceAfter=12, textColor=colors.black, fontName='Helvetica-Bold'))
-        styles.add(ParagraphStyle(name='XDA_Caption', parent=styles['Normal'], fontSize=8, alignment=TA_LEFT, spaceAfter=6, textColor=colors.black, fontName='Helvetica-Bold'))
+        styles.add(ParagraphStyle(name='XDA_Caption', parent=styles['Normal'], fontSize=8, alignment=TA_LEFT, spaceAfter=6, textColor=colors.Color(*DARK_BLUE_RGB), fontName='Helvetica-Bold'))
         return styles
 
     def _create_cover_page(self, doc, styles):
         def draw_background(canvas, doc):
             canvas.saveState()
-            canvas.setFillColor(colors.Color(*SAGE_GREEN_RGB))
+            canvas.setFillColor(colors.Color(*ERAG_RGB))
             canvas.rect(0, 0, doc.pagesize[0], doc.pagesize[1], fill=1)
             canvas.restoreState()
 
@@ -121,15 +123,15 @@ class PDFReportGenerator:
         canvas.saveState()
         
         # Header
-        canvas.setFillColor(colors.Color(*DARK_BLUE_RGB))
-        canvas.setFont('Helvetica-Bold', 12)
-        canvas.drawString(inch, doc.pagesize[1] - inch + 10, "Exploratory Data Analysis Report")
+        canvas.setFillColor(colors.Color(*MEDIUM_BLUE_RGB))
+        canvas.setFont('Helvetica-Bold', 8)
+        canvas.drawString(inch, doc.pagesize[1] - 0.5*inch, "Exploratory Data Analysis Report")
         
         # Footer
-        canvas.setFillColor(colors.grey)
-        canvas.setFont('Helvetica', 9)
-        canvas.drawString(inch, 0.75 * inch, f"Page {doc.page}")
-        canvas.drawRightString(doc.pagesize[0] - inch, 0.75 * inch, "Powered by ERAG")
+        canvas.setFillColor(colors.Color(*DARK_BLUE_RGB))
+        canvas.setFont('Helvetica', 8)
+        canvas.drawString(inch, 0.5 * inch, f"Page {doc.page}")
+        canvas.drawRightString(doc.pagesize[0] - inch, 0.5 * inch, "Powered by ERAG")
 
         canvas.restoreState()
 
