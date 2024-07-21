@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 
-import sys
 import os
 import re
 import logging
@@ -8,6 +7,10 @@ from src.talk2doc import RAGSystem
 from src.search_utils import SearchUtils
 from src.settings import settings
 from src.api_model import EragAPI, create_erag_api
+from src.embeddings_utils import load_embeddings_and_data
+from sentence_transformers import SentenceTransformer
+import networkx as nx
+import json
 from src.look_and_feel import (
     RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN, WHITE,
     DUSTY_PINK, SAGE_GREEN,
@@ -24,9 +27,49 @@ class KnolCreator:
         self.worker_erag_api = worker_erag_api
         self.supervisor_erag_api = supervisor_erag_api
         self.manager_erag_api = manager_erag_api
-        self.rag_system = RAGSystem(self.worker_erag_api)
-        self.search_utils = self.rag_system.search_utils
+        self.embedding_model = SentenceTransformer(settings.sentence_transformer_model)
+        self.rag_system = None
+        self.search_utils = None
+        self.initialize_rag_system()
         os.makedirs(settings.output_folder, exist_ok=True)
+        
+    def initialize_rag_system(self):
+        try:
+            # Load embeddings
+            embeddings_path = os.path.join(settings.output_folder, os.path.basename(settings.embeddings_file_path))
+            self.db_embeddings, _, self.db_content = load_embeddings_and_data(embeddings_path)
+            
+            # Load knowledge graph
+            graph_path = os.path.join(settings.output_folder, os.path.basename(settings.knowledge_graph_file_path))
+            with open(graph_path, 'r') as f:
+                graph_data = json.load(f)
+            self.knowledge_graph = nx.node_link_graph(graph_data)
+            
+            # Initialize RAG system and search utils
+            self.rag_system = RAGSystem(self.worker_erag_api)
+            self.search_utils = SearchUtils(self.embedding_model, self.db_embeddings, self.db_content, self.knowledge_graph)
+            self.rag_system.search_utils = self.search_utils
+            
+            logging.info(success("RAG system and search utils initialized successfully."))
+        except Exception as e:
+            logging.error(error(f"Failed to initialize RAG system: {str(e)}"))
+            self.rag_system = None
+            self.search_utils = None
+
+    def get_relevant_context(self, query: str) -> str:
+        if self.search_utils is None:
+            return ""
+        
+        lexical_results, semantic_results, graph_results, text_results = self.search_utils.get_relevant_context(query, [])
+        
+        combined_context = "Relevant information:\n\n"
+        combined_context += "Lexical Search Results:\n" + "\n".join(lexical_results) + "\n\n"
+        combined_context += "Semantic Search Results:\n" + "\n".join(semantic_results) + "\n\n"
+        combined_context += "Knowledge Graph Results:\n" + "\n".join(graph_results) + "\n\n"
+        combined_context += "Text Search Results:\n" + "\n".join(text_results)
+        
+        return combined_context
+
 
     def save_iteration(self, content: str, stage: str, subject: str, iteration: int):
         filename = f"knol_{subject.replace(' ', '_')}_{stage}_iteration_{iteration}.txt"
@@ -68,9 +111,11 @@ Ensure that the structure is consistent and the information is detailed and accu
         if feedback:
             user_input += f"\n\nPlease address the following feedback in your revision:\n{feedback}"
 
+        relevant_context = self.get_relevant_context(subject)
+        
         messages = [
             {"role": "system", "content": system_message},
-            {"role": "user", "content": user_input}
+            {"role": "user", "content": f"{user_input}\n\nHere's some relevant context to consider:\n\n{relevant_context}"}
         ]
         content = self.worker_erag_api.chat(messages, temperature=settings.temperature)
         
@@ -308,6 +353,9 @@ Ensure that the structure is consistent and the information is detailed and accu
             print(info(f"Using Manager EragAPI with {self.manager_erag_api.api_type} backend and model: {self.manager_erag_api.model}"))
         else:
             print(info("Manager model not selected. Manager review will be skipped."))
+
+        if self.rag_system is None or self.search_utils is None:
+            print(warning("RAG system or search utils not initialized. The knol creation process will not use RAG capabilities."))
 
         while True:
             user_input = input(color_user_input("Which subject do you want to create a knol about? ")).strip()

@@ -702,42 +702,16 @@ class ERAGGUI:
             supervisor_model = self.supervisor_model_var.get()
             manager_model = self.manager_model_var.get()
             
-            # Create separate EragAPI instances for worker and supervisor
+            # Create separate EragAPI instances for worker, supervisor, and manager
             worker_erag_api = create_erag_api(api_type, worker_model)
             supervisor_erag_api = create_erag_api(api_type, supervisor_model)
-            
-            # Create manager EragAPI only if a model is selected
             manager_erag_api = create_erag_api(api_type, manager_model) if manager_model != 'None' else None
             
+            # Create KnolCreator instance
             creator = KnolCreator(worker_erag_api, supervisor_erag_api, manager_erag_api)
             
-            # Set up RAG components
-            if os.path.exists(settings.db_file_path):
-                with open(settings.db_file_path, "r", encoding="utf-8") as db_file:
-                    creator.db_content = db_file.readlines()
-            else:
-                creator.db_content = None
-
-            if os.path.exists(settings.embeddings_file_path):
-                creator.db_embeddings, _, _ = load_or_compute_embeddings(
-                    self.model, 
-                    settings.db_file_path, 
-                    settings.embeddings_file_path
-                )
-            else:
-                creator.db_embeddings = None
-
-            if os.path.exists(settings.knowledge_graph_file_path):
-                creator.knowledge_graph = self.knowledge_graph
-            else:
-                creator.knowledge_graph = None
-
-            if all([creator.db_embeddings is not None, creator.db_content is not None, creator.knowledge_graph is not None]):
-                creator.search_utils = SearchUtils(worker_erag_api, creator.db_embeddings, creator.db_content, creator.knowledge_graph)
-            else:
-                creator.search_utils = None
-                print(warning("Some components are missing. The knol creation process will not use RAG capabilities."))
-
+            # The KnolCreator now handles RAG initialization internally, so we don't need to set up RAG components here
+            
             # Apply settings to KnolCreator
             settings.apply_settings()
             
@@ -764,15 +738,15 @@ class ERAGGUI:
             messagebox.showerror("Error", f"An error occurred while starting the knol creation process: {str(e)}")
 
 
-    def upload_multiple_files(self, file_type: str):
-        try:
-            files_added = self.file_processor.upload_multiple_files(file_type)
-            if files_added > 0:
-                print(info(f"{files_added} {file_type} queued for processing. Check the console for progress. File content processed and appended to db.txt with table of contents in db_content.txt."))
-            else:
-                print(info("No files selected for processing."))
-        except Exception as e:
-            messagebox.showerror("Error", f"An error occurred while queueing files for processing: {str(e)}")
+        def upload_multiple_files(self, file_type: str):
+            try:
+                files_added = self.file_processor.upload_multiple_files(file_type)
+                if files_added > 0:
+                    print(info(f"{files_added} {file_type} queued for processing. Check the console for progress. File content processed and appended to db.txt with table of contents in db_content.txt."))
+                else:
+                    print(info("No files selected for processing."))
+            except Exception as e:
+                messagebox.showerror("Error", f"An error occurred while queueing files for processing: {str(e)}")
 
 
     def execute_embeddings(self):
