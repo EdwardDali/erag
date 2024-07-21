@@ -91,6 +91,7 @@ class ERAGGUI:
         self.groq_api_key = os.getenv("GROQ_API_KEY", "")
         self.github_token = os.getenv("GITHUB_TOKEN", "")
         self.file_processor = FileProcessor()
+        self.supervisor_model_var = tk.StringVar(master)
 
         # Create output folder if it doesn't exist
         os.makedirs(settings.output_folder, exist_ok=True)
@@ -189,13 +190,20 @@ class ERAGGUI:
         api_menu.grid(row=0, column=1, padx=5, pady=5, sticky="w")
         api_menu.bind("<<ComboboxSelected>>", self.update_model_list)
 
-        # Model selection
-        model_label = tk.Label(model_frame, text="Model:")
+        # Worker Model selection
+        model_label = tk.Label(model_frame, text="Worker Model:")
         model_label.grid(row=0, column=2, padx=5, pady=5, sticky="e")
         
         self.model_menu = ttk.Combobox(model_frame, textvariable=self.model_var, state="readonly")
         self.model_menu.grid(row=0, column=3, padx=5, pady=5, sticky="w")
         self.model_menu.bind("<<ComboboxSelected>>", self.update_model_setting)
+
+        # Supervisor Model selection
+        supervisor_label = tk.Label(model_frame, text="Supervisor Model:")
+        supervisor_label.grid(row=1, column=2, padx=5, pady=5, sticky="e")
+        
+        self.supervisor_model_menu = ttk.Combobox(model_frame, textvariable=self.supervisor_model_var, state="readonly")
+        self.supervisor_model_menu.grid(row=1, column=3, padx=5, pady=5, sticky="w")
 
         # Initialize model list
         self.update_model_list()
@@ -209,7 +217,10 @@ class ERAGGUI:
             models = get_available_models(api_type)
 
         self.model_menu['values'] = models
+        self.supervisor_model_menu['values'] = models
+
         if models:
+            # Set worker model
             if api_type == "ollama" and settings.ollama_model in models:
                 self.model_var.set(settings.ollama_model)
             elif api_type == "llama" and self.server_manager.current_model in models:
@@ -226,10 +237,15 @@ class ERAGGUI:
                     print(warning(f"Default Groq model not available. Updated to: {new_default}"))
             else:
                 self.model_var.set(models[0])
+
+            # Set supervisor model (default to the same as worker model)
+            self.supervisor_model_var.set(self.model_var.get())
+
             if not self.is_initializing:
                 self.update_model_setting()
         else:
             self.model_var.set("")
+            self.supervisor_model_var.set("")
         
         if self.is_initializing:
             self.is_initializing = False
@@ -240,7 +256,8 @@ class ERAGGUI:
         
         print(success(f"Updated model list for API type: {api_type}"))
         print(success(f"Available models: {', '.join(models)}"))
-        print(success(f"Selected model: {self.model_var.get()}"))
+        print(success(f"Selected worker model: {self.model_var.get()}"))
+        print(success(f"Selected supervisor model: {self.supervisor_model_var.get()}"))
 
     def create_agent_frame(self):
         agent_frame = tk.LabelFrame(self.main_tab, text="Model and Agent")
@@ -1050,13 +1067,15 @@ class ERAGGUI:
                 return
 
             api_type = self.api_type_var.get()
-            model = self.model_var.get()
+            worker_model = self.model_var.get()
+            supervisor_model = self.supervisor_model_var.get()
             
-            # Create EragAPI instance
-            erag_api = create_erag_api(api_type, model)
+            # Create separate EragAPI instances for worker and supervisor
+            worker_erag_api = create_erag_api(api_type, worker_model)
+            supervisor_erag_api = create_erag_api(api_type, supervisor_model)
             
-            # Create ExploratoryDataAnalysis instance
-            xda = ExploratoryDataAnalysis(erag_api, db_path)
+            # Create ExploratoryDataAnalysis instance with both APIs
+            xda = ExploratoryDataAnalysis(worker_erag_api, supervisor_erag_api, db_path)
             
             # Apply settings to XDA
             settings.apply_settings()

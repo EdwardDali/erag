@@ -19,17 +19,18 @@ class TimeoutException(Exception):
     pass
 
 class ExploratoryDataAnalysis:
-    def __init__(self, erag_api, db_path):
-        self.erag_api = erag_api
+    def __init__(self, worker_erag_api, supervisor_erag_api, db_path):
+        self.worker_erag_api = worker_erag_api
+        self.supervisor_erag_api = supervisor_erag_api
         self.db_path = db_path
         self.technique_counter = 0
         self.total_techniques = 5
-        self.table_name = None  # Will be set in analyze_table method
-        self.output_folder = None  # Will be set in analyze_table method
+        self.table_name = None
+        self.output_folder = None
         self.text_output = ""
         self.pdf_content = []
         self.findings = []
-        self.llm_name = self.erag_api.model
+        self.llm_name = f"Worker: {self.worker_erag_api.model}, Supervisor: {self.supervisor_erag_api.model}"
         self.toc_entries = []
         self.executive_summary = ""
         self.image_paths = []
@@ -404,8 +405,8 @@ class ExploratoryDataAnalysis:
 
         Interpretation:
         """
-        interpretation = self.erag_api.chat([{"role": "system", "content": "You are a data analyst providing insights on exploratory data analysis results. Respond in the requested format."}, 
-                                             {"role": "user", "content": prompt}])
+        interpretation = self.worker_erag_api.chat([{"role": "system", "content": "You are a data analyst providing insights on exploratory data analysis results. Respond in the requested format."}, 
+                                                    {"role": "user", "content": prompt}])
         
         # Second LLM call to review and enhance the interpretation
         check_prompt = f"""
@@ -420,14 +421,13 @@ class ExploratoryDataAnalysis:
         2. Ensuring the structure (Analysis, SQLite Statements, Positive Findings, Negative Findings, Conclusion) is maintained.
         3. Making the interpretation more narrative and detailed by adding context and explanations.
         4. Addressing any important aspects of the data that weren't covered.
-        5. Verifying and improving the SQLite statements if necessary.
 
         Provide your response in the same format, maintaining the original structure. 
         Do not add comments, questions, or explanations about the changes - simply provide the improved version.
         """
 
-        enhanced_interpretation = self.erag_api.chat([
-            {"role": "system", "content": "You are a data analyst improving interpretations of exploratory data analysis results. Provide direct enhancements without adding meta-comments."},
+        enhanced_interpretation = self.supervisor_erag_api.chat([
+            {"role": "system", "content": "You are a data analyst improving interpretations of exploratory data analysis results. Provide direct enhancements without adding meta-comments or detailing the changes done."},
             {"role": "user", "content": check_prompt}
         ])
 
