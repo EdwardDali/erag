@@ -693,12 +693,14 @@ class ERAGGUI:
     def create_knol(self):
         try:
             api_type = self.api_type_var.get()
-            model = self.model_var.get()
+            worker_model = self.model_var.get()
+            supervisor_model = self.supervisor_model_var.get()
             
-            # Create EragAPI instance
-            erag_api = create_erag_api(api_type, model)
+            # Create separate EragAPI instances for worker and supervisor
+            worker_erag_api = create_erag_api(api_type, worker_model)
+            supervisor_erag_api = create_erag_api(api_type, supervisor_model)
             
-            creator = KnolCreator(erag_api)
+            creator = KnolCreator(worker_erag_api, supervisor_erag_api)
             
             # Set up RAG components
             if os.path.exists(settings.db_file_path):
@@ -722,15 +724,31 @@ class ERAGGUI:
                 creator.knowledge_graph = None
 
             if all([creator.db_embeddings is not None, creator.db_content is not None, creator.knowledge_graph is not None]):
-                creator.search_utils = SearchUtils(erag_api, creator.db_embeddings, creator.db_content, creator.knowledge_graph)
+                creator.search_utils = SearchUtils(worker_erag_api, creator.db_embeddings, creator.db_content, creator.knowledge_graph)
             else:
                 creator.search_utils = None
                 print(warning("Some components are missing. The knol creation process will not use RAG capabilities."))
 
+            # Apply settings to KnolCreator
+            settings.apply_settings()
+            
+            architecture_info = (
+                "This Knol Creation module supports a Worker Model and Supervisory Model architecture:\n\n"
+                f"Worker Model: {worker_model}\n"
+                f"Supervisory Model: {supervisor_model}\n\n"
+                "The Worker Model performs the initial knol creation and question answering, "
+                "while the Supervisory Model improves the knol and enhances the answers, "
+                "providing a more refined and comprehensive knowledge artifact."
+            )
+            
+            messagebox.showinfo("Knol Creation Process Started", 
+                                f"{architecture_info}\n\n"
+                                f"Knol creation process started with {api_type} API.\n"
+                                "Check the console for interaction and progress updates.")
+            
             # Run the knol creator in a separate thread
             threading.Thread(target=creator.run_knol_creator, daemon=True).start()
             
-            messagebox.showinfo("Info", f"Knol creation process started with {api_type} API and model: {model}. Check the console for interaction.")
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred while starting the knol creation process: {str(e)}")
 

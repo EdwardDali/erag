@@ -19,9 +19,10 @@ from src.look_and_feel import (
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class KnolCreator:
-    def __init__(self, erag_api: EragAPI):
-        self.erag_api = erag_api
-        self.rag_system = RAGSystem(self.erag_api)
+    def __init__(self, worker_erag_api: EragAPI, supervisor_erag_api: EragAPI):
+        self.worker_erag_api = worker_erag_api
+        self.supervisor_erag_api = supervisor_erag_api
+        self.rag_system = RAGSystem(self.worker_erag_api)
         self.search_utils = self.rag_system.search_utils
         # Ensure output folder exists
         os.makedirs(settings.output_folder, exist_ok=True)
@@ -68,35 +69,44 @@ Ensure that the structure is consistent and the information is detailed and accu
             {"role": "system", "content": system_message},
             {"role": "user", "content": user_input}
         ]
-        content = self.erag_api.chat(messages, temperature=settings.temperature)
+        content = self.worker_erag_api.chat(messages, temperature=settings.temperature)
         
         self.save_iteration(content, "initial", subject)
         return content
 
+
     def improve_knol(self, knol: str, subject: str) -> str:
-        system_message = f"""You are a knowledgeable assistant that improves and expands existing knowledge entries. Given a structured text representing a knol about {subject}, enhance it by adding more details, restructuring if necessary, and ensuring comprehensive coverage of the subject. Maintain the following structure:
+        supervisor_system_message = f"""You are a supervisory assistant tasked with improving and expanding an existing knowledge entry (knol) about {subject}. Your role is to enhance the knol by adding more details, restructuring if necessary, and ensuring comprehensive coverage of the subject. Pay special attention to:
 
-Title: Knol: {subject}
+        1. Accuracy and depth of information
+        2. Completeness of coverage
+        3. Clarity and coherence of presentation
+        4. Logical structure and flow
+        5. Appropriate depth of detail
 
-1. [Main Topic]
-1.1. [Subtopic]
-• [Detailed point 1]
-• [Detailed point 2]
-• [Detailed point 3]
-• [Detailed point 4]
-• [Detailed point 5]
-• [Detailed point 6]
-• [Detailed point 7]
+        Maintain the following structure, but feel free to add, modify, or reorganize content as needed to improve the overall quality of the knol:
 
-Feel free to add new topics, subtopics, or points, and reorganize the structure if it improves the overall quality and comprehensiveness of the knol. Aim to provide at least 7 points for each subtopic, but you can include more if necessary. Stay strictly on the topic of {subject} and do not include information about unrelated subjects."""
+        Title: Knol: {subject}
 
-        user_input = f"Improve and expand the following knol about {subject} by adding more details, ensuring at least 7 points per subtopic, and restructuring if necessary. Focus exclusively on {subject}:\n\n{knol}"
+        1. [Main Topic]
+        1.1. [Subtopic]
+        • [Detailed point 1]
+        • [Detailed point 2]
+        • [Detailed point 3]
+        • [Detailed point 4]
+        • [Detailed point 5]
+        • [Detailed point 6]
+        • [Detailed point 7]
 
-        messages = [
-            {"role": "system", "content": system_message},
-            {"role": "user", "content": user_input}
+        Aim to provide at least 7 points for each subtopic, but you can include more if necessary. Stay strictly on the topic of {subject} and do not include information about unrelated subjects."""
+
+        supervisor_user_input = f"Improve and expand the following knol about {subject} by adding more details, ensuring at least 7 points per subtopic, and restructuring if necessary. Focus exclusively on {subject}:\n\n{knol}"
+
+        supervisor_messages = [
+            {"role": "system", "content": supervisor_system_message},
+            {"role": "user", "content": supervisor_user_input}
         ]
-        improved_content = self.erag_api.chat(messages, temperature=settings.temperature)
+        improved_content = self.supervisor_erag_api.chat(supervisor_messages, temperature=settings.temperature)
 
         self.save_iteration(improved_content, "improved", subject)
         return improved_content
@@ -121,10 +131,11 @@ Format the output as a numbered list of questions."""
             {"role": "system", "content": system_message},
             {"role": "user", "content": user_input}
         ]
-        questions = self.erag_api.chat(messages, temperature=settings.temperature)
+        questions = self.worker_erag_api.chat(messages, temperature=settings.temperature)
 
         self.save_iteration(questions, "q", subject)
         return questions
+
 
     def answer_questions(self, questions: str, subject: str, knol: str) -> str:
         answers = []
@@ -134,26 +145,54 @@ Format the output as a numbered list of questions."""
             if question.strip():
                 print(info(f"Answering: {question}"))
                 
-                system_message = f"""You are a knowledgeable assistant tasked with answering questions about {subject} based on the provided knol and any additional context. Use the information from both the knol and the additional context to provide accurate and comprehensive answers. If the information is not available in the provided content, state that you don't have enough information to answer accurately."""
+                # Worker generates initial answer
+                worker_answer = self._generate_answer(question, subject, knol, self.worker_erag_api)
+                
+                # Supervisor reviews and improves the answer
+                supervisor_system_message = f"""You are a supervisory assistant tasked with reviewing and enhancing an answer about {subject}. Your role is to ensure the highest quality, accuracy, and comprehensiveness of the answer. Review the provided answer, and make any necessary enhancements, corrections, or additions. Pay special attention to:
 
-                user_input = f"""Question: {question}
+                1. Accuracy of information
+                2. Completeness of the answer
+                3. Clarity and coherence
+                4. Appropriate depth of detail
+                5. Relevance to the question
 
-Knol Content:
-{knol}
+                Provide an improved version of the answer that maintains its core content while enhancing its overall quality."""
 
-Please provide a comprehensive answer to the question using the information from the knol and any additional context provided. If you can't find relevant information to answer the question accurately, please state so."""
+                supervisor_user_input = f"""Question: {question}
 
-                messages = [
-                    {"role": "system", "content": system_message},
-                    {"role": "user", "content": user_input}
+                Original Answer: {worker_answer}
+
+                Please review and enhance this answer, ensuring it meets the highest standards of quality, accuracy, and comprehensiveness."""
+
+                supervisor_messages = [
+                    {"role": "system", "content": supervisor_system_message},
+                    {"role": "user", "content": supervisor_user_input}
                 ]
-                answer = self.erag_api.chat(messages, temperature=settings.temperature)
+                improved_answer = self.supervisor_erag_api.chat(supervisor_messages, temperature=settings.temperature)
 
-                answers.append(f"Q: {question}\nA: {answer}\n")
+                answers.append(f"Q: {question}\nA: {improved_answer}\n")
 
         full_qa = "\n".join(answers)
         self.save_iteration(full_qa, "q_a", subject)
         return full_qa
+
+    def _generate_answer(self, question, subject, knol, erag_api):
+        system_message = f"""You are a knowledgeable assistant tasked with answering questions about {subject} based on the provided knol and any additional context. Use the information from both the knol and the additional context to provide accurate and comprehensive answers. If the information is not available in the provided content, state that you don't have enough information to answer accurately."""
+
+        user_input = f"""Question: {question}
+
+        Knol Content:
+        {knol}
+
+        Please provide a comprehensive answer to the question using the information from the knol and any additional context provided. If you can't find relevant information to answer the question accurately, please state so."""
+
+        messages = [
+            {"role": "system", "content": system_message},
+            {"role": "user", "content": user_input}
+        ]
+        return erag_api.chat(messages, temperature=settings.temperature)
+
 
     def create_final_knol(self, subject: str):
         improved_knol_filename = f"knol_{subject.replace(' ', '_')}_improved.txt"
@@ -190,7 +229,8 @@ Please provide a comprehensive answer to the question using the information from
     def run_knol_creator(self):
         print(highlight("Welcome to the Knol Creation System. Type 'exit' to quit."))
         print(info(f"All generated files will be saved in: {settings.output_folder}"))
-        print(info(f"Using EragAPI with {self.erag_api.api_type} backend."))
+        print(info(f"Using Worker EragAPI with {self.worker_erag_api.api_type} backend and model: {self.worker_erag_api.model}"))
+        print(info(f"Using Supervisor EragAPI with {self.supervisor_erag_api.api_type} backend and model: {self.supervisor_erag_api.model}"))
 
         while True:
             user_input = input(color_user_input("Which subject do you want to create a knol about? ")).strip()
@@ -227,17 +267,19 @@ Please provide a comprehensive answer to the question using the information from
             print(f"\n{highlight('Generated Questions and Answers:')}")
             print(color_llm_response(qa_pairs))
 
-def main(api_type: str):
-    erag_api = create_erag_api(api_type)
-    creator = KnolCreator(erag_api)
+def main(worker_api_type: str, supervisor_api_type: str):
+    worker_erag_api = create_erag_api(worker_api_type)
+    supervisor_erag_api = create_erag_api(supervisor_api_type)
+    creator = KnolCreator(worker_erag_api, supervisor_erag_api)
     creator.run_knol_creator()
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1:
-        api_type = sys.argv[1]
-        main(api_type)
+    if len(sys.argv) > 2:
+        worker_api_type = sys.argv[1]
+        supervisor_api_type = sys.argv[2]
+        main(worker_api_type, supervisor_api_type)
     else:
-        print(error("Error: No API type provided."))
-        print(warning("Usage: python src/create_knol.py <api_type>"))
+        print(error("Error: Worker and Supervisor API types not provided."))
+        print(warning("Usage: python src/create_knol.py <worker_api_type> <supervisor_api_type>"))
         print(info("Available API types: ollama, llama, groq"))
         sys.exit(1)
