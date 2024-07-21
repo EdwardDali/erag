@@ -183,35 +183,27 @@ class ERAGGUI:
         model_frame.pack(fill="x", padx=10, pady=5)
 
         # API Type selection
-        api_label = tk.Label(model_frame, text="API Type:")
-        api_label.grid(row=0, column=0, padx=5, pady=5, sticky="e")
-        
+        tk.Label(model_frame, text="API Type:").grid(row=0, column=0, padx=5, pady=5, sticky="e")
         api_options = ["ollama", "llama", "groq"]
-        api_menu = ttk.Combobox(model_frame, textvariable=self.api_type_var, values=api_options, state="readonly")
-        api_menu.grid(row=0, column=1, padx=5, pady=5, sticky="w")
+        api_menu = ttk.Combobox(model_frame, textvariable=self.api_type_var, values=api_options, state="readonly", width=15)
+        api_menu.grid(row=0, column=1, padx=5, pady=5)
         api_menu.bind("<<ComboboxSelected>>", self.update_model_list)
 
         # Worker Model selection
-        worker_label = tk.Label(model_frame, text="Worker Model:")
-        worker_label.grid(row=1, column=0, padx=5, pady=5, sticky="e")
-        
-        self.model_menu = ttk.Combobox(model_frame, textvariable=self.model_var, state="readonly")
-        self.model_menu.grid(row=1, column=1, padx=5, pady=5, sticky="w")
+        tk.Label(model_frame, text="Worker Model:").grid(row=0, column=2, padx=5, pady=5, sticky="e")
+        self.model_menu = ttk.Combobox(model_frame, textvariable=self.model_var, state="readonly", width=15)
+        self.model_menu.grid(row=0, column=3, padx=5, pady=5)
         self.model_menu.bind("<<ComboboxSelected>>", self.update_model_setting)
 
         # Supervisor Model selection
-        supervisor_label = tk.Label(model_frame, text="Supervisor Model:")
-        supervisor_label.grid(row=2, column=0, padx=5, pady=5, sticky="e")
-        
-        self.supervisor_model_menu = ttk.Combobox(model_frame, textvariable=self.supervisor_model_var, state="readonly")
-        self.supervisor_model_menu.grid(row=2, column=1, padx=5, pady=5, sticky="w")
+        tk.Label(model_frame, text="Supervisor Model:").grid(row=0, column=4, padx=5, pady=5, sticky="e")
+        self.supervisor_model_menu = ttk.Combobox(model_frame, textvariable=self.supervisor_model_var, state="readonly", width=15)
+        self.supervisor_model_menu.grid(row=0, column=5, padx=5, pady=5)
 
         # Manager Model selection
-        manager_label = tk.Label(model_frame, text="Manager Model:")
-        manager_label.grid(row=3, column=0, padx=5, pady=5, sticky="e")
-        
-        self.manager_model_menu = ttk.Combobox(model_frame, textvariable=self.manager_model_var, state="readonly")
-        self.manager_model_menu.grid(row=3, column=1, padx=5, pady=5, sticky="w")
+        tk.Label(model_frame, text="Manager Model:").grid(row=0, column=6, padx=5, pady=5, sticky="e")
+        self.manager_model_menu = ttk.Combobox(model_frame, textvariable=self.manager_model_var, state="readonly", width=15)
+        self.manager_model_menu.grid(row=0, column=7, padx=5, pady=5)
 
         # Initialize model list
         self.update_model_list()
