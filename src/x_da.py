@@ -484,7 +484,7 @@ class ExploratoryDataAnalysis:
         """
         
         try:
-            interpretation = self.erag_api.chat([
+            interpretation = self.worker_erag_api.chat([
                 {"role": "system", "content": "You are a data analyst providing an executive summary of an exploratory data analysis. Respond in plain text format."},
                 {"role": "user", "content": summary_prompt}
             ])
@@ -505,7 +505,7 @@ class ExploratoryDataAnalysis:
                 Do not add comments, questions, or explanations about the changes - simply provide the improved version.
                 """
 
-                enhanced_summary = self.erag_api.chat([
+                enhanced_summary = self.supervisor_erag_api.chat([
                     {"role": "system", "content": "You are a data analyst improving an executive summary of an exploratory data analysis. Provide direct enhancements without adding meta-comments."},
                     {"role": "user", "content": check_prompt}
                 ])

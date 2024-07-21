@@ -1084,9 +1084,21 @@ class ERAGGUI:
             threading.Thread(target=self.run_xda_thread, args=(xda,), daemon=True).start()
             
             output_folder = os.path.join(os.path.dirname(db_path), "xda_output")
-            messagebox.showinfo("Info", f"Exploratory Data Analysis started on {os.path.basename(db_path)}. "
-                                        f"Check the console for progress updates and AI interpretations. "
-                                        f"Results will be saved in {output_folder}")
+            
+            # Create an informative message about the Worker-Supervisor Model architecture
+            architecture_info = (
+                "This XDA module supports a Worker Model and Supervisory Model architecture:\n\n"
+                f"Worker Model: {worker_model}\n"
+                f"Supervisory Model: {supervisor_model}\n\n"
+                "The Worker Model performs the initial analysis, while the Supervisory Model reviews and enhances the results, "
+                "providing a more comprehensive and refined analysis."
+            )
+            
+            messagebox.showinfo("XDA Process Started", 
+                                f"{architecture_info}\n\n"
+                                f"Exploratory Data Analysis started on {os.path.basename(db_path)}.\n"
+                                f"Check the console for progress updates and AI interpretations.\n"
+                                f"Results will be saved in {output_folder}")
         except Exception as e:
             error_message = f"An error occurred while starting the XDA process: {str(e)}"
             print(error(error_message))
