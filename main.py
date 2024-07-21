@@ -92,6 +92,7 @@ class ERAGGUI:
         self.github_token = os.getenv("GITHUB_TOKEN", "")
         self.file_processor = FileProcessor()
         self.supervisor_model_var = tk.StringVar(master)
+        self.manager_model_var = tk.StringVar(master)
 
         # Create output folder if it doesn't exist
         os.makedirs(settings.output_folder, exist_ok=True)
@@ -191,19 +192,26 @@ class ERAGGUI:
         api_menu.bind("<<ComboboxSelected>>", self.update_model_list)
 
         # Worker Model selection
-        model_label = tk.Label(model_frame, text="Worker Model:")
-        model_label.grid(row=0, column=2, padx=5, pady=5, sticky="e")
+        worker_label = tk.Label(model_frame, text="Worker Model:")
+        worker_label.grid(row=1, column=0, padx=5, pady=5, sticky="e")
         
         self.model_menu = ttk.Combobox(model_frame, textvariable=self.model_var, state="readonly")
-        self.model_menu.grid(row=0, column=3, padx=5, pady=5, sticky="w")
+        self.model_menu.grid(row=1, column=1, padx=5, pady=5, sticky="w")
         self.model_menu.bind("<<ComboboxSelected>>", self.update_model_setting)
 
         # Supervisor Model selection
         supervisor_label = tk.Label(model_frame, text="Supervisor Model:")
-        supervisor_label.grid(row=1, column=2, padx=5, pady=5, sticky="e")
+        supervisor_label.grid(row=2, column=0, padx=5, pady=5, sticky="e")
         
         self.supervisor_model_menu = ttk.Combobox(model_frame, textvariable=self.supervisor_model_var, state="readonly")
-        self.supervisor_model_menu.grid(row=1, column=3, padx=5, pady=5, sticky="w")
+        self.supervisor_model_menu.grid(row=2, column=1, padx=5, pady=5, sticky="w")
+
+        # Manager Model selection
+        manager_label = tk.Label(model_frame, text="Manager Model:")
+        manager_label.grid(row=3, column=0, padx=5, pady=5, sticky="e")
+        
+        self.manager_model_menu = ttk.Combobox(model_frame, textvariable=self.manager_model_var, state="readonly")
+        self.manager_model_menu.grid(row=3, column=1, padx=5, pady=5, sticky="w")
 
         # Initialize model list
         self.update_model_list()
@@ -216,8 +224,12 @@ class ERAGGUI:
         else:
             models = get_available_models(api_type)
 
+        # Add 'None' option for Manager model
+        manager_models = ['None'] + models
+
         self.model_menu['values'] = models
         self.supervisor_model_menu['values'] = models
+        self.manager_model_menu['values'] = manager_models
 
         if models:
             # Set worker model
@@ -226,11 +238,9 @@ class ERAGGUI:
             elif api_type == "llama" and self.server_manager.current_model in models:
                 self.model_var.set(self.server_manager.current_model)
             elif api_type == "groq":
-                # Check if the default Groq model from settings is available
                 if settings.groq_model in models:
                     self.model_var.set(settings.groq_model)
                 else:
-                    # If not available, set to the first available model and update settings
                     new_default = models[0]
                     self.model_var.set(new_default)
                     settings.update_setting("groq_model", new_default)
@@ -238,14 +248,16 @@ class ERAGGUI:
             else:
                 self.model_var.set(models[0])
 
-            # Set supervisor model (default to the same as worker model)
+            # Set supervisor and manager models (default to the same as worker model)
             self.supervisor_model_var.set(self.model_var.get())
+            self.manager_model_var.set(self.model_var.get())
 
             if not self.is_initializing:
                 self.update_model_setting()
         else:
             self.model_var.set("")
             self.supervisor_model_var.set("")
+            self.manager_model_var.set('None')
         
         if self.is_initializing:
             self.is_initializing = False
@@ -258,6 +270,7 @@ class ERAGGUI:
         print(success(f"Available models: {', '.join(models)}"))
         print(success(f"Selected worker model: {self.model_var.get()}"))
         print(success(f"Selected supervisor model: {self.supervisor_model_var.get()}"))
+        print(success(f"Selected manager model: {self.manager_model_var.get()}"))
 
     def create_agent_frame(self):
         agent_frame = tk.LabelFrame(self.main_tab, text="Model and Agent")
@@ -695,12 +708,16 @@ class ERAGGUI:
             api_type = self.api_type_var.get()
             worker_model = self.model_var.get()
             supervisor_model = self.supervisor_model_var.get()
+            manager_model = self.manager_model_var.get()
             
             # Create separate EragAPI instances for worker and supervisor
             worker_erag_api = create_erag_api(api_type, worker_model)
             supervisor_erag_api = create_erag_api(api_type, supervisor_model)
             
-            creator = KnolCreator(worker_erag_api, supervisor_erag_api)
+            # Create manager EragAPI only if a model is selected
+            manager_erag_api = create_erag_api(api_type, manager_model) if manager_model != 'None' else None
+            
+            creator = KnolCreator(worker_erag_api, supervisor_erag_api, manager_erag_api)
             
             # Set up RAG components
             if os.path.exists(settings.db_file_path):
@@ -733,12 +750,14 @@ class ERAGGUI:
             settings.apply_settings()
             
             architecture_info = (
-                "This Knol Creation module supports a Worker Model and Supervisory Model architecture:\n\n"
+                "This Knol Creation module supports a Worker-Supervisor-Manager Model architecture:\n\n"
                 f"Worker Model: {worker_model}\n"
-                f"Supervisory Model: {supervisor_model}\n\n"
+                f"Supervisor Model: {supervisor_model}\n"
+                f"Manager Model: {manager_model}\n\n"
                 "The Worker Model performs the initial knol creation and question answering, "
-                "while the Supervisory Model improves the knol and enhances the answers, "
-                "providing a more refined and comprehensive knowledge artifact."
+                "the Supervisor Model improves the knol and enhances the answers, "
+                f"and the Manager Model {'reviews the final result, provides feedback, ' if manager_model != 'None' else 'is not used in this process.'}"
+                f"{'and initiates further iterations if necessary.' if manager_model != 'None' else ''}"
             )
             
             messagebox.showinfo("Knol Creation Process Started", 
