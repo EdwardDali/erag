@@ -27,7 +27,9 @@ class SelfKnolCreator:
             logging.error(error(f"Error saving {stage} self knol to file: {str(e)}"))
 
     def create_knol(self, subject: str, iteration: int, previous_knol: str = "", manager_review: str = "") -> str:
-        system_message = f"""You are a knowledgeable assistant that creates structured, comprehensive, and detailed knowledge entries on specific subjects. When given a topic, provide an exhaustive explanation covering key aspects, sub-topics, and important details. Structure the information as follows:
+        system_message = f"""You are a knowledgeable assistant that creates and improves structured, comprehensive, and detailed knowledge entries on specific subjects. Your task is to create or enhance a knol (knowledge entry) about {subject}.
+
+Structure the information as follows:
 
 Title: Self Knol: {subject}
 
@@ -42,9 +44,11 @@ Ensure that the structure is consistent and the information is detailed and accu
         if iteration == 1:
             query = f"Create a structured, comprehensive knowledge entry about {subject}. Include main topics, subtopics, and at least 5 key points with detailed information for each subtopic. Focus exclusively on {subject} using only your own knowledge."
         else:
-            query = f"""Improve the following knowledge entry about {subject}, taking into account the manager's review. 
+            query = f"""Improve and expand the following knowledge entry about {subject}, taking into account the manager's review. 
+            Your task is to create a new, enhanced version of the knol, not just to provide comments.
             Add more details, ensure at least 5 points per subtopic, and restructure if necessary. 
             Focus on addressing the specific feedback and areas of improvement mentioned in the review.
+            Incorporate all the valuable information from the previous version while expanding and improving upon it.
 
 Previous Knol:
 {previous_knol}
@@ -52,7 +56,7 @@ Previous Knol:
 Manager's Review:
 {manager_review}
 
-Please provide an updated and improved version of the knol."""
+Please provide a completely updated and improved version of the knol, incorporating all valuable information from the previous version and addressing the manager's feedback."""
 
         messages = [
             {"role": "system", "content": system_message},
@@ -62,7 +66,6 @@ Please provide an updated and improved version of the knol."""
         content = self.worker_erag_api.chat(messages, temperature=settings.temperature)
         self.save_iteration(content, "initial", subject, iteration)
         return content
-
 
     def improve_knol(self, knol: str, subject: str, iteration: int, manager_review: str = "") -> str:
         system_message = f"""You are a supervisory assistant tasked with improving and expanding an existing knowledge entry (knol) about {subject}. Your role is to enhance the knol by adding more details, restructuring if necessary, and ensuring comprehensive coverage of the subject. Pay special attention to:
@@ -87,6 +90,9 @@ Aim to provide at least 7 points for each subtopic, but you can include more if 
 
         query = f"""Improve and expand the following knol about {subject} by adding more details, ensuring at least 7 points per subtopic, and restructuring if necessary. Focus exclusively on {subject} using only your own knowledge.
 
+Your task is to create a new, enhanced version of the knol, not just to provide comments.
+Incorporate all the valuable information from the previous version while expanding and improving upon it.
+
 Original Knol:
 {knol}
 
@@ -97,6 +103,8 @@ Please pay special attention to the following manager's review from the previous
 
 Manager's Review:
 {manager_review}
+
+Ensure that you create a fully updated and improved version of the knol, addressing all the feedback and suggestions provided in the manager's review.
 """
 
         messages = [
@@ -107,7 +115,6 @@ Manager's Review:
         improved_content = self.supervisor_erag_api.chat(messages, temperature=settings.temperature)
         self.save_iteration(improved_content, "improved", subject, iteration)
         return improved_content
-
 
     def manager_review(self, knol: str, subject: str, iteration: int) -> Tuple[str, float]:
         if self.manager_erag_api is None:
@@ -167,7 +174,6 @@ Manager's Review:
         self.save_iteration(review, "manager_review", subject, iteration)
         return review, rating
 
-
     def run_self_knol_creator(self):
         print(info("Welcome to the Self Knol Creation System. Type 'exit' to quit."))
         
@@ -205,10 +211,7 @@ Manager's Review:
                     break
                 else:
                     print(info(f"The knol did not meet the required standard (8.0). Current rating: {rating}/10"))
-                    user_decision = input(color_user_input("Do you want to iterate again? (yes/no): ")).strip().lower()
-                    if user_decision != 'yes':
-                        print(warning("Knol creation process ended without meeting the required standard."))
-                        break
+                    print(info("Proceeding with the next iteration..."))
                     iteration += 1
                     previous_knol = improved_knol
                     previous_review = manager_review
