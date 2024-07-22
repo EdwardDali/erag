@@ -710,8 +710,6 @@ class ERAGGUI:
             # Create KnolCreator instance
             creator = KnolCreator(worker_erag_api, supervisor_erag_api, manager_erag_api)
             
-            # The KnolCreator now handles RAG initialization internally, so we don't need to set up RAG components here
-            
             # Apply settings to KnolCreator
             settings.apply_settings()
             
@@ -738,7 +736,7 @@ class ERAGGUI:
             messagebox.showerror("Error", f"An error occurred while starting the knol creation process: {str(e)}")
 
 
-        def upload_multiple_files(self, file_type: str):
+    def upload_multiple_files(self, file_type: str):
             try:
                 files_added = self.file_processor.upload_multiple_files(file_type)
                 if files_added > 0:
