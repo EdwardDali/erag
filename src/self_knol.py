@@ -133,7 +133,7 @@ Ensure that you create a fully updated and improved version of the knol, address
         Your review should be constructive but demanding, pointing out both strengths and weaknesses.
 
         IMPORTANT: You must provide a numerical grade between 1 and 10 at the end of your review, formatted as follows:
-        GRADE: [Your numerical grade]
+        GRADE: [Your numerical grade]/10
 
         This grade should reflect your critical evaluation, where:
         1-3: Poor quality, major revisions needed
@@ -155,7 +155,7 @@ Ensure that you create a fully updated and improved version of the knol, address
         Knol Content:
         {knol}
 
-        End your review with a numerical grade formatted as: GRADE: [Your numerical grade]"""
+        End your review with a numerical grade formatted as: GRADE: [Your numerical grade]/10"""
 
         manager_messages = [
             {"role": "system", "content": manager_system_message},
@@ -164,9 +164,20 @@ Ensure that you create a fully updated and improved version of the knol, address
         review = self.manager_erag_api.chat(manager_messages, temperature=settings.temperature)
 
         # Extract rating from the review
-        grade_match = re.search(r'GRADE:\s*(\d+(?:\.\d+)?)', review)
+        grade_match = re.search(r'GRADE:\s*(\d+(?:\.\d+)?)\s*\/\s*(\d+)', review)
         if grade_match:
-            rating = float(grade_match.group(1))
+            grade = float(grade_match.group(1))
+            scale = int(grade_match.group(2))
+            
+            if scale == 5:
+                rating = (grade / 5) * 10
+            elif scale == 10:
+                rating = grade
+            else:
+                print(warning(f"Unexpected rating scale: {scale}. Treating as a 10-point scale."))
+                rating = grade
+            
+            print(info(f"Original grade: {grade}/{scale}, Converted rating: {rating}/10"))
         else:
             print(warning("No grade found in the manager's review. Assigning a default grade of 5."))
             rating = 5.0
@@ -204,13 +215,13 @@ Ensure that you create a fully updated and improved version of the knol, address
                 
                 print(f"\n{success('Manager Review:')}")
                 print(color_llm_response(manager_review))
-                print(f"\n{success(f'Manager Rating: {rating}/10')}")
+                print(f"\n{success(f'Manager Rating: {rating:.1f}/10')}")
 
                 if rating >= 8.0:
                     print(success(f"Self Knol creation process completed for {user_input} with a satisfactory rating."))
                     break
                 else:
-                    print(info(f"The knol did not meet the required standard (8.0). Current rating: {rating}/10"))
+                    print(info(f"The knol did not meet the required standard (8.0). Current rating: {rating:.1f}/10"))
                     print(info("Proceeding with the next iteration..."))
                     iteration += 1
                     previous_knol = improved_knol
