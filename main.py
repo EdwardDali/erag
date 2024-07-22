@@ -36,6 +36,7 @@ from src.look_and_feel import error, success, warning, info, highlight
 from src.talk2sd import Talk2SD
 from src.x_da import ExploratoryDataAnalysis
 from src.file_processing import upload_multiple_files, FileProcessor
+from src.self_knol import SelfKnolCreator 
 
 
 
@@ -275,6 +276,11 @@ class ERAGGUI:
         route_query_button = tk.Button(agent_frame, text="Route Query", command=self.run_route_query)
         route_query_button.pack(side="left", padx=5, pady=5)
         ToolTip(route_query_button, "Route a query to the appropriate system or model")
+
+        # Add the new Create Self Knol button
+        create_self_knol_button = tk.Button(agent_frame, text="Create Self Knol", command=self.create_self_knol)
+        create_self_knol_button.pack(side="left", padx=5, pady=5)
+        ToolTip(create_self_knol_button, "Create a knowledge artifact (Self Knol) using only the model's knowledge")
 
     def run_talk2model(self):
         try:
@@ -783,6 +789,46 @@ class ERAGGUI:
                 messagebox.showwarning("Warning", "Failed to create knowledge graph.")
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred while creating the knowledge graph: {str(e)}")
+
+    def create_self_knol(self):
+        try:
+            api_type = self.api_type_var.get()
+            worker_model = self.model_var.get()
+            supervisor_model = self.supervisor_model_var.get()
+            manager_model = self.manager_model_var.get()
+            
+            # Create separate EragAPI instances for worker, supervisor, and manager
+            worker_erag_api = create_erag_api(api_type, worker_model)
+            supervisor_erag_api = create_erag_api(api_type, supervisor_model)
+            manager_erag_api = create_erag_api(api_type, manager_model) if manager_model != 'None' else None
+            
+            # Create SelfKnolCreator instance
+            creator = SelfKnolCreator(worker_erag_api, supervisor_erag_api, manager_erag_api)
+            
+            # Apply settings to SelfKnolCreator
+            settings.apply_settings()
+            
+            architecture_info = (
+                "This Self Knol Creation module supports a Worker-Supervisor-Manager Model architecture:\n\n"
+                f"Worker Model: {worker_model}\n"
+                f"Supervisor Model: {supervisor_model}\n"
+                f"Manager Model: {manager_model}\n\n"
+                "The Worker Model performs the initial knol creation, "
+                "the Supervisor Model improves and expands the knol, "
+                f"and the Manager Model {'reviews the final result and provides feedback.' if manager_model != 'None' else 'is not used in this process.'}"
+            )
+            
+            messagebox.showinfo("Self Knol Creation Process Started", 
+                                f"{architecture_info}\n\n"
+                                f"Self Knol creation process started with {api_type} API.\n"
+                                "Check the console for interaction and progress updates.")
+            
+            # Run the self knol creator in a separate thread
+            threading.Thread(target=creator.run_self_knol_creator, daemon=True).start()
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"An error occurred while starting the self knol creation process: {str(e)}")
+
 
     def create_knowledge_graph_from_raw(self):
         try:
