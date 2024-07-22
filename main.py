@@ -149,7 +149,7 @@ class ERAGGUI:
         file_types = ["DOCX", "JSON", "PDF", "Text"]
         for file_type in file_types:
             button = tk.Button(upload_frame, text=f"Upload {file_type}", 
-                               command=lambda ft=file_type: self.upload_multiple_files(ft))
+                               command=lambda ft=file_type: upload_multiple_files(ft))
             button.pack(side="left", padx=5, pady=5)
             ToolTip(button, f"Upload and process multiple unstructured data {file_type} files")
 
