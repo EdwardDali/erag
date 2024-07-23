@@ -37,7 +37,8 @@ from src.talk2sd import Talk2SD
 from src.x_da import ExploratoryDataAnalysis
 from src.file_processing import upload_multiple_files, FileProcessor
 from src.self_knol import SelfKnolCreator
-from src.ax_da import AdvancedExploratoryDataAnalysis
+from src.ax_da_b1 import AdvancedExploratoryDataAnalysisB1  # Updated import
+from src.ax_da_b2 import AdvancedExploratoryDataAnalysisB2  # New import
 
 
 
@@ -145,10 +146,16 @@ class ERAGGUI:
         xda_button.pack(side="left", padx=5, pady=5)
         ToolTip(xda_button, "Perform Exploratory Data Analysis on a selected SQLite database")
 
-        # Add the new A-XDA button
-        axda_button = tk.Button(rag_frame, text="A-XDA", command=self.run_axda)
-        axda_button.pack(side="left", padx=5, pady=5)
-        ToolTip(axda_button, "Perform Advanced Exploratory Data Analysis on a selected SQLite database")
+        # Update the A-XDA button to A-XDA-B1
+        axda_b1_button = tk.Button(rag_frame, text="A-XDA-B1", command=self.run_axda_b1)
+        axda_b1_button.pack(side="left", padx=5, pady=5)
+        ToolTip(axda_b1_button, "Perform Advanced Exploratory Data Analysis (Batch 1) on a selected SQLite database")
+
+        # Add the new A-XDA-B2 button
+        axda_b2_button = tk.Button(rag_frame, text="A-XDA-B2", command=self.run_axda_b2)
+        axda_b2_button.pack(side="left", padx=5, pady=5)
+        ToolTip(axda_b2_button, "Perform Advanced Exploratory Data Analysis (Batch 2) on a selected SQLite database")
+
 
     def create_upload_frame(self):
         upload_frame = tk.LabelFrame(self.main_tab, text="Upload Unstructured Data")
@@ -1190,7 +1197,7 @@ class ERAGGUI:
             print(error(error_message))
             messagebox.showerror("Error", error_message)
 
-    def run_axda(self):
+    def run_axda_b1(self):
         try:
             db_path = filedialog.askopenfilename(
                 title="Select SQLite Database",
@@ -1208,44 +1215,103 @@ class ERAGGUI:
             worker_erag_api = create_erag_api(api_type, worker_model)
             supervisor_erag_api = create_erag_api(api_type, supervisor_model)
             
-            # Create AdvancedExploratoryDataAnalysis instance with both APIs
-            axda = AdvancedExploratoryDataAnalysis(worker_erag_api, supervisor_erag_api, db_path)
+            # Create AdvancedExploratoryDataAnalysisB1 instance with both APIs
+            axda_b1 = AdvancedExploratoryDataAnalysisB1(worker_erag_api, supervisor_erag_api, db_path)
             
-            # Apply settings to A-XDA
+            # Apply settings to A-XDA-B1
             settings.apply_settings()
             
-            # Run A-XDA in a separate thread to keep the GUI responsive
-            threading.Thread(target=self.run_axda_thread, args=(axda,), daemon=True).start()
+            # Run A-XDA-B1 in a separate thread to keep the GUI responsive
+            threading.Thread(target=self.run_axda_b1_thread, args=(axda_b1,), daemon=True).start()
             
-            output_folder = os.path.join(os.path.dirname(db_path), "axda_output")
+            output_folder = os.path.join(os.path.dirname(db_path), "axda_b1_output")
             
             # Create an informative message about the Worker-Supervisor Model architecture
             architecture_info = (
-                "This A-XDA module supports a Worker Model and Supervisory Model architecture:\n\n"
+                "This A-XDA-B1 module supports a Worker Model and Supervisory Model architecture:\n\n"
                 f"Worker Model: {worker_model}\n"
                 f"Supervisory Model: {supervisor_model}\n\n"
                 "The Worker Model performs the initial analysis, while the Supervisory Model reviews and enhances the results, "
                 "providing a more comprehensive and refined analysis."
             )
             
-            messagebox.showinfo("A-XDA Process Started", 
+            messagebox.showinfo("A-XDA-B1 Process Started", 
                                 f"{architecture_info}\n\n"
-                                f"Advanced Exploratory Data Analysis started on {os.path.basename(db_path)}.\n"
+                                f"Advanced Exploratory Data Analysis (Batch 1) started on {os.path.basename(db_path)}.\n"
                                 f"Check the console for progress updates and AI interpretations.\n"
                                 f"Results will be saved in {output_folder}")
         except Exception as e:
-            error_message = f"An error occurred while starting the A-XDA process: {str(e)}"
+            error_message = f"An error occurred while starting the A-XDA-B1 process: {str(e)}"
             print(error(error_message))
             messagebox.showerror("Error", error_message)
 
-    def run_axda_thread(self, axda):
+    def run_axda_b1_thread(self, axda_b1):
         try:
-            axda.run()
-            print(success("Advanced Exploratory Data Analysis completed successfully."))
-            messagebox.showinfo("Success", "Advanced Exploratory Data Analysis completed successfully. "
+            axda_b1.run()
+            print(success("Advanced Exploratory Data Analysis (Batch 1) completed successfully."))
+            messagebox.showinfo("Success", "Advanced Exploratory Data Analysis (Batch 1) completed successfully. "
                                            "Check the output folder for the generated report.")
         except Exception as e:
-            error_message = f"An error occurred during Advanced Exploratory Data Analysis: {str(e)}"
+            error_message = f"An error occurred during Advanced Exploratory Data Analysis (Batch 1): {str(e)}"
+            print(error(error_message))
+            messagebox.showerror("Error", error_message)
+
+    def run_axda_b2(self):
+        try:
+            db_path = filedialog.askopenfilename(
+                title="Select SQLite Database",
+                filetypes=[("SQLite files", "*.db"), ("All files", "*.*")]
+            )
+            if not db_path:
+                messagebox.showwarning("Warning", "No database selected.")
+                return
+
+            api_type = self.api_type_var.get()
+            worker_model = self.model_var.get()
+            supervisor_model = self.supervisor_model_var.get()
+            
+            # Create separate EragAPI instances for worker and supervisor
+            worker_erag_api = create_erag_api(api_type, worker_model)
+            supervisor_erag_api = create_erag_api(api_type, supervisor_model)
+            
+            # Create AdvancedExploratoryDataAnalysisB2 instance with both APIs
+            axda_b2 = AdvancedExploratoryDataAnalysisB2(worker_erag_api, supervisor_erag_api, db_path)
+            
+            # Apply settings to A-XDA-B2
+            settings.apply_settings()
+            
+            # Run A-XDA-B2 in a separate thread to keep the GUI responsive
+            threading.Thread(target=self.run_axda_b2_thread, args=(axda_b2,), daemon=True).start()
+            
+            output_folder = os.path.join(os.path.dirname(db_path), "axda_b2_output")
+            
+            # Create an informative message about the Worker-Supervisor Model architecture
+            architecture_info = (
+                "This A-XDA-B2 module supports a Worker Model and Supervisory Model architecture:\n\n"
+                f"Worker Model: {worker_model}\n"
+                f"Supervisory Model: {supervisor_model}\n\n"
+                "The Worker Model performs the initial analysis, while the Supervisory Model reviews and enhances the results, "
+                "providing a more comprehensive and refined analysis."
+            )
+            
+            messagebox.showinfo("A-XDA-B2 Process Started", 
+                                f"{architecture_info}\n\n"
+                                f"Advanced Exploratory Data Analysis (Batch 2) started on {os.path.basename(db_path)}.\n"
+                                f"Check the console for progress updates and AI interpretations.\n"
+                                f"Results will be saved in {output_folder}")
+        except Exception as e:
+            error_message = f"An error occurred while starting the A-XDA-B2 process: {str(e)}"
+            print(error(error_message))
+            messagebox.showerror("Error", error_message)
+
+    def run_axda_b2_thread(self, axda_b2):
+        try:
+            axda_b2.run()
+            print(success("Advanced Exploratory Data Analysis (Batch 2) completed successfully."))
+            messagebox.showinfo("Success", "Advanced Exploratory Data Analysis (Batch 2) completed successfully. "
+                                           "Check the output folder for the generated report.")
+        except Exception as e:
+            error_message = f"An error occurred during Advanced Exploratory Data Analysis (Batch 2): {str(e)}"
             print(error(error_message))
             messagebox.showerror("Error", error_message)
             
