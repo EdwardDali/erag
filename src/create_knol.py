@@ -90,7 +90,7 @@ Text Search Results:
         if self.output_folder is None:
             # Create a new subfolder for this knol creation process
             self.output_folder = os.path.join(settings.output_folder, f"knol_{subject.replace(' ', '_')}")
-            os.makedirs(self.output_folder, exist_key=True)
+            os.makedirs(self.output_folder, exist_ok=True)
             logging.info(success(f"Created output folder: {self.output_folder}"))
 
         filename = f"knol_{subject.replace(' ', '_')}_{stage}_iteration_{iteration}.txt"
