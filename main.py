@@ -36,7 +36,8 @@ from src.look_and_feel import error, success, warning, info, highlight
 from src.talk2sd import Talk2SD
 from src.x_da import ExploratoryDataAnalysis
 from src.file_processing import upload_multiple_files, FileProcessor
-from src.self_knol import SelfKnolCreator 
+from src.self_knol import SelfKnolCreator
+from src.ax_da import AdvancedExploratoryDataAnalysis
 
 
 
@@ -143,6 +144,11 @@ class ERAGGUI:
         xda_button = tk.Button(rag_frame, text="XDA", command=self.run_xda)
         xda_button.pack(side="left", padx=5, pady=5)
         ToolTip(xda_button, "Perform Exploratory Data Analysis on a selected SQLite database")
+
+        # Add the new A-XDA button
+        axda_button = tk.Button(rag_frame, text="A-XDA", command=self.run_axda)
+        axda_button.pack(side="left", padx=5, pady=5)
+        ToolTip(axda_button, "Perform Advanced Exploratory Data Analysis on a selected SQLite database")
 
     def create_upload_frame(self):
         upload_frame = tk.LabelFrame(self.main_tab, text="Upload Unstructured Data")
@@ -1181,6 +1187,65 @@ class ERAGGUI:
                                            "Check the output folder for the generated report.")
         except Exception as e:
             error_message = f"An error occurred during Exploratory Data Analysis: {str(e)}"
+            print(error(error_message))
+            messagebox.showerror("Error", error_message)
+
+    def run_axda(self):
+        try:
+            db_path = filedialog.askopenfilename(
+                title="Select SQLite Database",
+                filetypes=[("SQLite files", "*.db"), ("All files", "*.*")]
+            )
+            if not db_path:
+                messagebox.showwarning("Warning", "No database selected.")
+                return
+
+            api_type = self.api_type_var.get()
+            worker_model = self.model_var.get()
+            supervisor_model = self.supervisor_model_var.get()
+            
+            # Create separate EragAPI instances for worker and supervisor
+            worker_erag_api = create_erag_api(api_type, worker_model)
+            supervisor_erag_api = create_erag_api(api_type, supervisor_model)
+            
+            # Create AdvancedExploratoryDataAnalysis instance with both APIs
+            axda = AdvancedExploratoryDataAnalysis(worker_erag_api, supervisor_erag_api, db_path)
+            
+            # Apply settings to A-XDA
+            settings.apply_settings()
+            
+            # Run A-XDA in a separate thread to keep the GUI responsive
+            threading.Thread(target=self.run_axda_thread, args=(axda,), daemon=True).start()
+            
+            output_folder = os.path.join(os.path.dirname(db_path), "axda_output")
+            
+            # Create an informative message about the Worker-Supervisor Model architecture
+            architecture_info = (
+                "This A-XDA module supports a Worker Model and Supervisory Model architecture:\n\n"
+                f"Worker Model: {worker_model}\n"
+                f"Supervisory Model: {supervisor_model}\n\n"
+                "The Worker Model performs the initial analysis, while the Supervisory Model reviews and enhances the results, "
+                "providing a more comprehensive and refined analysis."
+            )
+            
+            messagebox.showinfo("A-XDA Process Started", 
+                                f"{architecture_info}\n\n"
+                                f"Advanced Exploratory Data Analysis started on {os.path.basename(db_path)}.\n"
+                                f"Check the console for progress updates and AI interpretations.\n"
+                                f"Results will be saved in {output_folder}")
+        except Exception as e:
+            error_message = f"An error occurred while starting the A-XDA process: {str(e)}"
+            print(error(error_message))
+            messagebox.showerror("Error", error_message)
+
+    def run_axda_thread(self, axda):
+        try:
+            axda.run()
+            print(success("Advanced Exploratory Data Analysis completed successfully."))
+            messagebox.showinfo("Success", "Advanced Exploratory Data Analysis completed successfully. "
+                                           "Check the output folder for the generated report.")
+        except Exception as e:
+            error_message = f"An error occurred during Advanced Exploratory Data Analysis: {str(e)}"
             print(error(error_message))
             messagebox.showerror("Error", error_message)
             
