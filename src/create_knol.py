@@ -32,6 +32,7 @@ class KnolCreator:
         self.conversation_context = deque(maxlen=settings.conversation_context_size * 2)
         self.knowledge_graph = self.load_knowledge_graph()
         self.search_utils = SearchUtils(self.embedding_model, self.db_embeddings, self.db_content, self.knowledge_graph)
+        self.output_folder = None
         os.makedirs(settings.output_folder, exist_ok=True)
 
     def load_embeddings(self):
@@ -86,8 +87,14 @@ Text Search Results:
             return f"I'm sorry, but I encountered an error while processing your request: {str(e)}"
 
     def save_iteration(self, content: str, stage: str, subject: str, iteration: int):
+        if self.output_folder is None:
+            # Create a new subfolder for this knol creation process
+            self.output_folder = os.path.join(settings.output_folder, f"knol_{subject.replace(' ', '_')}")
+            os.makedirs(self.output_folder, exist_key=True)
+            logging.info(success(f"Created output folder: {self.output_folder}"))
+
         filename = f"knol_{subject.replace(' ', '_')}_{stage}_iteration_{iteration}.txt"
-        file_path = os.path.join(settings.output_folder, filename)
+        file_path = os.path.join(self.output_folder, filename)
         try:
             with open(file_path, "w", encoding="utf-8") as f:
                 f.write(content)
@@ -291,9 +298,9 @@ Knol Content:
         qa_filename = f"knol_{subject.replace(' ', '_')}_q_a_iteration_{iteration}.txt"
         final_knol_filename = f"knol_{subject.replace(' ', '_')}_final_iteration_{iteration}.txt"
 
-        improved_knol_path = os.path.join(settings.output_folder, improved_knol_filename)
-        qa_path = os.path.join(settings.output_folder, qa_filename)
-        final_knol_path = os.path.join(settings.output_folder, final_knol_filename)
+        improved_knol_path = os.path.join(self.output_folder, improved_knol_filename)
+        qa_path = os.path.join(self.output_folder, qa_filename)
+        final_knol_path = os.path.join(self.output_folder, final_knol_filename)
 
         try:
             with open(improved_knol_path, "r", encoding="utf-8") as f:
@@ -326,6 +333,9 @@ Knol Content:
             if not user_input:
                 print(error("Please enter a valid subject."))
                 continue
+
+            # Reset the output folder for each new knol
+            self.output_folder = None
 
             iteration = 1
             previous_knol = ""
@@ -365,7 +375,7 @@ Knol Content:
             final_knol = self.create_final_knol(user_input, iteration)
 
             print(success(f"Knol creation process completed for {user_input}."))
-            print(info("You can find the results in files with '_initial', '_improved', '_q', '_q_a', '_manager_review', and '_final' suffixes."))
+            print(info(f"You can find the results in the folder: {self.output_folder}"))
 
             print(f"\n{success('Final Improved Knol Content:')}")
             print(color_llm_response(improved_knol))

@@ -94,6 +94,7 @@ class ERAGGUI:
         self.file_processor = FileProcessor()
         self.supervisor_model_var = tk.StringVar(master)
         self.manager_model_var = tk.StringVar(master)
+        self.default_manager_model_var = tk.StringVar(master)
 
         # Create output folder if it doesn't exist
         os.makedirs(settings.output_folder, exist_ok=True)
@@ -201,10 +202,12 @@ class ERAGGUI:
         self.supervisor_model_menu = ttk.Combobox(model_frame, textvariable=self.supervisor_model_var, state="readonly", width=15)
         self.supervisor_model_menu.grid(row=0, column=5, padx=5, pady=5)
 
-        # Manager Model selection
+        # Update the Manager Model selection to use the default from settings
         tk.Label(model_frame, text="Manager Model:").grid(row=0, column=6, padx=5, pady=5, sticky="e")
+        self.manager_model_var = tk.StringVar(self.master, value=settings.default_manager_model if settings.default_manager_model else 'None')
         self.manager_model_menu = ttk.Combobox(model_frame, textvariable=self.manager_model_var, state="readonly", width=15)
         self.manager_model_menu.grid(row=0, column=7, padx=5, pady=5)
+
 
         # Initialize model list
         self.update_model_list()
@@ -241,9 +244,15 @@ class ERAGGUI:
             else:
                 self.model_var.set(models[0])
 
-            # Set supervisor and manager models (default to the same as worker model)
+            # Set supervisor model (default to the same as worker model)
             self.supervisor_model_var.set(self.model_var.get())
-            self.manager_model_var.set(self.model_var.get())
+
+            # Set manager model (use the default from settings if available)
+            default_manager = settings.default_manager_model if settings.default_manager_model else 'None'
+            if default_manager in manager_models:
+                self.manager_model_var.set(default_manager)
+            else:
+                self.manager_model_var.set('None')
 
             if not self.is_initializing:
                 self.update_model_setting()
@@ -483,6 +492,7 @@ class ERAGGUI:
             ("Default Ollama Model", "ollama_model"),
             ("Default Llama Model", "llama_model"),
             ("Default Groq Model", "groq_model"),
+            ("Default Manager Model", "default_manager_model"),
             ("Temperature", "temperature"),
             ("Max History Length", "max_history_length"),
             ("Conversation Context Size", "conversation_context_size"),
@@ -550,6 +560,13 @@ class ERAGGUI:
         ttk.Button(button_frame, text="Apply Settings", command=self.apply_settings).pack(side="left", padx=5)
         ttk.Button(button_frame, text="Reset to Defaults", command=self.reset_settings).pack(side="left", padx=5)
 
+       # Add new setting for default Manager Model
+        ttk.Label(api_frame, text="Default Manager Model:").grid(row=len(api_frame.grid_slaves()), column=0, sticky="e", padx=5, pady=2)
+        default_manager_models = ['None'] + get_available_models(self.api_type_var.get(), self.server_manager)  # Use the imported function
+        self.default_manager_model_var = tk.StringVar(value=settings.default_manager_model if settings.default_manager_model else 'None')
+        ttk.Combobox(api_frame, textvariable=self.default_manager_model_var, values=default_manager_models, state="readonly").grid(row=len(api_frame.grid_slaves())-1, column=1, sticky="w", padx=5, pady=2)
+
+
     def create_labelframe(self, parent, text, row):
         frame = ttk.LabelFrame(parent, text=text)
         frame.grid(row=row, column=0, padx=5, pady=5, sticky="nsew")
@@ -606,6 +623,11 @@ class ERAGGUI:
 
         # Update the model list in the main GUI to reflect any changes
         self.update_model_list()
+        
+        # Apply the default Manager Model setting
+        default_manager_model = self.default_manager_model_var.get()
+        settings.update_setting('default_manager_model', None if default_manager_model == 'None' else default_manager_model)
+
 
     def update_env_file(self, key: str, value: str) -> None:
         """

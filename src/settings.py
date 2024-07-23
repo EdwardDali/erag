@@ -52,6 +52,7 @@ class Settings:
         self.temperature = 0.1
         self.model_name = "all-MiniLM-L6-v2"
         self.sentence_transformer_model = "all-MiniLM-L6-v2"
+        self.default_manager_model = None
 
         # Knol Creation Settings
         self.num_questions = 8
@@ -128,16 +129,19 @@ class Settings:
                 if hasattr(self, key):
                     if key in ['dataset_fields', 'dataset_output_formats']:
                         setattr(self, key, value if isinstance(value, list) else value.split(','))
+                    elif key == 'default_manager_model':
+                        setattr(self, key, None if value == 'None' else value)
                     else:
                         setattr(self, key, value)
         else:
-            self.save_settings()  # Create default config file if it doesn't exist
+            self.save_settings()
 
     def save_settings(self):
         settings_dict = {key: value for key, value in self.__dict__.items() if not key.startswith('_')}
         # Convert list settings to comma-separated strings for JSON serialization
         settings_dict['dataset_fields'] = ','.join(self.dataset_fields)
         settings_dict['dataset_output_formats'] = ','.join(self.dataset_output_formats)
+        settings_dict['default_manager_model'] = 'None' if self.default_manager_model is None else self.default_manager_model
         with open(self.config_file, 'w') as f:
             json.dump(settings_dict, f, indent=4)
 

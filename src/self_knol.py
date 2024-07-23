@@ -15,10 +15,17 @@ class SelfKnolCreator:
         self.supervisor_erag_api = supervisor_erag_api
         self.manager_erag_api = manager_erag_api
         os.makedirs(settings.output_folder, exist_ok=True)
+        self.output_subfolder = None
 
     def save_iteration(self, content: str, stage: str, subject: str, iteration: int):
+        if self.output_folder is None:
+            # Create a new subfolder for this self knol creation process
+            self.output_folder = os.path.join(settings.output_folder, f"self_knol_{subject.replace(' ', '_')}")
+            os.makedirs(self.output_folder, exist_ok=True)
+            logging.debug(f"Created output folder: {self.output_folder}")
+
         filename = f"self_knol_{subject.replace(' ', '_')}_{stage}_iteration_{iteration}.txt"
-        file_path = os.path.join(settings.output_folder, filename)
+        file_path = os.path.join(self.output_folder, filename)
         try:
             with open(file_path, "w", encoding="utf-8") as f:
                 f.write(content)
@@ -199,38 +206,56 @@ Ensure that you create a fully updated and improved version of the knol, address
                 print(error("Please enter a valid subject."))
                 continue
 
+            # Reset the output folder for each new self knol
+            self.output_folder = None
+
             iteration = 1
             previous_knol = ""
             previous_review = ""
 
-            while True:
-                print(info(f"Creating self knol about {user_input} (Iteration {iteration})..."))
-                initial_knol = self.create_knol(user_input, iteration, previous_knol, previous_review)
+            try:
+                while True:
+                    print(info(f"Creating self knol about {user_input} (Iteration {iteration})..."))
+                    initial_knol = self.create_knol(user_input, iteration, previous_knol, previous_review)
+                    if initial_knol.startswith("Error occurred:"):
+                        print(error(f"An error occurred during knol creation: {initial_knol}"))
+                        break
 
-                print(info("Improving and expanding the self knol..."))
-                improved_knol = self.improve_knol(initial_knol, user_input, iteration, previous_review)
+                    print(info("Improving and expanding the self knol..."))
+                    improved_knol = self.improve_knol(initial_knol, user_input, iteration, previous_review)
+                    if improved_knol.startswith("Error occurred:"):
+                        print(error(f"An error occurred during knol improvement: {improved_knol}"))
+                        break
 
-                print(info("Manager review in progress..."))
-                manager_review, rating = self.manager_review(improved_knol, user_input, iteration)
-                
-                print(f"\n{success('Manager Review:')}")
-                print(color_llm_response(manager_review))
-                print(f"\n{success(f'Manager Rating: {rating:.1f}/10')}")
+                    print(info("Manager review in progress..."))
+                    manager_review, rating = self.manager_review(improved_knol, user_input, iteration)
+                    
+                    print(f"\n{success('Manager Review:')}")
+                    print(color_llm_response(manager_review))
+                    print(f"\n{success(f'Manager Rating: {rating:.1f}/10')}")
 
-                if rating >= 8.0:
-                    print(success(f"Self Knol creation process completed for {user_input} with a satisfactory rating."))
-                    break
+                    if rating >= 8.0:
+                        print(success(f"Self Knol creation process completed for {user_input} with a satisfactory rating."))
+                        break
+                    else:
+                        print(info(f"The knol did not meet the required standard (8.0). Current rating: {rating:.1f}/10"))
+                        print(info("Proceeding with the next iteration..."))
+                        iteration += 1
+                        previous_knol = improved_knol
+                        previous_review = manager_review
+
+                if self.output_folder:
+                    print(info(f"You can find the results in the folder: {self.output_folder}"))
                 else:
-                    print(info(f"The knol did not meet the required standard (8.0). Current rating: {rating:.1f}/10"))
-                    print(info("Proceeding with the next iteration..."))
-                    iteration += 1
-                    previous_knol = improved_knol
-                    previous_review = manager_review
+                    print(warning("No output folder was created. There might have been an error in the process."))
 
-            print(info("You can find the results in files with '_initial', '_improved', and '_manager_review' suffixes."))
+                print(f"\n{success('Final Improved Self Knol Content:')}")
+                print(color_llm_response(improved_knol))
 
-            print(f"\n{success('Final Improved Self Knol Content:')}")
-            print(color_llm_response(improved_knol))
+            except Exception as e:
+                logging.error(error(f"An unexpected error occurred: {str(e)}"))
+                logging.debug(traceback.format_exc())
+                print(error(f"An unexpected error occurred. Please check the logs for more information."))
 
     
 
