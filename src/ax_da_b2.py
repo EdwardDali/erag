@@ -1,48 +1,41 @@
+import os
+import time
 import sqlite3
+import threading
+from functools import wraps
+
+import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-import numpy as np
+import networkx as nx
+import folium
+import joypy
+import shap
+
+from scipy import stats
 from scipy.stats import norm, anderson, pearsonr, probplot
+from scipy.cluster.hierarchy import dendrogram
+
 from sklearn.preprocessing import StandardScaler
 from sklearn.cluster import AgglomerativeClustering
-from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
+from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier, HistGradientBoostingRegressor
 from sklearn.inspection import PartialDependenceDisplay
-import networkx as nx
-import os
-import folium
-from wordcloud import WordCloud
+from sklearn.impute import SimpleImputer
+
 from statsmodels.graphics.tsaplots import plot_pacf
-import shap
+from statsmodels.graphics.mosaicplot import mosaic
+
+from wordcloud import WordCloud
+
 from src.api_model import EragAPI
 from src.settings import settings
 from src.look_and_feel import error, success, warning, info, highlight
 from src.print_pdf import PDFReportGenerator
+
+# Use non-interactive backend for matplotlib
 import matplotlib
-matplotlib.use('Agg')  # Use non-interactive backend
-import threading
-import time
-from functools import wraps
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
-from scipy import stats
-from sklearn.preprocessing import StandardScaler
-from sklearn.cluster import AgglomerativeClustering
-from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
-from sklearn.inspection import PartialDependenceDisplay
-import networkx as nx
-import folium
-from wordcloud import WordCloud
-from statsmodels.graphics.tsaplots import plot_pacf
-import shap
-from scipy.cluster.hierarchy import dendrogram
-from sklearn.impute import SimpleImputer
-import joypy
-from statsmodels.graphics.mosaicplot import mosaic
-from sklearn.impute import SimpleImputer
-from sklearn.ensemble import HistGradientBoostingRegressor
+matplotlib.use('Agg')
 
 class TimeoutException(Exception):
     pass
@@ -162,27 +155,40 @@ class AdvancedExploratoryDataAnalysisB2:
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
         if len(numerical_columns) > 1:
             def plot_parallel_coordinates():
-                # Convert all columns to float
-                df_plot = df[numerical_columns].astype(float)
-                
-                # If there's no 'target' column, use the first column as a proxy
-                target_column = 'target' if 'target' in df_plot.columns else df_plot.columns[0]
-                
-                fig, ax = plt.subplots(figsize=self.calculate_figure_size())
-                pd.plotting.parallel_coordinates(df_plot, target_column, ax=ax)
-                ax.set_title('Parallel Coordinates Plot')
-                plt.xticks(rotation=45)
-                return fig, ax
+                try:
+                    # Limit the number of columns and rows to prevent extremely large plots
+                    columns_to_plot = numerical_columns[:10]  # Plot at most 10 columns
+                    df_plot = df[columns_to_plot].head(1000)  # Limit to 1000 rows
+                    
+                    # If there's no 'target' column, use the first column as a proxy
+                    target_column = 'target' if 'target' in df_plot.columns else df_plot.columns[0]
+                    
+                    # Calculate figure size based on the number of columns
+                    width, height = self.calculate_figure_size()
+                    fig, ax = plt.subplots(figsize=(width * len(columns_to_plot) / 10, height))
+                    
+                    pd.plotting.parallel_coordinates(df_plot, target_column, ax=ax)
+                    ax.set_title('Parallel Coordinates Plot (Sample)')
+                    plt.xticks(rotation=45)
+                    plt.tight_layout()
+                    return fig, ax
+                except Exception as e:
+                    print(f"Error in creating parallel coordinates plot: {str(e)}")
+                    return None
 
             result = self.generate_plot(plot_parallel_coordinates)
             if result is not None:
                 fig, _ = result
                 img_path = os.path.join(self.output_folder, f"{table_name}_parallel_coordinates.png")
-                plt.savefig(img_path, dpi=100, bbox_inches='tight')
-                plt.close(fig)
-                self.interpret_results("Parallel Coordinates Plot", img_path, table_name)
+                try:
+                    plt.savefig(img_path, dpi=100, bbox_inches='tight')
+                    plt.close(fig)
+                    self.interpret_results("Parallel Coordinates Plot", img_path, table_name)
+                except Exception as e:
+                    print(f"Error saving parallel coordinates plot: {str(e)}")
+                    print("Skipping parallel coordinates plot due to error.")
             else:
-                print("Skipping parallel coordinates plot due to timeout.")
+                print("Skipping parallel coordinates plot due to error in plot generation.")
         else:
             print("Not enough numerical columns for parallel coordinates plot.")
 
@@ -193,26 +199,40 @@ class AdvancedExploratoryDataAnalysisB2:
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
         if len(numerical_columns) > 1:
             def plot_andrews_curves():
-                # Convert all columns to float
-                df_plot = df[numerical_columns].astype(float)
-                
-                # If there's no 'target' column, use the first column as a proxy
-                target_column = 'target' if 'target' in df_plot.columns else df_plot.columns[0]
-                
-                fig, ax = plt.subplots(figsize=self.calculate_figure_size())
-                pd.plotting.andrews_curves(df_plot, target_column, ax=ax)
-                ax.set_title('Andrews Curves')
-                return fig, ax
+                try:
+                    # Limit the number of columns and rows to prevent extremely large plots
+                    columns_to_plot = numerical_columns[:10]  # Plot at most 10 columns
+                    df_plot = df[columns_to_plot].head(1000)  # Limit to 1000 rows
+                    
+                    # If there's no 'target' column, use the first column as a proxy
+                    target_column = 'target' if 'target' in df_plot.columns else df_plot.columns[0]
+                    
+                    # Calculate figure size
+                    width, height = self.calculate_figure_size()
+                    fig, ax = plt.subplots(figsize=(width, height))
+                    
+                    pd.plotting.andrews_curves(df_plot, target_column, ax=ax)
+                    ax.set_title('Andrews Curves (Sample)')
+                    plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+                    plt.tight_layout()
+                    return fig, ax
+                except Exception as e:
+                    print(f"Error in creating Andrews curves plot: {str(e)}")
+                    return None
 
             result = self.generate_plot(plot_andrews_curves)
             if result is not None:
                 fig, _ = result
                 img_path = os.path.join(self.output_folder, f"{table_name}_andrews_curves.png")
-                plt.savefig(img_path, dpi=100, bbox_inches='tight')
-                plt.close(fig)
-                self.interpret_results("Andrews Curves", img_path, table_name)
+                try:
+                    plt.savefig(img_path, dpi=100, bbox_inches='tight')
+                    plt.close(fig)
+                    self.interpret_results("Andrews Curves", img_path, table_name)
+                except Exception as e:
+                    print(f"Error saving Andrews curves plot: {str(e)}")
+                    print("Skipping Andrews curves plot due to error.")
             else:
-                print("Skipping Andrews curves plot due to timeout.")
+                print("Skipping Andrews curves plot due to error in plot generation.")
         else:
             print("Not enough numerical columns for Andrews curves.")
 
