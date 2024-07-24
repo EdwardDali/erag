@@ -45,6 +45,32 @@ class AdvancedExploratoryDataAnalysisB1:  # Updated class name
         self.image_data = []
         self.pdf_generator = None
 
+
+    def preprocess_data(self, df, min_unique_values=2, max_missing_percentage=30):
+        # Select numerical columns
+        numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
+        
+        # Check for missing data and data types
+        valid_columns = []
+        for col in numerical_columns:
+            missing_percentage = df[col].isnull().mean() * 100
+            unique_count = df[col].nunique()
+            
+            if missing_percentage < max_missing_percentage and unique_count >= min_unique_values:
+                valid_columns.append(col)
+            else:
+                print(f"Skipping column {col}: {missing_percentage:.2f}% missing, {unique_count} unique values")
+        
+        # Select valid columns
+        X = df[valid_columns]
+        
+        # Handle remaining NaN values using mean imputation
+        from sklearn.impute import SimpleImputer
+        imputer = SimpleImputer(strategy='mean')
+        X_imputed = imputer.fit_transform(X)
+        
+        return pd.DataFrame(X_imputed, columns=valid_columns)
+
     def calculate_figure_size(self, aspect_ratio=16/9):
         max_width = int(np.sqrt(self.max_pixels * aspect_ratio))
         max_height = int(max_width / aspect_ratio)
@@ -394,12 +420,11 @@ class AdvancedExploratoryDataAnalysisB1:  # Updated class name
         self.technique_counter += 1
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Feature Importance Analysis"))
         
-        numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
-        categorical_columns = df.select_dtypes(include=['object']).columns
+        preprocessed_df = self.preprocess_data(df)
         
-        if len(numerical_columns) > 1:
-            X = df[numerical_columns].drop(numerical_columns[-1], axis=1)
-            y = df[numerical_columns[-1]]
+        if preprocessed_df.shape[1] > 1:
+            X = preprocessed_df.drop(preprocessed_df.columns[-1], axis=1)
+            y = preprocessed_df[preprocessed_df.columns[-1]]
             
             model = RandomForestRegressor(n_estimators=100, random_state=42)
             model.fit(X, y)
@@ -433,11 +458,10 @@ class AdvancedExploratoryDataAnalysisB1:  # Updated class name
         self.technique_counter += 1
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - PCA Analysis"))
         
-        numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
+        preprocessed_df = self.preprocess_data(df)
         
-        if len(numerical_columns) > 2:
-            X = df[numerical_columns]
-            X_scaled = StandardScaler().fit_transform(X)
+        if preprocessed_df.shape[1] > 2:
+            X_scaled = StandardScaler().fit_transform(preprocessed_df)
             
             pca = PCA()
             pca_result = pca.fit_transform(X_scaled)
@@ -479,15 +503,15 @@ class AdvancedExploratoryDataAnalysisB1:  # Updated class name
         self.technique_counter += 1
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Cluster Analysis"))
         
-        numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
+        # Preprocess the data
+        preprocessed_df = self.preprocess_data(df)
         
-        if len(numerical_columns) > 1:
-            X = df[numerical_columns]
-            X_scaled = StandardScaler().fit_transform(X)
+        if preprocessed_df.shape[1] > 1:
+            X_scaled = StandardScaler().fit_transform(preprocessed_df)
             
             # Determine optimal number of clusters using elbow method
             inertias = []
-            max_clusters = min(10, len(X) - 1)  # Limit to 10 clusters or one less than number of samples
+            max_clusters = min(10, preprocessed_df.shape[0] - 1)  # Limit to 10 clusters or one less than number of samples
             for k in range(1, max_clusters + 1):
                 kmeans = KMeans(n_clusters=k, random_state=42)
                 kmeans.fit(X_scaled)
@@ -537,10 +561,10 @@ class AdvancedExploratoryDataAnalysisB1:  # Updated class name
         self.technique_counter += 1
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Correlation Network Analysis"))
         
-        numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
+        preprocessed_df = self.preprocess_data(df)
         
-        if len(numerical_columns) > 1:
-            corr_matrix = df[numerical_columns].corr()
+        if preprocessed_df.shape[1] > 1:
+            corr_matrix = preprocessed_df.corr()
             
             # Create a graph from the correlation matrix
             G = nx.Graph()
@@ -548,7 +572,7 @@ class AdvancedExploratoryDataAnalysisB1:  # Updated class name
                 for j in range(i+1, len(corr_matrix.columns)):
                     if abs(corr_matrix.iloc[i, j]) > 0.5:  # Only add edges for correlations > 0.5
                         G.add_edge(corr_matrix.columns[i], corr_matrix.columns[j], weight=abs(corr_matrix.iloc[i, j]))
-            
+                
             def plot_correlation_network():
                 fig, ax = plt.subplots(figsize=self.calculate_figure_size())
                 pos = nx.spring_layout(G)
