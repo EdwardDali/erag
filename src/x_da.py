@@ -3,7 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
-from scipy.stats import norm, anderson, pearsonr, probplot
+from scipy.stats import norm, anderson, pearsonr, probplot, iqr, zscore
 import os
 from src.api_model import EragAPI
 from src.settings import settings
@@ -24,7 +24,7 @@ class ExploratoryDataAnalysis:
         self.supervisor_erag_api = supervisor_erag_api
         self.db_path = db_path
         self.technique_counter = 0
-        self.total_techniques = 5
+        self.total_techniques = 12  # Updated to reflect new techniques
         self.table_name = None
         self.output_folder = None
         self.text_output = ""
@@ -365,9 +365,187 @@ class ExploratoryDataAnalysis:
         else:
             self.interpret_results("Categorical Features Analysis", "N/A - No categorical features found", table_name)
 
+
+    def data_summary(self, df, table_name):
+        self.technique_counter += 1
+        print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Data Summary"))
+        
+        summary = {
+            "Number of rows": len(df),
+            "Number of columns": len(df.columns),
+            "Column names and data types": df.dtypes.to_dict(),
+            "Preview": df.head().to_string()
+        }
+        
+        self.interpret_results("Data Summary", summary, table_name)
+
+    def detailed_statistics_summary(self, df, table_name):
+        self.technique_counter += 1
+        print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Detailed Statistics Summary"))
+        
+        numeric_columns = df.select_dtypes(include=['float64', 'int64']).columns
+        categorical_columns = df.select_dtypes(include=['object']).columns
+        
+        numeric_stats = df[numeric_columns].agg(['mean', 'median', 'std', 'min', 'max'])
+        
+        # Calculate percentiles separately
+        percentiles = df[numeric_columns].quantile([0.25, 0.5, 0.75])
+        percentiles.index = ['25th Percentile', '50th Percentile', '75th Percentile']
+        
+        # Combine all numeric statistics
+        numeric_stats = pd.concat([numeric_stats, percentiles])
+        
+        categorical_stats = {col: df[col].value_counts().to_dict() for col in categorical_columns}
+        
+        stats_summary = {
+            "Numeric Statistics": numeric_stats.to_dict(),
+            "Categorical Statistics": categorical_stats
+        }
+        
+        self.interpret_results("Detailed Statistics Summary", stats_summary, table_name)
+
+    def null_missing_unique_analysis(self, df, table_name):
+        self.technique_counter += 1
+        print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Null, Missing, and Unique Value Analysis"))
+        
+        null_counts = df.isnull().sum()
+        null_percentages = (df.isnull().sum() / len(df)) * 100
+        unique_counts = df.nunique()
+        
+        analysis = {
+            "Null Counts": null_counts.to_dict(),
+            "Null Percentages": null_percentages.to_dict(),
+            "Unique Value Counts": unique_counts.to_dict()
+        }
+        
+        self.interpret_results("Null, Missing, and Unique Value Analysis", analysis, table_name)
+
+    def column_importance_analysis(self, df, table_name):
+        self.technique_counter += 1
+        print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Column Importance Analysis"))
+        
+        # This is a simplified version. In practice, you might want to use more sophisticated
+        # methods to determine column importance, such as correlation with a target variable
+        # or feature importance from a machine learning model.
+        
+        analysis = {col: {
+            "dtype": str(df[col].dtype),
+            "unique_count": df[col].nunique(),
+            "null_percentage": (df[col].isnull().sum() / len(df)) * 100
+        } for col in df.columns}
+        
+        self.interpret_results("Column Importance Analysis", analysis, table_name)
+
+    def outlier_detection(self, df, table_name):
+        self.technique_counter += 1
+        print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Outlier Detection"))
+        
+        numeric_columns = df.select_dtypes(include=['float64', 'int64']).columns
+        
+        outliers = {}
+        for col in numeric_columns:
+            Q1 = df[col].quantile(0.25)
+            Q3 = df[col].quantile(0.75)
+            IQR = Q3 - Q1
+            lower_bound = Q1 - 1.5 * IQR
+            upper_bound = Q3 + 1.5 * IQR
+            outliers[col] = ((df[col] < lower_bound) | (df[col] > upper_bound)).sum()
+        
+        self.interpret_results("Outlier Detection", outliers, table_name)
+
+    def data_quality_report(self, df, table_name):
+        self.technique_counter += 1
+        print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Data Quality Report"))
+        
+        quality_report = {
+            "Missing Values": df.isnull().sum().to_dict(),
+            "Duplicate Rows": df.duplicated().sum(),
+            "Data Types": df.dtypes.to_dict(),
+            "Unique Values": df.nunique().to_dict()
+        }
+        
+        self.interpret_results("Data Quality Report", quality_report, table_name)
+
+    def hypothesis_testing_suggestions(self, df, table_name):
+        self.technique_counter += 1
+        print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Hypothesis Testing Suggestions"))
+        
+        numeric_columns = df.select_dtypes(include=['float64', 'int64']).columns
+        categorical_columns = df.select_dtypes(include=['object']).columns
+        
+        suggestions = []
+        
+        if len(numeric_columns) >= 2:
+            suggestions.append(f"Correlation test between {numeric_columns[0]} and {numeric_columns[1]}")
+        
+        if len(categorical_columns) >= 1 and len(numeric_columns) >= 1:
+            suggestions.append(f"ANOVA test to compare {numeric_columns[0]} across different categories of {categorical_columns[0]}")
+        
+        if len(numeric_columns) >= 1:
+            suggestions.append(f"One-sample t-test to compare the mean of {numeric_columns[0]} to a hypothesized value")
+        
+        self.interpret_results("Hypothesis Testing Suggestions", suggestions, table_name)
+
+    def run(self):
+        print(info(f"Starting Exploratory Data Analysis on {self.db_path}"))
+        tables = self.get_tables()
+        for table in tables:
+            self.analyze_table(table)
+        
+        print(info("Generating Executive Summary..."))
+        self.generate_executive_summary()
+        
+        self.save_text_output()
+        self.generate_pdf_report()
+        print(success(f"Exploratory Data Analysis completed. Results saved in {self.output_folder}"))
+
+    def analyze_table(self, table_name):
+        self.table_name = table_name
+        self.output_folder = os.path.join(settings.output_folder, f"xda_{self.table_name}")
+        os.makedirs(self.output_folder, exist_ok=True)
+        
+        self.pdf_generator = PDFReportGenerator(self.output_folder, self.llm_name, self.table_name)
+        
+        print(highlight(f"\nAnalyzing table: {table_name}"))
+        self.text_output += f"\nAnalyzing table: {table_name}\n"
+        with sqlite3.connect(self.db_path) as conn:
+            df = pd.read_sql_query(f"SELECT * FROM {table_name}", conn)
+
+        analysis_methods = [
+            self.data_summary,
+            self.detailed_statistics_summary,
+            self.null_missing_unique_analysis,
+            self.column_importance_analysis,
+            self.basic_statistics,
+            self.data_types_and_missing_values,
+            self.numerical_features_distribution,
+            self.correlation_analysis,
+            self.categorical_features_analysis,
+            self.outlier_detection,
+            self.data_quality_report,
+            self.hypothesis_testing_suggestions
+        ]
+
+        for method in analysis_methods:
+            method(df, table_name)
+
     
     def interpret_results(self, analysis_type, results, table_name):
-        if isinstance(results, pd.DataFrame):
+        if isinstance(results, dict) and "Numeric Statistics" in results:
+            numeric_stats = results["Numeric Statistics"]
+            categorical_stats = results["Categorical Statistics"]
+            
+            # Convert numeric stats to a formatted string
+            numeric_table = "| Statistic | " + " | ".join(numeric_stats.keys()) + " |\n"
+            numeric_table += "| --- | " + " | ".join(["---" for _ in numeric_stats.keys()]) + " |\n"
+            for stat in numeric_stats[list(numeric_stats.keys())[0]].keys():
+                numeric_table += f"| {stat} | " + " | ".join([f"{numeric_stats[col][stat]:.2f}" for col in numeric_stats.keys()]) + " |\n"
+            
+            # Convert categorical stats to a formatted string
+            categorical_summary = "\n".join([f"{col}:\n" + "\n".join([f"  - {value}: {count}" for value, count in stats.items()]) for col, stats in categorical_stats.items()])
+            
+            results_str = f"Numeric Statistics:\n{numeric_table}\n\nCategorical Statistics:\n{categorical_summary}"
+        elif isinstance(results, pd.DataFrame):
             results_str = f"DataFrame with shape {results.shape}:\n{results.to_string()}"
         elif isinstance(results, tuple) and isinstance(results[0], pd.DataFrame):
             results_str = f"DataFrame with shape {results[0].shape}:\n{results[0].to_string()}\nImage path: {results[1]}"
