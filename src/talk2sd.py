@@ -20,16 +20,16 @@ class Talk2SD:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             
-            cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+            cursor.execute("SELECT DISTINCT table_name FROM information_schema_columns;")
             tables = cursor.fetchall()
             
             schema = {}
             for table in tables:
                 table_name = table[0]
-                cursor.execute(f"PRAGMA table_info({table_name});")
+                cursor.execute("SELECT column_name, data_type FROM information_schema_columns WHERE table_name = ? ORDER BY ordinal_position;", (table_name,))
                 columns = cursor.fetchall()
                 schema[table_name] = [
-                    {"name": column[1], "type": column[2], "notnull": column[3], "default": column[4], "pk": column[5]}
+                    {"name": column[0], "type": column[1]}
                     for column in columns
                 ]
             
@@ -40,37 +40,54 @@ class Talk2SD:
             return {}
 
     def generate_system_prompt(self):
+        info_schema_description = """
+        This database includes an information_schema_columns table that stores metadata about other tables. The structure is:
+
+        Table: information_schema_columns
+        Columns:
+          - table_catalog (TEXT): The name of the database (usually 'main' for SQLite)
+          - table_schema (TEXT): The schema name (usually 'main' for SQLite)
+          - table_name (TEXT): The name of the table
+          - column_name (TEXT): The name of the column in the table
+          - ordinal_position (INTEGER): The position of the column in the table
+          - data_type (TEXT): The data type of the column
+
+        Use this information_schema_columns table to query information about table structures.
+        """
+
         example_queries = """
-1. SELECT * FROM table_name LIMIT 5;
-2. SELECT COUNT(*) FROM table_name;
-3. SELECT column1, column2 FROM table_name WHERE condition;
-4. SELECT DISTINCT column FROM table_name;
-5. SELECT column, COUNT(*) FROM table_name GROUP BY column;
-6. SELECT t1.column, t2.column FROM table1 t1 JOIN table2 t2 ON t1.id = t2.id;
-7. SELECT column, AVG(numeric_column) FROM table_name GROUP BY column HAVING AVG(numeric_column) > value;
-8. SELECT column, CASE WHEN condition THEN result1 ELSE result2 END FROM table_name;
-9. SELECT column FROM table_name WHERE column IN (SELECT column FROM another_table WHERE condition);
-10. WITH cte_name AS (SELECT column FROM table_name WHERE condition) SELECT * FROM cte_name;
-"""
+        1. SELECT COUNT(*) FROM information_schema_columns WHERE table_name = 'your_table_name';
+        2. SELECT column_name, data_type FROM information_schema_columns WHERE table_name = 'your_table_name' ORDER BY ordinal_position;
+        3. SELECT DISTINCT table_name FROM information_schema_columns;
+        4. SELECT * FROM your_table_name LIMIT 5;
+        5. SELECT COUNT(*) FROM your_table_name;
+        6. SELECT column1, column2 FROM your_table_name WHERE condition;
+        7. SELECT DISTINCT column FROM your_table_name;
+        8. SELECT column, COUNT(*) FROM your_table_name GROUP BY column;
+        9. SELECT t1.column, t2.column FROM table1 t1 JOIN table2 t2 ON t1.id = t2.id;
+        10. SELECT column, AVG(numeric_column) FROM your_table_name GROUP BY column HAVING AVG(numeric_column) > value;
+        """
 
         return f"""You are an AI assistant designed to help with SQL queries and data analysis. Follow these steps when interacting with the database:
 
-1. Always check the available tables and their structures before querying.
-2. Create a syntactically correct SQLite query based on the user's request.
-3. Ensure that you generate only a single SQL statement. Multiple statements are not allowed.
-4. Limit your query results to at most 5 rows unless specified otherwise.
-5. Only query for relevant columns, not all columns from a table.
-6. Do not make any DML statements (INSERT, UPDATE, DELETE, DROP etc.) to the database.
-7. When responding to queries, focus solely on the SQL results. Do not add any storytelling or unnecessary elaboration.
-8. Provide concise, factual responses based on the data returned by the SQL query.
+        1. Always check the available tables and their structures using the information_schema_columns table before querying.
+        2. Create a syntactically correct SQLite query based on the user's request.
+        3. Ensure that you generate only a single SQL statement. Multiple statements are not allowed.
+        4. Limit your query results to at most 5 rows unless specified otherwise.
+        5. Only query for relevant columns, not all columns from a table.
+        6. Do not make any DML statements (INSERT, UPDATE, DELETE, DROP etc.) to the database.
+        7. When responding to queries, focus solely on the SQL results. Do not add any storytelling or unnecessary elaboration.
+        8. Provide concise, factual responses based on the data returned by the SQL query.
 
-Available tables and their schemas:
-{self.format_schema_for_prompt()}
+        {info_schema_description}
 
-Here are some example SQLite queries of increasing complexity:
-{example_queries}
+        Available tables and their schemas:
+        {self.format_schema_for_prompt()}
 
-Remember to use these steps for every database interaction and always provide a single SQL statement."""
+        Here are some example SQLite queries of increasing complexity:
+        {example_queries}
+
+        Remember to use these steps for every database interaction and always provide a single SQL statement."""
 
     def format_schema_for_prompt(self):
         formatted_schema = ""
