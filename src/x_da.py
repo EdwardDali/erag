@@ -76,9 +76,35 @@ class ExploratoryDataAnalysis:
 
     def run(self):
         print(info(f"Starting Exploratory Data Analysis on {self.db_path}"))
-        tables = self.get_tables()
-        for table in tables:
-            self.analyze_table(table)
+        
+        # Get all tables
+        all_tables = self.get_tables()
+        
+        if not all_tables:
+            print(error("No tables found in the database. Exiting."))
+            return
+        
+        # Present table choices to the user
+        print(info("Available tables:"))
+        for i, table in enumerate(all_tables, 1):
+            print(f"{i}. {table}")
+        
+        # Ask user to choose a table
+        while True:
+            try:
+                choice = int(input("Enter the number of the table you want to analyze: "))
+                if 1 <= choice <= len(all_tables):
+                    selected_table = all_tables[choice - 1]
+                    break
+                else:
+                    print(error("Invalid choice. Please enter a number from the list."))
+            except ValueError:
+                print(error("Invalid input. Please enter a number."))
+        
+        print(info(f"You've selected to analyze the '{selected_table}' table."))
+        
+        # Analyze only the selected table
+        self.analyze_table(selected_table)
         
         print(info("Generating Executive Summary..."))
         self.generate_executive_summary()
@@ -92,6 +118,7 @@ class ExploratoryDataAnalysis:
             cursor = conn.cursor()
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
             return [table[0] for table in cursor.fetchall()]
+
 
     def analyze_table(self, table_name):
         self.table_name = table_name
@@ -567,16 +594,13 @@ class ExploratoryDataAnalysis:
         1. Analysis:
         [Provide a detailed description of the analysis performed]
 
-        2. SQLite Statements:
-        [Provide the SQLite statements that would be used to perform this analysis]
-
-        3. Positive Findings:
+        2. Positive Findings:
         [List any positive findings, or state "No significant positive findings" if none]
 
-        4. Negative Findings:
+        3. Negative Findings:
         [List any negative findings, or state "No significant negative findings" if none]
 
-        5. Conclusion:
+        4. Conclusion:
         [Summarize the key takeaways and implications of this analysis]
 
         If there are no significant findings, state "No significant findings" in the appropriate sections and briefly explain why.
@@ -596,7 +620,7 @@ class ExploratoryDataAnalysis:
 
         Please review and improve the above interpretation. Ensure it accurately reflects the original data and analysis type. Enhance the text by:
         1. Verifying the accuracy of the interpretation against the original data.
-        2. Ensuring the structure (Analysis, SQLite Statements, Positive Findings, Negative Findings, Conclusion) is maintained.
+        2. Ensuring the structure (Analysis, Positive Findings, Negative Findings, Conclusion) is maintained.
         3. Making the interpretation more narrative and detailed by adding context and explanations.
         4. Addressing any important aspects of the data that weren't covered.
 
@@ -630,11 +654,11 @@ class ExploratoryDataAnalysis:
         # Extract important findings
         lines = enhanced_interpretation.strip().split('\n')
         for i, line in enumerate(lines):
-            if line.startswith("3. Positive Findings:") or line.startswith("4. Negative Findings:"):
+            if line.startswith("2. Positive Findings:") or line.startswith("3. Negative Findings:"):
                 for finding in lines[i+1:]:
-                    if finding.strip() and not finding.startswith(("3.", "4.", "5.")):
+                    if finding.strip() and not finding.startswith(("2.", "3.", "4.")):
                         self.findings.append(f"{analysis_type}: {finding.strip()}")
-                    elif finding.startswith(("3.", "4.", "5.")):
+                    elif finding.startswith(("2.", "3.", "4.")):
                         break
 
         # Update self.image_data
