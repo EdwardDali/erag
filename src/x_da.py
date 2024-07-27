@@ -134,11 +134,18 @@ class ExploratoryDataAnalysis:
             df = pd.read_sql_query(f"SELECT * FROM {table_name}", conn)
 
         analysis_methods = [
+            self.data_summary,
+            self.detailed_statistics_summary,
+            self.null_missing_unique_analysis,
+            self.column_importance_analysis,
             self.basic_statistics,
             self.data_types_and_missing_values,
             self.numerical_features_distribution,
             self.correlation_analysis,
-            self.categorical_features_analysis
+            self.categorical_features_analysis,
+            self.outlier_detection,
+            self.data_quality_report,
+            self.hypothesis_testing_suggestions
         ]
 
         for method in analysis_methods:

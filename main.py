@@ -1137,6 +1137,46 @@ class ERAGGUI:
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred while starting the Talk2SD system: {str(e)}")
 
+    def choose_table(self, tables):
+        # Filter out system tables
+        user_tables = [table for table in tables if table.lower() not in ['information_schema', 'sqlite_master', 'sqlite_sequence', 'sqlite_stat1']]
+        
+        if not user_tables:
+            messagebox.showwarning("Warning", "No user tables found in the database.")
+            return None
+
+        # Create a new top-level window
+        table_window = tk.Toplevel(self.master)
+        table_window.title("Choose a Table")
+        table_window.geometry("300x200")
+
+        # Create a listbox to display tables
+        listbox = tk.Listbox(table_window)
+        listbox.pack(expand=True, fill="both")
+
+        # Populate the listbox with table names
+        for table in user_tables:
+            listbox.insert(tk.END, table)
+
+        # Variable to store the selected table
+        selected_table = tk.StringVar()
+
+        # Function to set the selected table and close the window
+        def on_select():
+            selection = listbox.curselection()
+            if selection:
+                selected_table.set(user_tables[selection[0]])
+                table_window.destroy()
+
+        # Add a select button
+        select_button = tk.Button(table_window, text="Select", command=on_select)
+        select_button.pack()
+
+        # Wait for the window to be closed
+        self.master.wait_window(table_window)
+
+        return selected_table.get()
+
 
     def run_xda(self):
         try:
@@ -1159,11 +1199,35 @@ class ERAGGUI:
             # Create ExploratoryDataAnalysis instance with both APIs
             xda = ExploratoryDataAnalysis(worker_erag_api, supervisor_erag_api, db_path)
             
+            # Get available tables
+            tables = xda.get_tables()
+            
+            if not tables:
+                messagebox.showwarning("Warning", "No tables found in the database.")
+                return
+            
+            # Present table choices to the user in the console
+            print(info("Available tables:"))
+            for i, table in enumerate(tables, 1):
+                print(f"{i}. {table}")
+            
+            # Ask user to choose a table
+            while True:
+                try:
+                    choice = int(input("Enter the number of the table you want to analyze: "))
+                    if 1 <= choice <= len(tables):
+                        selected_table = tables[choice - 1]
+                        break
+                    else:
+                        print(error("Invalid choice. Please enter a number from the list."))
+                except ValueError:
+                    print(error("Invalid input. Please enter a number."))
+            
             # Apply settings to XDA
             settings.apply_settings()
             
             # Run XDA in a separate thread to keep the GUI responsive
-            threading.Thread(target=self.run_xda_thread, args=(xda,), daemon=True).start()
+            threading.Thread(target=self.run_xda_thread, args=(xda, selected_table), daemon=True).start()
             
             output_folder = os.path.join(os.path.dirname(db_path), "xda_output")
             
@@ -1178,7 +1242,7 @@ class ERAGGUI:
             
             messagebox.showinfo("XDA Process Started", 
                                 f"{architecture_info}\n\n"
-                                f"Exploratory Data Analysis started on {os.path.basename(db_path)}.\n"
+                                f"Exploratory Data Analysis started on table '{selected_table}' in {os.path.basename(db_path)}.\n"
                                 f"Check the console for progress updates and AI interpretations.\n"
                                 f"Results will be saved in {output_folder}")
         except Exception as e:
@@ -1186,12 +1250,17 @@ class ERAGGUI:
             print(error(error_message))
             messagebox.showerror("Error", error_message)
 
-    def run_xda_thread(self, xda):
+    def run_xda_thread(self, xda, selected_table):
         try:
-            xda.run()
+            xda.analyze_table(selected_table)
             print(success("Exploratory Data Analysis completed successfully."))
-            messagebox.showinfo("Success", "Exploratory Data Analysis completed successfully. "
-                                           "Check the output folder for the generated report.")
+            
+            # Generate PDF report
+            pdf_path = xda.generate_pdf_report()
+            
+            print(success(f"PDF report generated successfully: {pdf_path}"))
+            messagebox.showinfo("Success", f"Exploratory Data Analysis completed successfully.\n"
+                                           f"PDF report generated: {pdf_path}")
         except Exception as e:
             error_message = f"An error occurred during Exploratory Data Analysis: {str(e)}"
             print(error(error_message))
@@ -1218,11 +1287,35 @@ class ERAGGUI:
             # Create AdvancedExploratoryDataAnalysisB1 instance with both APIs
             axda_b1 = AdvancedExploratoryDataAnalysisB1(worker_erag_api, supervisor_erag_api, db_path)
             
+            # Get available tables
+            tables = axda_b1.get_tables()
+            
+            if not tables:
+                messagebox.showwarning("Warning", "No tables found in the database.")
+                return
+            
+            # Present table choices to the user in the console
+            print(info("Available tables:"))
+            for i, table in enumerate(tables, 1):
+                print(f"{i}. {table}")
+            
+            # Ask user to choose a table
+            while True:
+                try:
+                    choice = int(input("Enter the number of the table you want to analyze: "))
+                    if 1 <= choice <= len(tables):
+                        selected_table = tables[choice - 1]
+                        break
+                    else:
+                        print(error("Invalid choice. Please enter a number from the list."))
+                except ValueError:
+                    print(error("Invalid input. Please enter a number."))
+            
             # Apply settings to A-XDA-B1
             settings.apply_settings()
             
             # Run A-XDA-B1 in a separate thread to keep the GUI responsive
-            threading.Thread(target=self.run_axda_b1_thread, args=(axda_b1,), daemon=True).start()
+            threading.Thread(target=self.run_axda_b1_thread, args=(axda_b1, selected_table), daemon=True).start()
             
             output_folder = os.path.join(os.path.dirname(db_path), "axda_b1_output")
             
@@ -1237,7 +1330,7 @@ class ERAGGUI:
             
             messagebox.showinfo("A-XDA-B1 Process Started", 
                                 f"{architecture_info}\n\n"
-                                f"Advanced Exploratory Data Analysis (Batch 1) started on {os.path.basename(db_path)}.\n"
+                                f"Advanced Exploratory Data Analysis (Batch 1) started on table '{selected_table}' in {os.path.basename(db_path)}.\n"
                                 f"Check the console for progress updates and AI interpretations.\n"
                                 f"Results will be saved in {output_folder}")
         except Exception as e:
@@ -1245,12 +1338,17 @@ class ERAGGUI:
             print(error(error_message))
             messagebox.showerror("Error", error_message)
 
-    def run_axda_b1_thread(self, axda_b1):
+    def run_axda_b1_thread(self, axda_b1, selected_table):
         try:
-            axda_b1.run()
+            axda_b1.analyze_table(selected_table)
             print(success("Advanced Exploratory Data Analysis (Batch 1) completed successfully."))
-            messagebox.showinfo("Success", "Advanced Exploratory Data Analysis (Batch 1) completed successfully. "
-                                           "Check the output folder for the generated report.")
+            
+            # Generate PDF report
+            pdf_path = axda_b1.generate_pdf_report()
+            
+            print(success(f"PDF report generated successfully: {pdf_path}"))
+            messagebox.showinfo("Success", f"Advanced Exploratory Data Analysis (Batch 1) completed successfully.\n"
+                                           f"PDF report generated: {pdf_path}")
         except Exception as e:
             error_message = f"An error occurred during Advanced Exploratory Data Analysis (Batch 1): {str(e)}"
             print(error(error_message))
@@ -1277,11 +1375,35 @@ class ERAGGUI:
             # Create AdvancedExploratoryDataAnalysisB2 instance with both APIs
             axda_b2 = AdvancedExploratoryDataAnalysisB2(worker_erag_api, supervisor_erag_api, db_path)
             
+            # Get available tables
+            tables = axda_b2.get_tables()
+            
+            if not tables:
+                messagebox.showwarning("Warning", "No tables found in the database.")
+                return
+            
+            # Present table choices to the user in the console
+            print(info("Available tables:"))
+            for i, table in enumerate(tables, 1):
+                print(f"{i}. {table}")
+            
+            # Ask user to choose a table
+            while True:
+                try:
+                    choice = int(input("Enter the number of the table you want to analyze: "))
+                    if 1 <= choice <= len(tables):
+                        selected_table = tables[choice - 1]
+                        break
+                    else:
+                        print(error("Invalid choice. Please enter a number from the list."))
+                except ValueError:
+                    print(error("Invalid input. Please enter a number."))
+            
             # Apply settings to A-XDA-B2
             settings.apply_settings()
             
             # Run A-XDA-B2 in a separate thread to keep the GUI responsive
-            threading.Thread(target=self.run_axda_b2_thread, args=(axda_b2,), daemon=True).start()
+            threading.Thread(target=self.run_axda_b2_thread, args=(axda_b2, selected_table), daemon=True).start()
             
             output_folder = os.path.join(os.path.dirname(db_path), "axda_b2_output")
             
@@ -1296,7 +1418,7 @@ class ERAGGUI:
             
             messagebox.showinfo("A-XDA-B2 Process Started", 
                                 f"{architecture_info}\n\n"
-                                f"Advanced Exploratory Data Analysis (Batch 2) started on {os.path.basename(db_path)}.\n"
+                                f"Advanced Exploratory Data Analysis (Batch 2) started on table '{selected_table}' in {os.path.basename(db_path)}.\n"
                                 f"Check the console for progress updates and AI interpretations.\n"
                                 f"Results will be saved in {output_folder}")
         except Exception as e:
@@ -1304,12 +1426,17 @@ class ERAGGUI:
             print(error(error_message))
             messagebox.showerror("Error", error_message)
 
-    def run_axda_b2_thread(self, axda_b2):
+    def run_axda_b2_thread(self, axda_b2, selected_table):
         try:
-            axda_b2.run()
+            axda_b2.analyze_table(selected_table)
             print(success("Advanced Exploratory Data Analysis (Batch 2) completed successfully."))
-            messagebox.showinfo("Success", "Advanced Exploratory Data Analysis (Batch 2) completed successfully. "
-                                           "Check the output folder for the generated report.")
+            
+            # Generate PDF report
+            pdf_path = axda_b2.generate_pdf_report()
+            
+            print(success(f"PDF report generated successfully: {pdf_path}"))
+            messagebox.showinfo("Success", f"Advanced Exploratory Data Analysis (Batch 2) completed successfully.\n"
+                                           f"PDF report generated: {pdf_path}")
         except Exception as e:
             error_message = f"An error occurred during Advanced Exploratory Data Analysis (Batch 2): {str(e)}"
             print(error(error_message))

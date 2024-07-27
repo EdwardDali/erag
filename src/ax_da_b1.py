@@ -112,24 +112,21 @@ class AdvancedExploratoryDataAnalysisB1:  # Updated class name
         # Get all tables
         all_tables = self.get_tables()
         
-        # Filter out system tables
-        user_tables = [table for table in all_tables if table.lower() not in ['information_schema', 'sqlite_master', 'sqlite_sequence', 'sqlite_stat1']]
-        
-        if not user_tables:
-            print(error("No user tables found in the database. Exiting."))
+        if not all_tables:
+            print(error("No tables found in the database. Exiting."))
             return
         
         # Present table choices to the user
         print(info("Available tables:"))
-        for i, table in enumerate(user_tables, 1):
+        for i, table in enumerate(all_tables, 1):
             print(f"{i}. {table}")
         
         # Ask user to choose a table
         while True:
             try:
                 choice = int(input("Enter the number of the table you want to analyze: "))
-                if 1 <= choice <= len(user_tables):
-                    selected_table = user_tables[choice - 1]
+                if 1 <= choice <= len(all_tables):
+                    selected_table = all_tables[choice - 1]
                     break
                 else:
                     print(error("Invalid choice. Please enter a number from the list."))
@@ -140,7 +137,7 @@ class AdvancedExploratoryDataAnalysisB1:  # Updated class name
         
         # Analyze the selected table
         self.analyze_table(selected_table)
-        
+            
         print(info("Generating Executive Summary..."))
         self.generate_executive_summary()
         
