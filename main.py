@@ -40,7 +40,7 @@ from src.self_knol import SelfKnolCreator
 from src.ax_da_b1 import AdvancedExploratoryDataAnalysisB1  # Updated import
 from src.ax_da_b2 import AdvancedExploratoryDataAnalysisB2  # New import
 from src.i_da import InnovativeDataAnalysis
-
+from src.ax_da_b3 import AdvancedExploratoryDataAnalysisB3
 
 
 # Load environment variables from .env file
@@ -155,7 +155,10 @@ class ERAGGUI:
         axda_b2_button.pack(side="left", padx=5, pady=5)
         ToolTip(axda_b2_button, "Perform Advanced Exploratory Data Analysis (Batch 2) on a selected SQLite database")
 
-        # Add the new I-XDA button
+        axda_b3_button = tk.Button(rag_frame, text="A-XDA-B3", command=self.run_axda_b3)
+        axda_b3_button.pack(side="left", padx=5, pady=5)
+        ToolTip(axda_b3_button, "Perform Advanced Exploratory Data Analysis (Batch 3) on a selected SQLite database")
+
         ixda_button = tk.Button(rag_frame, text="I-XDA", command=self.run_ixda)
         ixda_button.pack(side="left", padx=5, pady=5)
         ToolTip(ixda_button, "Perform Innovative Exploratory Data Analysis on a selected SQLite database")
@@ -1532,6 +1535,95 @@ class ERAGGUI:
                                            f"PDF report generated: {pdf_path}")
         except Exception as e:
             error_message = f"An error occurred during Innovative Exploratory Data Analysis: {str(e)}"
+            print(error(error_message))
+            messagebox.showerror("Error", error_message)
+
+
+    def run_axda_b3(self):
+        try:
+            db_path = filedialog.askopenfilename(
+                title="Select SQLite Database",
+                filetypes=[("SQLite files", "*.db"), ("All files", "*.*")]
+            )
+            if not db_path:
+                messagebox.showwarning("Warning", "No database selected.")
+                return
+
+            api_type = self.api_type_var.get()
+            worker_model = self.model_var.get()
+            supervisor_model = self.supervisor_model_var.get()
+            
+            # Create separate EragAPI instances for worker and supervisor
+            worker_erag_api = create_erag_api(api_type, worker_model)
+            supervisor_erag_api = create_erag_api(api_type, supervisor_model)
+            
+            # Create AdvancedExploratoryDataAnalysisB3 instance with both APIs
+            axda_b3 = AdvancedExploratoryDataAnalysisB3(worker_erag_api, supervisor_erag_api, db_path)
+            
+            # Get available tables
+            tables = axda_b3.get_tables()
+            
+            if not tables:
+                messagebox.showwarning("Warning", "No tables found in the database.")
+                return
+            
+            # Present table choices to the user in the console
+            print(info("Available tables:"))
+            for i, table in enumerate(tables, 1):
+                print(f"{i}. {table}")
+            
+            # Ask user to choose a table
+            while True:
+                try:
+                    choice = int(input("Enter the number of the table you want to analyze: "))
+                    if 1 <= choice <= len(tables):
+                        selected_table = tables[choice - 1]
+                        break
+                    else:
+                        print(error("Invalid choice. Please enter a number from the list."))
+                except ValueError:
+                    print(error("Invalid input. Please enter a number."))
+            
+            # Apply settings to A-XDA-B3
+            settings.apply_settings()
+            
+            # Run A-XDA-B3 in a separate thread to keep the GUI responsive
+            threading.Thread(target=self.run_axda_b3_thread, args=(axda_b3, selected_table), daemon=True).start()
+            
+            output_folder = os.path.join(os.path.dirname(db_path), "axda_b3_output")
+            
+            # Create an informative message about the Worker-Supervisor Model architecture
+            architecture_info = (
+                "This A-XDA-B3 module supports a Worker Model and Supervisory Model architecture:\n\n"
+                f"Worker Model: {worker_model}\n"
+                f"Supervisory Model: {supervisor_model}\n\n"
+                "The Worker Model performs the initial analysis, while the Supervisory Model reviews and enhances the results, "
+                "providing a more comprehensive and refined analysis."
+            )
+            
+            messagebox.showinfo("A-XDA-B3 Process Started", 
+                                f"{architecture_info}\n\n"
+                                f"Advanced Exploratory Data Analysis (Batch 3) started on table '{selected_table}' in {os.path.basename(db_path)}.\n"
+                                f"Check the console for progress updates and AI interpretations.\n"
+                                f"Results will be saved in {output_folder}")
+        except Exception as e:
+            error_message = f"An error occurred while starting the A-XDA-B3 process: {str(e)}"
+            print(error(error_message))
+            messagebox.showerror("Error", error_message)
+
+    def run_axda_b3_thread(self, axda_b3, selected_table):
+        try:
+            axda_b3.analyze_table(selected_table)
+            print(success("Advanced Exploratory Data Analysis (Batch 3) completed successfully."))
+            
+            # Generate PDF report
+            pdf_path = axda_b3.generate_pdf_report()
+            
+            print(success(f"PDF report generated successfully: {pdf_path}"))
+            messagebox.showinfo("Success", f"Advanced Exploratory Data Analysis (Batch 3) completed successfully.\n"
+                                           f"PDF report generated: {pdf_path}")
+        except Exception as e:
+            error_message = f"An error occurred during Advanced Exploratory Data Analysis (Batch 3): {str(e)}"
             print(error(error_message))
             messagebox.showerror("Error", error_message)
             
