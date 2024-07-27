@@ -58,6 +58,7 @@ ERAG is composed of several interconnected components:
 16. **Exploratory Data Analysis (EDA)**: Provides comprehensive EDA capabilities, including various statistical analyses and visualizations.
 17. **Advanced Exploratory Data Analysis**: Offers more sophisticated data analysis techniques, including machine learning-based approaches and complex visualizations.
 18. **Self Knol Creator**: Manages the process of creating, improving, and evaluating comprehensive knowledge entries on specific subjects.
+19. **Innovative Exploratory Data Analysis**: while the individual analytical techniques are not particularly innovative on their own, the overall system's attempt to automate the entire process from data analysis to interpretation and reporting, using multiple AI models, represents a more innovative approach to data analysis automation. However, the true innovation and effectiveness of this system would depend heavily on the quality of the AI models used.
 
 ## Installation
 
