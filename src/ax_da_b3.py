@@ -106,6 +106,38 @@ class AdvancedExploratoryDataAnalysisB3:
     def generate_plot(self, plot_function, *args, **kwargs):
         return plot_function(*args, **kwargs)
 
+    def preprocess_data(self, df, min_unique_values=2, max_missing_percentage=30, sample_size=10000):
+        # Select numerical columns
+        numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
+        
+        print(f"Original numerical columns: {list(numerical_columns)}")
+        
+        # Check for missing data and data types
+        valid_columns = []
+        for col in numerical_columns:
+            missing_percentage = df[col].isnull().mean() * 100
+            unique_count = df[col].nunique()
+            
+            if missing_percentage < max_missing_percentage and unique_count >= min_unique_values:
+                valid_columns.append(col)
+            else:
+                print(f"Skipping column {col}: {missing_percentage:.2f}% missing, {unique_count} unique values")
+        
+        print(f"Valid numerical columns after preprocessing: {valid_columns}")
+        
+        # Select valid columns
+        X = df[valid_columns]
+        
+        # Handle remaining NaN values using mean imputation
+        imputer = SimpleImputer(strategy='mean')
+        X_imputed = pd.DataFrame(imputer.fit_transform(X), columns=valid_columns)
+        
+        # Sample data if it's too large
+        if len(X_imputed) > sample_size:
+            X_imputed = X_imputed.sample(sample_size, random_state=42)
+        
+        return X_imputed
+
     def run(self):
         print(info(f"Starting Advanced Exploratory Data Analysis (Batch 3) on {self.db_path}"))
         
@@ -225,19 +257,12 @@ class AdvancedExploratoryDataAnalysisB3:
         self.technique_counter += 1
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Multidimensional Scaling (MDS)"))
         
-        numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
-        if len(numerical_columns) > 1:
+        preprocessed_df = self.preprocess_data(df)
+        if preprocessed_df.shape[1] >= 2:
             def plot_mds():
-                # Prepare the data
-                X = df[numerical_columns]
-                imputer = SimpleImputer(strategy='mean')
-                X_imputed = pd.DataFrame(imputer.fit_transform(X), columns=X.columns)
-                
-                # Perform MDS
                 mds = MDS(n_components=2, random_state=42)
-                mds_result = mds.fit_transform(X_imputed)
+                mds_result = mds.fit_transform(preprocessed_df)
                 
-                # Create the plot
                 fig, ax = plt.subplots(figsize=self.calculate_figure_size())
                 scatter = ax.scatter(mds_result[:, 0], mds_result[:, 1], alpha=0.6)
                 ax.set_xlabel('MDS Dimension 1')
@@ -262,19 +287,12 @@ class AdvancedExploratoryDataAnalysisB3:
         self.technique_counter += 1
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - t-Distributed Stochastic Neighbor Embedding (t-SNE)"))
         
-        numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
-        if len(numerical_columns) > 1:
+        preprocessed_df = self.preprocess_data(df)
+        if preprocessed_df.shape[1] >= 2:
             def plot_tsne():
-                # Prepare the data
-                X = df[numerical_columns]
-                imputer = SimpleImputer(strategy='mean')
-                X_imputed = pd.DataFrame(imputer.fit_transform(X), columns=X.columns)
-                
-                # Perform t-SNE
                 tsne = TSNE(n_components=2, random_state=42)
-                tsne_result = tsne.fit_transform(X_imputed)
+                tsne_result = tsne.fit_transform(preprocessed_df)
                 
-                # Create the plot
                 fig, ax = plt.subplots(figsize=self.calculate_figure_size())
                 scatter = ax.scatter(tsne_result[:, 0], tsne_result[:, 1], alpha=0.6)
                 ax.set_xlabel('t-SNE Dimension 1')
@@ -299,61 +317,80 @@ class AdvancedExploratoryDataAnalysisB3:
         self.technique_counter += 1
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Conditional Plots"))
         
-        numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
-        if len(numerical_columns) >= 3:
-            def plot_coplots():
-                x = numerical_columns[0]
-                y = numerical_columns[1]
-                z = numerical_columns[2]
-                
-                g = sns.FacetGrid(df, col=z, col_wrap=3, height=4, aspect=1.5)
-                g.map(sns.scatterplot, x, y)
-                g.add_legend()
-                g.fig.suptitle(f'Conditional Plots: {y} vs {x} conditioned on {z}')
-                plt.tight_layout()
-                return g.fig, g.axes
+        try:
+            preprocessed_df = self.preprocess_data(df)
+            numerical_columns = preprocessed_df.columns
+            categorical_columns = df.select_dtypes(include=['object', 'category']).columns
 
-            result = self.generate_plot(plot_coplots)
-            if result is not None:
-                fig, _ = result
-                img_path = os.path.join(self.output_folder, f"{table_name}_conditional_plots.png")
-                plt.savefig(img_path, dpi=100, bbox_inches='tight')
-                plt.close(fig)
-                self.interpret_results("Conditional Plots", img_path, table_name)
+            print(f"Numerical columns after preprocessing: {list(numerical_columns)}")
+            print(f"Categorical columns: {list(categorical_columns)}")
+
+            if len(numerical_columns) >= 2 and len(categorical_columns) > 0:
+                def plot_coplots():
+                    x = numerical_columns[0]
+                    y = numerical_columns[1]
+                    z = categorical_columns[0]
+                    
+                    print(f"Plotting conditional plots for x: {x}, y: {y}, conditioned on z: {z}")
+                    
+                    # Limit the number of categories to plot
+                    top_categories = df[z].value_counts().nlargest(5).index
+                    plot_data = df[df[z].isin(top_categories)].copy()
+                    plot_data[x] = preprocessed_df[x]
+                    plot_data[y] = preprocessed_df[y]
+                    
+                    g = sns.FacetGrid(plot_data, col=z, col_wrap=3, height=4, aspect=1.5)
+                    g.map(sns.scatterplot, x, y)
+                    g.add_legend()
+                    g.fig.suptitle(f'Conditional Plots: {y} vs {x} conditioned on {z}')
+                    plt.tight_layout()
+                    return g.fig, g.axes
+
+                result = self.generate_plot(plot_coplots)
+                if result is not None:
+                    fig, _ = result
+                    img_path = os.path.join(self.output_folder, f"{table_name}_conditional_plots.png")
+                    plt.savefig(img_path, dpi=100, bbox_inches='tight')
+                    plt.close(fig)
+                    self.interpret_results("Conditional Plots", img_path, table_name)
+                else:
+                    print("Skipping Conditional Plots due to error in plot generation.")
             else:
-                print("Skipping Conditional Plots due to error in plot generation.")
-        else:
-            print("Not enough numerical columns for Conditional Plots.")
+                print("Not enough suitable columns for Conditional Plots.")
+                print(f"Number of numerical columns: {len(numerical_columns)}")
+                print(f"Number of categorical columns: {len(categorical_columns)}")
+        except Exception as e:
+            print(f"An error occurred during Conditional Plots analysis: {str(e)}")
+            print("Skipping Conditional Plots due to error.")
 
     def ice_plots(self, df, table_name):
         self.technique_counter += 1
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Individual Conditional Expectation (ICE) Plots"))
         
-        numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
-        if len(numerical_columns) >= 2:
+        preprocessed_df = self.preprocess_data(df)
+        if preprocessed_df.shape[1] >= 2:
             def plot_ice():
-                X = df[numerical_columns].astype(float)  # Convert all columns to float
-                y = X[numerical_columns[-1]]  # Use the last column as the target
-                X = X.drop(columns=[numerical_columns[-1]])
+                X = preprocessed_df.iloc[:, :-1]
+                y = preprocessed_df.iloc[:, -1]
                 
-                model = RandomForestRegressor(n_estimators=100, random_state=42)
+                model = RandomForestRegressor(n_estimators=100, random_state=42, n_jobs=-1)
                 model.fit(X, y)
                 
-                feature = numerical_columns[0]  # Use the first column as the feature for ICE plot
+                feature = X.columns[0]  # Use the first column as the feature for ICE plot
                 
                 ice_data = []
-                for i in range(len(X)):
+                x_range = np.linspace(X[feature].min(), X[feature].max(), num=50)
+                for i in range(min(50, len(X))):  # Limit to 50 ICE curves
                     ice_curve = []
-                    x_range = np.linspace(X[feature].min(), X[feature].max(), num=100)
+                    X_copy = X.iloc[[i]].copy()
                     for x in x_range:
-                        X_copy = X.copy()
-                        X_copy.loc[i, feature] = x
-                        pred = model.predict(X_copy)[i]
+                        X_copy[feature] = x
+                        pred = model.predict(X_copy)[0]
                         ice_curve.append(pred)
                     ice_data.append(ice_curve)
                 
                 fig, ax = plt.subplots(figsize=self.calculate_figure_size())
-                for curve in ice_data[:50]:  # Plot first 50 ICE curves
+                for curve in ice_data:
                     ax.plot(x_range, curve, color='blue', alpha=0.1)
                 ax.set_xlabel(feature)
                 ax.set_ylabel('Predicted')
@@ -381,14 +418,23 @@ class AdvancedExploratoryDataAnalysisB3:
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
         
         if len(date_columns) > 0 and len(numerical_columns) > 0:
+            date_col = date_columns[0]
+            num_col = numerical_columns[0]
+            
+            # Ensure the date column is set as the index and sort
+            df_sorted = df.set_index(date_col).sort_index()
+            ts = df_sorted[num_col]
+            
+            # Resample to daily frequency if necessary
+            if ts.index.inferred_freq is None:
+                ts = ts.resample('D').mean()
+            
+            # Interpolate missing values
+            ts = ts.interpolate()
+            
             def plot_decomposition():
-                date_col = date_columns[0]
-                num_col = numerical_columns[0]
-                
-                df_sorted = df.sort_values(by=date_col)
-                ts = df_sorted.set_index(date_col)[num_col]
-                
-                result = seasonal_decompose(ts, model='additive', period=12)  # Assuming monthly data, adjust period as needed
+                # Perform decomposition
+                result = seasonal_decompose(ts, model='additive', period=7)  # Assuming weekly seasonality
                 
                 fig, (ax1, ax2, ax3, ax4) = plt.subplots(4, 1, figsize=self.calculate_figure_size())
                 result.observed.plot(ax=ax1)
@@ -743,30 +789,32 @@ class AdvancedExploratoryDataAnalysisB3:
         self.technique_counter += 1
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Dynamic Time Warping (DTW)"))
         
-        numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
+        preprocessed_df = self.preprocess_data(df)
+        numerical_columns = preprocessed_df.columns
+        
         if len(numerical_columns) >= 2:
             def plot_dtw():
                 # Select two time series for comparison
-                series1 = df[numerical_columns[0]].values
-                series2 = df[numerical_columns[1]].values
+                series1 = preprocessed_df[numerical_columns[0]].values
+                series2 = preprocessed_df[numerical_columns[1]].values
                 
                 # Compute DTW distance
                 distance = dtw.distance(series1, series2)
                 
-                # Compute DTW path
-                path = dtw.warping_path(series1, series2)
+                # Compute DTW path (limit to first 1000 points for efficiency)
+                path = dtw.warping_path(series1[:1000], series2[:1000])
                 
                 fig, (ax1, ax2) = plt.subplots(2, 1, figsize=self.calculate_figure_size())
                 
                 # Plot original time series
-                ax1.plot(series1, label=numerical_columns[0])
-                ax1.plot(series2, label=numerical_columns[1])
-                ax1.set_title('Original Time Series')
+                ax1.plot(series1[:1000], label=numerical_columns[0])
+                ax1.plot(series2[:1000], label=numerical_columns[1])
+                ax1.set_title('Original Time Series (First 1000 points)')
                 ax1.legend()
                 
                 # Plot DTW alignment
-                ax2.plot(series1)
-                ax2.plot(series2)
+                ax2.plot(series1[:1000])
+                ax2.plot(series2[:1000])
                 for i, j in path:
                     ax2.plot([i, j], [series1[i], series2[j]], 'r-', alpha=0.3)
                 ax2.set_title(f'DTW Alignment (Distance: {distance:.2f})')
