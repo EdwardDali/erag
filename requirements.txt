@@ -22,3 +22,11 @@ pyarrow
 pandas
 tqdm
 groq
+matplotlib
+seaborn
+scipy
+folium
+joypy
+shap
+statsmodels
+wordcloud
