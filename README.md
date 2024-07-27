@@ -26,6 +26,15 @@ ERAG is an advanced system that combines lexical, semantic, text, and knowledge 
 14. **Interactive Model Chat**: Allows direct interaction with various language models for general conversation and task completion.
 15. **Debug and Logging Capabilities**: Provides comprehensive logging and debug information for system operations and search results.
 16. **Color-coded Console Output**: Enhances user experience with color-coded console messages for different types of information.
+17. **Structured Data Analysis**: Implements tools for analyzing structured data stored in SQLite databases, including value counts, grouped summary statistics, and advanced visualizations.
+18. **Exploratory Data Analysis (EDA)**: Offers comprehensive EDA capabilities, including distribution analysis, correlation studies, and outlier detection.
+19. **Advanced Data Visualization**: Generates various types of plots and charts, such as histograms, box plots, scatter plots, and pair plots for in-depth data exploration.
+20. **Statistical Analysis**: Provides tools for conducting statistical tests and generating statistical summaries of the data.
+21. **Multi-Model Collaboration**: Utilizes worker, supervisor, and manager AI models to create, improve, and evaluate knowledge entries.
+22. **Iterative Knowledge Refinement**: Implements an iterative process of knowledge creation, improvement, and evaluation to achieve high-quality, comprehensive knowledge entries.
+23. **Automated Quality Assessment**: Includes an automated grading system for evaluating the quality of generated knowledge entries.
+24. **Structured Knowledge Format**: Enforces a consistent, hierarchical structure for knowledge entries to ensure comprehensive coverage and easy navigation.
+25. **PDF Report Generation**: Automatically generates comprehensive PDF reports summarizing the results of various analyses, including visualizations and AI-generated interpretations.
 
 ## System Architecture
 
@@ -45,6 +54,10 @@ ERAG is composed of several interconnected components:
 12. **WebRAG**: Implements a web-based retrieval-augmented generation system for answering queries using internet content.
 13. **WebSum**: Provides tools for summarizing web content based on user queries.
 14. **Talk2Git**: Offers capabilities for analyzing and summarizing GitHub repositories.
+15. **Talk2SD**: Implements tools for interacting with and analyzing structured data stored in SQLite databases.
+16. **Exploratory Data Analysis (EDA)**: Provides comprehensive EDA capabilities, including various statistical analyses and visualizations.
+17. **Advanced Exploratory Data Analysis**: Offers more sophisticated data analysis techniques, including machine learning-based approaches and complex visualizations.
+18. **Self Knol Creator**: Manages the process of creating, improving, and evaluating comprehensive knowledge entries on specific subjects.
 
 ## Installation
 
@@ -90,7 +103,8 @@ ERAG is composed of several interconnected components:
    - Configure system settings
    - Manage local LLaMA.cpp servers
    - Run various RAG operations (Talk2Doc, WebRAG, etc.)
-
+   - Analyze structured data and perform exploratory data analysis
+   - Create and refine comprehensive knowledge entries (Self Knols)
 
 ## Configuration
 
@@ -105,6 +119,8 @@ Customize ERAG's behavior through the Settings tab in the GUI or by modifying `s
 - Server configuration for local LLaMA.cpp instances
 - Web crawling and summarization settings
 - GitHub analysis parameters
+- Data analysis and visualization parameters
+- Self Knol creation parameters (iteration thresholds, quality assessment criteria)
 
 ## Advanced Features
 
@@ -115,6 +131,11 @@ Customize ERAG's behavior through the Settings tab in the GUI or by modifying `s
 - **Web Content Analysis**: Crawls and analyzes web pages to answer queries and generate summaries.
 - **GitHub Repository Analysis**: Provides static code analysis, dependency checking, project summarization, and code smell detection for GitHub repositories.
 - **Multi-model Support**: Allows interaction with various language models through a unified interface.
+- **Structured Data Analysis**: Offers tools for analyzing and visualizing structured data stored in SQLite databases.
+- **Advanced Exploratory Data Analysis**: Provides comprehensive EDA capabilities, including statistical analyses, machine learning techniques, and various types of data visualizations.
+- **Automated Report Generation**: Generates detailed PDF reports summarizing the results of data analyses, complete with visualizations and AI-generated interpretations.
+- **Self Knol Creation**: Utilizes a multi-model approach to create, refine, and evaluate comprehensive knowledge entries on specific subjects.
+- **Iterative Knowledge Improvement**: Implements an iterative process with AI-driven feedback and improvement cycles to enhance the quality and depth of knowledge entries.
 
 ## Troubleshooting
 
@@ -123,7 +144,6 @@ Customize ERAG's behavior through the Settings tab in the GUI or by modifying `s
 - Verify API keys and tokens are correctly set in the `.env` file.
 - For performance issues, adjust chunk sizes, batch processing parameters, or consider using a GPU.
 - If using local LLaMA.cpp servers, ensure the correct model files are available and properly configured.
-
 
 ## Contact
 
