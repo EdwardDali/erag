@@ -200,36 +200,44 @@ class InnovativeDataAnalysis:
         isolation_forest = IsolationForest(contamination=0.1, random_state=42)
         anomaly_labels = isolation_forest.fit_predict(X_pca)
 
-        fig = plt.figure(figsize=self.calculate_figure_size(X_pca))
-        gs = fig.add_gridspec(2, 2)
+        # Cluster Analysis Plot
+        fig, ax = plt.subplots(figsize=self.calculate_figure_size())
+        ax.scatter(X_pca[:, 0], X_pca[:, 1], c=cluster_labels, cmap='viridis')
+        ax.set_title('Cluster Analysis')
+        ax.set_xlabel('Principal Component 1')
+        ax.set_ylabel('Principal Component 2')
+        cluster_img_path = os.path.join(self.output_folder, f"{table_name}_ampr_cluster_analysis.png")
+        plt.savefig(cluster_img_path, dpi=100, bbox_inches='tight')
+        plt.close(fig)
 
-        ax1 = fig.add_subplot(gs[0, 0])
-        ax1.scatter(X_pca[:, 0], X_pca[:, 1], c=cluster_labels, cmap='viridis')
-        ax1.set_title('Cluster Analysis')
-        ax1.set_xlabel('Principal Component 1')
-        ax1.set_ylabel('Principal Component 2')
+        # Feature Correlation Plot
+        fig, ax = plt.subplots(figsize=self.calculate_figure_size())
+        sns.heatmap(pd.DataFrame(X_pca).corr(), annot=True, cmap='coolwarm', ax=ax)
+        ax.set_title('Feature Correlation')
+        correlation_img_path = os.path.join(self.output_folder, f"{table_name}_ampr_feature_correlation.png")
+        plt.savefig(correlation_img_path, dpi=100, bbox_inches='tight')
+        plt.close(fig)
 
-        ax2 = fig.add_subplot(gs[0, 1])
-        sns.heatmap(pd.DataFrame(X_pca).corr(), annot=True, cmap='coolwarm', ax=ax2)
-        ax2.set_title('Feature Correlation')
+        # Anomaly Detection Plot
+        fig, ax = plt.subplots(figsize=self.calculate_figure_size())
+        ax.scatter(X_pca[:, 0], X_pca[:, 1], c=anomaly_labels, cmap='RdYlGn')
+        ax.set_title('Anomaly Detection')
+        ax.set_xlabel('Principal Component 1')
+        ax.set_ylabel('Principal Component 2')
+        anomaly_img_path = os.path.join(self.output_folder, f"{table_name}_ampr_anomaly_detection.png")
+        plt.savefig(anomaly_img_path, dpi=100, bbox_inches='tight')
+        plt.close(fig)
 
-        ax3 = fig.add_subplot(gs[1, 0])
-        ax3.scatter(X_pca[:, 0], X_pca[:, 1], c=anomaly_labels, cmap='RdYlGn')
-        ax3.set_title('Anomaly Detection')
-        ax3.set_xlabel('Principal Component 1')
-        ax3.set_ylabel('Principal Component 2')
-
-        ax4 = fig.add_subplot(gs[1, 1])
+        # PCA Explained Variance Plot
+        fig, ax = plt.subplots(figsize=self.calculate_figure_size())
         explained_variance_ratio = pca.explained_variance_ratio_[:n_components]
-        ax4.bar(range(1, n_components + 1), explained_variance_ratio)
-        ax4.set_xlabel('Principal Component')
-        ax4.set_ylabel('Explained Variance Ratio')
-        ax4.set_title('PCA Explained Variance')
-
-        plt.tight_layout()
-        img_path = os.path.join(self.output_folder, f"{table_name}_ampr_analysis.png")
-        plt.savefig(img_path, dpi=100, bbox_inches='tight')
-        plt.close()
+        ax.bar(range(1, n_components + 1), explained_variance_ratio)
+        ax.set_xlabel('Principal Component')
+        ax.set_ylabel('Explained Variance Ratio')
+        ax.set_title('PCA Explained Variance')
+        pca_img_path = os.path.join(self.output_folder, f"{table_name}_ampr_pca_explained_variance.png")
+        plt.savefig(pca_img_path, dpi=100, bbox_inches='tight')
+        plt.close(fig)
 
         results = {
             "n_components": n_components,
@@ -237,7 +245,7 @@ class InnovativeDataAnalysis:
             "best_silhouette_score": best_silhouette,
             "n_clusters": len(np.unique(cluster_labels)),
             "n_anomalies": sum(anomaly_labels == -1),
-            "image_path": img_path
+            "image_paths": [cluster_img_path, correlation_img_path, anomaly_img_path, pca_img_path]
         }
 
         self.interpret_results("AMPR Analysis", results, table_name)
@@ -285,32 +293,37 @@ class InnovativeDataAnalysis:
 
         decomposition = seasonal_decompose(df[value_column], model='additive', period=min(len(df), 365))
         
-        fig = plt.figure(figsize=self.calculate_figure_size(df))
-        gs = fig.add_gridspec(4, 1)
+             # Observed Data Plot
+        fig, ax = plt.subplots(figsize=self.calculate_figure_size())
+        ax.plot(decomposition.observed)
+        ax.set_title('Observed Data')
+        observed_img_path = os.path.join(self.output_folder, f"{table_name}_etsf_observed_data.png")
+        plt.savefig(observed_img_path, dpi=100, bbox_inches='tight')
+        plt.close(fig)
 
-        ax1 = fig.add_subplot(gs[0, 0])
-        ax1.plot(decomposition.observed)
-        ax1.set_title('Observed')
+        # Trend Plot
+        fig, ax = plt.subplots(figsize=self.calculate_figure_size())
+        ax.plot(decomposition.trend)
+        ax.set_title('Trend')
+        trend_img_path = os.path.join(self.output_folder, f"{table_name}_etsf_trend.png")
+        plt.savefig(trend_img_path, dpi=100, bbox_inches='tight')
+        plt.close(fig)
 
-        ax2 = fig.add_subplot(gs[1, 0])
-        ax2.plot(decomposition.trend)
-        ax2.set_title('Trend')
+        # Seasonal Plot
+        fig, ax = plt.subplots(figsize=self.calculate_figure_size())
+        ax.plot(decomposition.seasonal)
+        ax.set_title('Seasonal')
+        seasonal_img_path = os.path.join(self.output_folder, f"{table_name}_etsf_seasonal.png")
+        plt.savefig(seasonal_img_path, dpi=100, bbox_inches='tight')
+        plt.close(fig)
 
-        ax3 = fig.add_subplot(gs[2, 0])
-        ax3.plot(decomposition.seasonal)
-        ax3.set_title('Seasonal')
-
-        ax4 = fig.add_subplot(gs[3, 0])
-        ax4.plot(decomposition.resid)
-        ax4.set_title('Residual')
-
-        plt.tight_layout()
-        decomposition_path = os.path.join(self.output_folder, f"{table_name}_etsf_decomposition.png")
-        plt.savefig(decomposition_path, dpi=100, bbox_inches='tight')
-        plt.close()
-
-        train_size = int(len(df) * 0.8)
-        train, test = df[:train_size], df[train_size:]
+        # Residual Plot
+        fig, ax = plt.subplots(figsize=self.calculate_figure_size())
+        ax.plot(decomposition.resid)
+        ax.set_title('Residual')
+        residual_img_path = os.path.join(self.output_folder, f"{table_name}_etsf_residual.png")
+        plt.savefig(residual_img_path, dpi=100, bbox_inches='tight')
+        plt.close(fig)
 
         model = ARIMA(train[value_column], order=(1,1,1), 
                       exog=train[['lag_1', 'lag_7', 'fourier_sin', 'fourier_cos']])
@@ -319,24 +332,21 @@ class InnovativeDataAnalysis:
         predictions = results.forecast(steps=len(test), 
                                        exog=test[['lag_1', 'lag_7', 'fourier_sin', 'fourier_cos']])
 
-        plt.figure(figsize=self.calculate_figure_size(df))
-        plt.plot(df.index, df[value_column], label='Actual')
-        plt.plot(test.index, predictions, label='Forecast', color='red')
-        plt.title('ETSF Forecast vs Actual')
-        plt.legend()
-        forecast_path = os.path.join(self.output_folder, f"{table_name}_etsf_forecast.png")
-        plt.savefig(forecast_path, dpi=100, bbox_inches='tight')
-        plt.close()
-
-        mse = mean_squared_error(test[value_column], predictions)
-        rmse = np.sqrt(mse)
+             # Forecast Plot
+        fig, ax = plt.subplots(figsize=self.calculate_figure_size())
+        ax.plot(df.index, df[value_column], label='Actual')
+        ax.plot(test.index, predictions, label='Forecast', color='red')
+        ax.set_title('ETSF Forecast vs Actual')
+        ax.legend()
+        forecast_img_path = os.path.join(self.output_folder, f"{table_name}_etsf_forecast.png")
+        plt.savefig(forecast_img_path, dpi=100, bbox_inches='tight')
+        plt.close(fig)
 
         results = {
             "adf_result": adf_result,
             "mse": mse,
             "rmse": rmse,
-            "decomposition_path": decomposition_path,
-            "forecast_path": forecast_path
+            "image_paths": [observed_img_path, trend_img_path, seasonal_img_path, residual_img_path, forecast_img_path]
         }
 
         self.interpret_results("ETSF Analysis", results, table_name)
