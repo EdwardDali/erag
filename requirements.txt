@@ -33,3 +33,6 @@ wordcloud
 pgmpy
 hmmlearn
 dtaidistance
+stumpy
+biopython
+nonconformist
