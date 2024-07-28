@@ -14,22 +14,18 @@ from scipy.stats import norm, anderson, pearsonr, probplot
 from scipy.cluster.hierarchy import dendrogram
 from scipy.signal import find_peaks
 
-from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import FactorAnalysis, PCA
 from sklearn.manifold import MDS, TSNE
-from sklearn.impute import SimpleImputer
-from sklearn.ensemble import IsolationForest
+from sklearn.ensemble import IsolationForest, RandomForestRegressor
 from sklearn.svm import OneClassSVM
 from sklearn.neighbors import LocalOutlierFactor
-from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestRegressor
 from sklearn.covariance import EllipticEnvelope
+from sklearn.impute import SimpleImputer
 
 from statsmodels.tsa.seasonal import seasonal_decompose
 from statsmodels.graphics.tsaplots import plot_acf
 from statsmodels.tsa.stattools import acf
 from statsmodels.stats.outliers_influence import OLSInfluence
-import pgmpy
 from pgmpy.models import BayesianNetwork
 from pgmpy.estimators import HillClimbSearch, BayesianEstimator
 
@@ -56,7 +52,7 @@ class AdvancedExploratoryDataAnalysisB3:
         self.supervisor_erag_api = supervisor_erag_api
         self.db_path = db_path
         self.technique_counter = 0
-        self.total_techniques = 15  # Updated to include new techniques
+        self.total_techniques = 15
         self.table_name = None
         self.output_folder = None
         self.text_output = ""
@@ -105,38 +101,6 @@ class AdvancedExploratoryDataAnalysisB3:
     @timeout(10)
     def generate_plot(self, plot_function, *args, **kwargs):
         return plot_function(*args, **kwargs)
-
-    def preprocess_data(self, df, min_unique_values=2, max_missing_percentage=30, sample_size=10000):
-        # Select numerical columns
-        numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
-        
-        print(f"Original numerical columns: {list(numerical_columns)}")
-        
-        # Check for missing data and data types
-        valid_columns = []
-        for col in numerical_columns:
-            missing_percentage = df[col].isnull().mean() * 100
-            unique_count = df[col].nunique()
-            
-            if missing_percentage < max_missing_percentage and unique_count >= min_unique_values:
-                valid_columns.append(col)
-            else:
-                print(f"Skipping column {col}: {missing_percentage:.2f}% missing, {unique_count} unique values")
-        
-        print(f"Valid numerical columns after preprocessing: {valid_columns}")
-        
-        # Select valid columns
-        X = df[valid_columns]
-        
-        # Handle remaining NaN values using mean imputation
-        imputer = SimpleImputer(strategy='mean')
-        X_imputed = pd.DataFrame(imputer.fit_transform(X), columns=valid_columns)
-        
-        # Sample data if it's too large
-        if len(X_imputed) > sample_size:
-            X_imputed = X_imputed.sample(sample_size, random_state=42)
-        
-        return X_imputed
 
     def run(self):
         print(info(f"Starting Advanced Exploratory Data Analysis (Batch 3) on {self.db_path}"))
@@ -214,10 +178,16 @@ class AdvancedExploratoryDataAnalysisB3:
         ]
 
         for method in analysis_methods:
-            method(df, table_name)
+            try:
+                self.technique_counter += 1
+                method(df, table_name)
+            except Exception as e:
+                error_message = f"An error occurred during {method.__name__}: {str(e)}"
+                print(error(error_message))
+                self.text_output += f"\n{error_message}\n"
+                self.pdf_content.append((method.__name__, [], error_message))
 
     def factor_analysis(self, df, table_name):
-        self.technique_counter += 1
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Factor Analysis"))
         
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
@@ -254,14 +224,17 @@ class AdvancedExploratoryDataAnalysisB3:
             print("Not enough numerical columns for Factor Analysis.")
 
     def multidimensional_scaling(self, df, table_name):
-        self.technique_counter += 1
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Multidimensional Scaling (MDS)"))
         
-        preprocessed_df = self.preprocess_data(df)
-        if preprocessed_df.shape[1] >= 2:
+        numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
+        if len(numerical_columns) >= 2:
             def plot_mds():
+                X = df[numerical_columns]
+                imputer = SimpleImputer(strategy='mean')
+                X_imputed = imputer.fit_transform(X)
+                
                 mds = MDS(n_components=2, random_state=42)
-                mds_result = mds.fit_transform(preprocessed_df)
+                mds_result = mds.fit_transform(X_imputed)
                 
                 fig, ax = plt.subplots(figsize=self.calculate_figure_size())
                 scatter = ax.scatter(mds_result[:, 0], mds_result[:, 1], alpha=0.6)
@@ -284,14 +257,17 @@ class AdvancedExploratoryDataAnalysisB3:
             print("Not enough numerical columns for Multidimensional Scaling (MDS).")
 
     def t_sne(self, df, table_name):
-        self.technique_counter += 1
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - t-Distributed Stochastic Neighbor Embedding (t-SNE)"))
         
-        preprocessed_df = self.preprocess_data(df)
-        if preprocessed_df.shape[1] >= 2:
+        numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
+        if len(numerical_columns) >= 2:
             def plot_tsne():
+                X = df[numerical_columns]
+                imputer = SimpleImputer(strategy='mean')
+                X_imputed = imputer.fit_transform(X)
+                
                 tsne = TSNE(n_components=2, random_state=42)
-                tsne_result = tsne.fit_transform(preprocessed_df)
+                tsne_result = tsne.fit_transform(X_imputed)
                 
                 fig, ax = plt.subplots(figsize=self.calculate_figure_size())
                 scatter = ax.scatter(tsne_result[:, 0], tsne_result[:, 1], alpha=0.6)
@@ -314,67 +290,55 @@ class AdvancedExploratoryDataAnalysisB3:
             print("Not enough numerical columns for t-SNE.")
 
     def conditional_plots(self, df, table_name):
-        self.technique_counter += 1
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Conditional Plots"))
         
-        try:
-            preprocessed_df = self.preprocess_data(df)
-            numerical_columns = preprocessed_df.columns
-            categorical_columns = df.select_dtypes(include=['object', 'category']).columns
+        numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
+        categorical_columns = df.select_dtypes(include=['object', 'category']).columns
 
-            print(f"Numerical columns after preprocessing: {list(numerical_columns)}")
-            print(f"Categorical columns: {list(categorical_columns)}")
+        if len(numerical_columns) >= 2 and len(categorical_columns) > 0:
+            def plot_coplots():
+                x = numerical_columns[0]
+                y = numerical_columns[1]
+                z = categorical_columns[0]
+                
+                # Limit the number of categories to plot
+                top_categories = df[z].value_counts().nlargest(5).index
+                plot_data = df[df[z].isin(top_categories)].copy()
+                
+                g = sns.FacetGrid(plot_data, col=z, col_wrap=3, height=4, aspect=1.5)
+                g.map(sns.scatterplot, x, y)
+                g.add_legend()
+                g.fig.suptitle(f'Conditional Plots: {y} vs {x} conditioned on {z}')
+                plt.tight_layout()
+                return g.fig, g.axes
 
-            if len(numerical_columns) >= 2 and len(categorical_columns) > 0:
-                def plot_coplots():
-                    x = numerical_columns[0]
-                    y = numerical_columns[1]
-                    z = categorical_columns[0]
-                    
-                    print(f"Plotting conditional plots for x: {x}, y: {y}, conditioned on z: {z}")
-                    
-                    # Limit the number of categories to plot
-                    top_categories = df[z].value_counts().nlargest(5).index
-                    plot_data = df[df[z].isin(top_categories)].copy()
-                    plot_data[x] = preprocessed_df[x]
-                    plot_data[y] = preprocessed_df[y]
-                    
-                    g = sns.FacetGrid(plot_data, col=z, col_wrap=3, height=4, aspect=1.5)
-                    g.map(sns.scatterplot, x, y)
-                    g.add_legend()
-                    g.fig.suptitle(f'Conditional Plots: {y} vs {x} conditioned on {z}')
-                    plt.tight_layout()
-                    return g.fig, g.axes
-
-                result = self.generate_plot(plot_coplots)
-                if result is not None:
-                    fig, _ = result
-                    img_path = os.path.join(self.output_folder, f"{table_name}_conditional_plots.png")
-                    plt.savefig(img_path, dpi=100, bbox_inches='tight')
-                    plt.close(fig)
-                    self.interpret_results("Conditional Plots", img_path, table_name)
-                else:
-                    print("Skipping Conditional Plots due to error in plot generation.")
+            result = self.generate_plot(plot_coplots)
+            if result is not None:
+                fig, _ = result
+                img_path = os.path.join(self.output_folder, f"{table_name}_conditional_plots.png")
+                plt.savefig(img_path, dpi=100, bbox_inches='tight')
+                plt.close(fig)
+                self.interpret_results("Conditional Plots", img_path, table_name)
             else:
-                print("Not enough suitable columns for Conditional Plots.")
-                print(f"Number of numerical columns: {len(numerical_columns)}")
-                print(f"Number of categorical columns: {len(categorical_columns)}")
-        except Exception as e:
-            print(f"An error occurred during Conditional Plots analysis: {str(e)}")
-            print("Skipping Conditional Plots due to error.")
+                print("Skipping Conditional Plots due to error in plot generation.")
+        else:
+            print("Not enough suitable columns for Conditional Plots.")
 
     def ice_plots(self, df, table_name):
-        self.technique_counter += 1
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Individual Conditional Expectation (ICE) Plots"))
         
-        preprocessed_df = self.preprocess_data(df)
-        if preprocessed_df.shape[1] >= 2:
+        numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
+        if len(numerical_columns) >= 2:
             def plot_ice():
-                X = preprocessed_df.iloc[:, :-1]
-                y = preprocessed_df.iloc[:, -1]
+                X = df[numerical_columns]
+                y = X.iloc[:, -1]  # Use the last column as the target
+                X = X.iloc[:, :-1]  # Use all but the last column as features
+                
+                imputer = SimpleImputer(strategy='mean')
+                X_imputed = pd.DataFrame(imputer.fit_transform(X), columns=X.columns)
                 
                 model = RandomForestRegressor(n_estimators=100, random_state=42, n_jobs=-1)
-                model.fit(X, y)
+                model.fit(X_imputed, y)
                 
                 feature = X.columns[0]  # Use the first column as the feature for ICE plot
                 
@@ -382,7 +346,7 @@ class AdvancedExploratoryDataAnalysisB3:
                 x_range = np.linspace(X[feature].min(), X[feature].max(), num=50)
                 for i in range(min(50, len(X))):  # Limit to 50 ICE curves
                     ice_curve = []
-                    X_copy = X.iloc[[i]].copy()
+                    X_copy = X_imputed.iloc[[i]].copy()
                     for x in x_range:
                         X_copy[feature] = x
                         pred = model.predict(X_copy)[0]
@@ -411,7 +375,7 @@ class AdvancedExploratoryDataAnalysisB3:
             print("Not enough numerical columns for ICE Plots.")
 
     def time_series_decomposition(self, df, table_name):
-        self.technique_counter += 1
+        
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Time Series Decomposition"))
         
         date_columns = df.select_dtypes(include=['datetime64']).columns
@@ -461,7 +425,7 @@ class AdvancedExploratoryDataAnalysisB3:
             print("No suitable date and numerical columns found for Time Series Decomposition.")
 
     def autocorrelation_plots(self, df, table_name):
-        self.technique_counter += 1
+        
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Autocorrelation Plots"))
         
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
@@ -497,7 +461,7 @@ class AdvancedExploratoryDataAnalysisB3:
             print("No numerical columns found for Autocorrelation Plot.")
 
     def bayesian_networks(self, df, table_name):
-        self.technique_counter += 1
+        
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Bayesian Networks"))
         
         # Select a subset of columns for Bayesian Network analysis
@@ -545,7 +509,7 @@ class AdvancedExploratoryDataAnalysisB3:
             print("Not enough suitable columns for Bayesian Network analysis.")
 
     def isolation_forest(self, df, table_name):
-        self.technique_counter += 1
+        
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Isolation Forest"))
         
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
@@ -582,7 +546,7 @@ class AdvancedExploratoryDataAnalysisB3:
             print("Not enough numerical columns for Isolation Forest analysis.")
 
     def one_class_svm(self, df, table_name):
-        self.technique_counter += 1
+        
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - One-Class SVM"))
         
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
@@ -621,7 +585,7 @@ class AdvancedExploratoryDataAnalysisB3:
 
 
     def local_outlier_factor(self, df, table_name):
-        self.technique_counter += 1
+        
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Local Outlier Factor (LOF)"))
         
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
@@ -658,7 +622,7 @@ class AdvancedExploratoryDataAnalysisB3:
             print("Not enough numerical columns for Local Outlier Factor analysis.")
 
     def robust_pca(self, df, table_name):
-        self.technique_counter += 1
+        
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Robust Principal Component Analysis (RPCA)"))
         
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
@@ -705,7 +669,7 @@ class AdvancedExploratoryDataAnalysisB3:
             print("Not enough numerical columns for Robust PCA analysis.")
 
     def bayesian_change_point_detection(self, df, table_name):
-        self.technique_counter += 1
+        
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Bayesian Change Point Detection"))
         
         date_columns = df.select_dtypes(include=['datetime64']).columns
@@ -747,7 +711,7 @@ class AdvancedExploratoryDataAnalysisB3:
             print("No suitable date and numerical columns found for Change Point Detection.")
 
     def hidden_markov_models(self, df, table_name):
-        self.technique_counter += 1
+        
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Hidden Markov Models (HMMs)"))
         
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
@@ -786,17 +750,24 @@ class AdvancedExploratoryDataAnalysisB3:
             print("Not enough numerical columns for Hidden Markov Model analysis.")
 
     def dynamic_time_warping(self, df, table_name):
-        self.technique_counter += 1
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Dynamic Time Warping (DTW)"))
         
-        preprocessed_df = self.preprocess_data(df)
-        numerical_columns = preprocessed_df.columns
+        numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
         
         if len(numerical_columns) >= 2:
             def plot_dtw():
                 # Select two time series for comparison
-                series1 = preprocessed_df[numerical_columns[0]].values
-                series2 = preprocessed_df[numerical_columns[1]].values
+                series1 = df[numerical_columns[0]].values
+                series2 = df[numerical_columns[1]].values
+                
+                # Handle NaN values
+                series1 = series1[~np.isnan(series1)]
+                series2 = series2[~np.isnan(series2)]
+                
+                # Ensure series are of equal length
+                min_length = min(len(series1), len(series2))
+                series1 = series1[:min_length]
+                series2 = series2[:min_length]
                 
                 # Compute DTW distance
                 distance = dtw.distance(series1, series2)
@@ -921,19 +892,29 @@ class AdvancedExploratoryDataAnalysisB3:
 
     def generate_executive_summary(self):
         if not self.findings:
-            self.executive_summary = "No significant findings were identified during the advanced analysis. This could be due to a lack of data, uniform data distribution, or absence of notable patterns or anomalies in the dataset."
+            self.executive_summary = "No significant findings were identified during the analysis. This could be due to a lack of data, uniform data distribution, or absence of notable patterns or anomalies in the dataset."
             return
 
+        # Count the number of successful techniques
+        successful_techniques = sum(1 for item in self.pdf_content if len(item[1]) > 0 or not item[2].startswith("An error occurred"))
+        failed_techniques = self.total_techniques - successful_techniques
+
         summary_prompt = f"""
-        Based on the following findings from the Advanced Exploratory Data Analysis (Batch 3):
+        Based on the following findings from the {'Advanced ' if 'Advanced' in self.__class__.__name__ else ''}Exploratory Data Analysis:
         
         {self.findings}
         
+        Additional context:
+        - {successful_techniques} out of {self.total_techniques} analysis techniques were successfully completed.
+        - {failed_techniques} techniques encountered errors and were skipped.
+        
         Please provide an executive summary of the analysis. The summary should:
-        1. Briefly introduce the purpose of the advanced analysis.
-        2. Highlight the most significant insights and patterns discovered.
-        3. Mention any potential issues or areas that require further investigation.
-        4. Conclude with recommendations for next steps or areas to focus on.
+        1. Briefly introduce the purpose of the {'advanced ' if 'Advanced' in self.__class__.__name__ else ''}analysis.
+        2. Mention the number of successful and failed techniques.
+        3. Highlight the most significant insights and patterns discovered.
+        4. Mention any potential issues or areas that require further investigation.
+        5. Discuss any limitations of the analysis due to failed techniques.
+        6. Conclude with recommendations for next steps or areas to focus on.
 
         Structure the summary in multiple paragraphs for readability.
         Please provide your response in plain text format, without any special formatting or markup.
@@ -941,7 +922,7 @@ class AdvancedExploratoryDataAnalysisB3:
         
         try:
             interpretation = self.worker_erag_api.chat([
-                {"role": "system", "content": "You are a data analyst providing an executive summary of an advanced exploratory data analysis. Respond in plain text format."},
+                {"role": "system", "content": f"You are a data analyst providing an executive summary of an {'advanced ' if 'Advanced' in self.__class__.__name__ else ''}exploratory data analysis. Respond in plain text format."},
                 {"role": "user", "content": summary_prompt}
             ])
             
@@ -956,13 +937,14 @@ class AdvancedExploratoryDataAnalysisB3:
                 1. Making it more comprehensive and narrative by adding context and explanations.
                 2. Addressing any important aspects of the analysis that weren't covered.
                 3. Ensuring it includes a clear introduction, highlights of significant insights, mention of potential issues, and recommendations for next steps.
+                4. Discussing the implications of any failed techniques on the overall analysis.
 
                 Provide your response in plain text format, without any special formatting or markup.
                 Do not add comments, questions, or explanations about the changes - simply provide the improved version.
                 """
 
                 enhanced_summary = self.supervisor_erag_api.chat([
-                    {"role": "system", "content": "You are a data analyst improving an executive summary of an advanced exploratory data analysis. Provide direct enhancements without adding meta-comments."},
+                    {"role": "system", "content": f"You are a data analyst improving an executive summary of an {'advanced ' if 'Advanced' in self.__class__.__name__ else ''}exploratory data analysis. Provide direct enhancements without adding meta-comments."},
                     {"role": "user", "content": check_prompt}
                 ])
 

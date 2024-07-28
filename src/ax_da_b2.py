@@ -172,10 +172,20 @@ class AdvancedExploratoryDataAnalysisB2:
         ]
 
         for method in analysis_methods:
-            method(df, table_name)
+            try:
+                method(df, table_name)
+            except Exception as e:
+                error_message = f"An error occurred during {method.__name__}: {str(e)}"
+                print(error(error_message))
+                self.text_output += f"\n{error_message}\n"
+                # Optionally, you can add this error to the PDF report as well
+                self.pdf_content.append((method.__name__, [], error_message))
+            finally:
+                # Ensure we always increment the technique counter, even if the method fails
+                self.technique_counter += 1
 
     def parallel_coordinates_plot(self, df, table_name):
-        self.technique_counter += 1
+        
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Parallel Coordinates Plot"))
         
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
@@ -219,7 +229,7 @@ class AdvancedExploratoryDataAnalysisB2:
             print("Not enough numerical columns for parallel coordinates plot.")
 
     def andrews_curves(self, df, table_name):
-        self.technique_counter += 1
+        
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Andrews Curves"))
         
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
@@ -263,7 +273,7 @@ class AdvancedExploratoryDataAnalysisB2:
             print("Not enough numerical columns for Andrews curves.")
 
     def radar_charts(self, df, table_name):
-        self.technique_counter += 1
+        
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Radar Charts"))
         
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
@@ -294,7 +304,7 @@ class AdvancedExploratoryDataAnalysisB2:
             print("Not enough numerical columns for radar chart.")
 
     def sankey_diagrams(self, df, table_name):
-        self.technique_counter += 1
+        
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Sankey Diagrams"))
 
         categorical_columns = df.select_dtypes(include=['object', 'category']).columns
@@ -334,7 +344,7 @@ class AdvancedExploratoryDataAnalysisB2:
             print("Not enough categorical columns for Sankey diagram.")
 
     def bubble_charts(self, df, table_name):
-        self.technique_counter += 1
+        
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Bubble Charts"))
 
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
@@ -365,7 +375,7 @@ class AdvancedExploratoryDataAnalysisB2:
             print("Not enough numerical columns for bubble chart.")
 
     def geographical_plots(self, df, table_name):
-        self.technique_counter += 1
+        
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Geographical Plots"))
 
         if 'latitude' in df.columns and 'longitude' in df.columns:
@@ -386,7 +396,7 @@ class AdvancedExploratoryDataAnalysisB2:
             print("No latitude and longitude columns found for geographical plot.")
 
     def word_clouds(self, df, table_name):
-        self.technique_counter += 1
+        
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Word Clouds"))
 
         text_columns = df.select_dtypes(include=['object']).columns
@@ -414,7 +424,7 @@ class AdvancedExploratoryDataAnalysisB2:
             print("No text columns found for word cloud.")
 
     def hierarchical_clustering_dendrogram(self, df, table_name):
-        self.technique_counter += 1
+        
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Hierarchical Clustering Dendrogram"))
 
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
@@ -471,7 +481,7 @@ class AdvancedExploratoryDataAnalysisB2:
             print("Not enough numerical columns for hierarchical clustering dendrogram.")
 
     def ecdf_plots(self, df, table_name):
-        self.technique_counter += 1
+        
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - ECDF Plots"))
 
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
@@ -504,7 +514,7 @@ class AdvancedExploratoryDataAnalysisB2:
 
 
     def ridgeline_plots(self, df, table_name):
-        self.technique_counter += 1
+        
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Ridgeline Plots"))
 
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
@@ -549,7 +559,7 @@ class AdvancedExploratoryDataAnalysisB2:
             print("Not enough numerical and categorical columns for ridgeline plot.")
 
     def hexbin_plots(self, df, table_name):
-        self.technique_counter += 1
+        
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Hexbin Plots"))
 
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
@@ -578,7 +588,7 @@ class AdvancedExploratoryDataAnalysisB2:
             print("Not enough numerical columns for hexbin plot.")
 
     def mosaic_plots(self, df, table_name):
-        self.technique_counter += 1
+        
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Mosaic Plots"))
 
         categorical_columns = df.select_dtypes(include=['object', 'category']).columns
@@ -610,7 +620,7 @@ class AdvancedExploratoryDataAnalysisB2:
             print("Not enough categorical columns for mosaic plot.")
 
     def lag_plots(self, df, table_name):
-        self.technique_counter += 1
+        
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Lag Plots"))
 
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
@@ -634,7 +644,7 @@ class AdvancedExploratoryDataAnalysisB2:
             print("No numerical columns found for lag plot.")
 
     def shapley_value_analysis(self, df, table_name):
-        self.technique_counter += 1
+        
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Shapley Value Analysis"))
 
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
@@ -678,7 +688,7 @@ class AdvancedExploratoryDataAnalysisB2:
             print("Not enough numerical columns for Shapley value analysis.")
 
     def partial_dependence_plots(self, df, table_name):
-        self.technique_counter += 1
+        
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Partial Dependence Plots"))
         
         numeric_columns = df.select_dtypes(include=['int64', 'float64']).columns
@@ -831,19 +841,29 @@ class AdvancedExploratoryDataAnalysisB2:
 
     def generate_executive_summary(self):
         if not self.findings:
-            self.executive_summary = "No significant findings were identified during the advanced analysis. This could be due to a lack of data, uniform data distribution, or absence of notable patterns or anomalies in the dataset."
+            self.executive_summary = "No significant findings were identified during the analysis. This could be due to a lack of data, uniform data distribution, or absence of notable patterns or anomalies in the dataset."
             return
 
+        # Count the number of successful techniques
+        successful_techniques = sum(1 for item in self.pdf_content if len(item[1]) > 0 or not item[2].startswith("An error occurred"))
+        failed_techniques = self.total_techniques - successful_techniques
+
         summary_prompt = f"""
-        Based on the following findings from the Advanced Exploratory Data Analysis:
+        Based on the following findings from the {'Advanced ' if 'Advanced' in self.__class__.__name__ else ''}Exploratory Data Analysis:
         
         {self.findings}
         
+        Additional context:
+        - {successful_techniques} out of {self.total_techniques} analysis techniques were successfully completed.
+        - {failed_techniques} techniques encountered errors and were skipped.
+        
         Please provide an executive summary of the analysis. The summary should:
-        1. Briefly introduce the purpose of the advanced analysis.
-        2. Highlight the most significant insights and patterns discovered.
-        3. Mention any potential issues or areas that require further investigation.
-        4. Conclude with recommendations for next steps or areas to focus on.
+        1. Briefly introduce the purpose of the {'advanced ' if 'Advanced' in self.__class__.__name__ else ''}analysis.
+        2. Mention the number of successful and failed techniques.
+        3. Highlight the most significant insights and patterns discovered.
+        4. Mention any potential issues or areas that require further investigation.
+        5. Discuss any limitations of the analysis due to failed techniques.
+        6. Conclude with recommendations for next steps or areas to focus on.
 
         Structure the summary in multiple paragraphs for readability.
         Please provide your response in plain text format, without any special formatting or markup.
@@ -851,7 +871,7 @@ class AdvancedExploratoryDataAnalysisB2:
         
         try:
             interpretation = self.worker_erag_api.chat([
-                {"role": "system", "content": "You are a data analyst providing an executive summary of an advanced exploratory data analysis. Respond in plain text format."},
+                {"role": "system", "content": f"You are a data analyst providing an executive summary of an {'advanced ' if 'Advanced' in self.__class__.__name__ else ''}exploratory data analysis. Respond in plain text format."},
                 {"role": "user", "content": summary_prompt}
             ])
             
@@ -866,13 +886,14 @@ class AdvancedExploratoryDataAnalysisB2:
                 1. Making it more comprehensive and narrative by adding context and explanations.
                 2. Addressing any important aspects of the analysis that weren't covered.
                 3. Ensuring it includes a clear introduction, highlights of significant insights, mention of potential issues, and recommendations for next steps.
+                4. Discussing the implications of any failed techniques on the overall analysis.
 
                 Provide your response in plain text format, without any special formatting or markup.
                 Do not add comments, questions, or explanations about the changes - simply provide the improved version.
                 """
 
                 enhanced_summary = self.supervisor_erag_api.chat([
-                    {"role": "system", "content": "You are a data analyst improving an executive summary of an advanced exploratory data analysis. Provide direct enhancements without adding meta-comments."},
+                    {"role": "system", "content": f"You are a data analyst improving an executive summary of an {'advanced ' if 'Advanced' in self.__class__.__name__ else ''}exploratory data analysis. Provide direct enhancements without adding meta-comments."},
                     {"role": "user", "content": check_prompt}
                 ])
 

@@ -125,7 +125,6 @@ class ExploratoryDataAnalysis:
         self.output_folder = os.path.join(settings.output_folder, f"xda_{self.table_name}")
         os.makedirs(self.output_folder, exist_ok=True)
         
-        # Initialize PDFReportGenerator with table name
         self.pdf_generator = PDFReportGenerator(self.output_folder, self.llm_name, self.table_name)
         
         print(highlight(f"\nAnalyzing table: {table_name}"))
@@ -149,7 +148,18 @@ class ExploratoryDataAnalysis:
         ]
 
         for method in analysis_methods:
-            method(df, table_name)
+            try:
+                method(df, table_name)
+            except Exception as e:
+                error_message = f"An error occurred during {method.__name__}: {str(e)}"
+                print(error(error_message))
+                self.text_output += f"\n{error_message}\n"
+                # Optionally, you can add this error to the PDF report as well
+                self.pdf_content.append((method.__name__, [], error_message))
+            finally:
+                # Ensure we always increment the technique counter, even if the method fails
+                self.technique_counter += 1
+
 
 
     def basic_statistics(self, df, table_name):
@@ -455,7 +465,7 @@ class ExploratoryDataAnalysis:
         self.interpret_results("Null, Missing, and Unique Value Analysis", analysis, table_name)
 
     def column_importance_analysis(self, df, table_name):
-        self.technique_counter += 1
+        
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Column Importance Analysis"))
         
         # This is a simplified version. In practice, you might want to use more sophisticated
@@ -677,16 +687,26 @@ class ExploratoryDataAnalysis:
             self.executive_summary = "No significant findings were identified during the analysis. This could be due to a lack of data, uniform data distribution, or absence of notable patterns or anomalies in the dataset."
             return
 
+        # Count the number of successful techniques
+        successful_techniques = sum(1 for item in self.pdf_content if len(item[1]) > 0 or not item[2].startswith("An error occurred"))
+        failed_techniques = self.total_techniques - successful_techniques
+
         summary_prompt = f"""
-        Based on the following findings from the Exploratory Data Analysis:
+        Based on the following findings from the {'Advanced ' if 'Advanced' in self.__class__.__name__ else ''}Exploratory Data Analysis:
         
         {self.findings}
         
+        Additional context:
+        - {successful_techniques} out of {self.total_techniques} analysis techniques were successfully completed.
+        - {failed_techniques} techniques encountered errors and were skipped.
+        
         Please provide an executive summary of the analysis. The summary should:
-        1. Briefly introduce the purpose of the analysis.
-        2. Highlight the most significant insights and patterns discovered.
-        3. Mention any potential issues or areas that require further investigation.
-        4. Conclude with recommendations for next steps or areas to focus on.
+        1. Briefly introduce the purpose of the {'advanced ' if 'Advanced' in self.__class__.__name__ else ''}analysis.
+        2. Mention the number of successful and failed techniques.
+        3. Highlight the most significant insights and patterns discovered.
+        4. Mention any potential issues or areas that require further investigation.
+        5. Discuss any limitations of the analysis due to failed techniques.
+        6. Conclude with recommendations for next steps or areas to focus on.
 
         Structure the summary in multiple paragraphs for readability.
         Please provide your response in plain text format, without any special formatting or markup.
@@ -694,7 +714,7 @@ class ExploratoryDataAnalysis:
         
         try:
             interpretation = self.worker_erag_api.chat([
-                {"role": "system", "content": "You are a data analyst providing an executive summary of an exploratory data analysis. Respond in plain text format."},
+                {"role": "system", "content": f"You are a data analyst providing an executive summary of an {'advanced ' if 'Advanced' in self.__class__.__name__ else ''}exploratory data analysis. Respond in plain text format."},
                 {"role": "user", "content": summary_prompt}
             ])
             
@@ -709,13 +729,14 @@ class ExploratoryDataAnalysis:
                 1. Making it more comprehensive and narrative by adding context and explanations.
                 2. Addressing any important aspects of the analysis that weren't covered.
                 3. Ensuring it includes a clear introduction, highlights of significant insights, mention of potential issues, and recommendations for next steps.
+                4. Discussing the implications of any failed techniques on the overall analysis.
 
                 Provide your response in plain text format, without any special formatting or markup.
                 Do not add comments, questions, or explanations about the changes - simply provide the improved version.
                 """
 
                 enhanced_summary = self.supervisor_erag_api.chat([
-                    {"role": "system", "content": "You are a data analyst improving an executive summary of an exploratory data analysis. Provide direct enhancements without adding meta-comments."},
+                    {"role": "system", "content": f"You are a data analyst improving an executive summary of an {'advanced ' if 'Advanced' in self.__class__.__name__ else ''}exploratory data analysis. Provide direct enhancements without adding meta-comments."},
                     {"role": "user", "content": check_prompt}
                 ])
 

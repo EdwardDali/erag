@@ -46,30 +46,6 @@ class AdvancedExploratoryDataAnalysisB1:  # Updated class name
         self.pdf_generator = None
 
 
-    def preprocess_data(self, df, min_unique_values=2, max_missing_percentage=30):
-        # Select numerical columns
-        numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
-        
-        # Check for missing data and data types
-        valid_columns = []
-        for col in numerical_columns:
-            missing_percentage = df[col].isnull().mean() * 100
-            unique_count = df[col].nunique()
-            
-            if missing_percentage < max_missing_percentage and unique_count >= min_unique_values:
-                valid_columns.append(col)
-            else:
-                print(f"Skipping column {col}: {missing_percentage:.2f}% missing, {unique_count} unique values")
-        
-        # Select valid columns
-        X = df[valid_columns]
-        
-        # Handle remaining NaN values using mean imputation
-        from sklearn.impute import SimpleImputer
-        imputer = SimpleImputer(strategy='mean')
-        X_imputed = imputer.fit_transform(X)
-        
-        return pd.DataFrame(X_imputed, columns=valid_columns)
 
     def calculate_figure_size(self, aspect_ratio=16/9):
         max_width = int(np.sqrt(self.max_pixels * aspect_ratio))
@@ -184,10 +160,20 @@ class AdvancedExploratoryDataAnalysisB1:  # Updated class name
         ]
 
         for method in analysis_methods:
-            method(df, table_name)
+            try:
+                method(df, table_name)
+            except Exception as e:
+                error_message = f"An error occurred during {method.__name__}: {str(e)}"
+                print(error(error_message))
+                self.text_output += f"\n{error_message}\n"
+                # Optionally, you can add this error to the PDF report as well
+                self.pdf_content.append((method.__name__, [], error_message))
+            finally:
+                # Ensure we always increment the technique counter, even if the method fails
+                self.technique_counter += 1
 
     def value_counts_analysis(self, df, table_name):
-        self.technique_counter += 1
+        
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Value Counts Analysis"))
         
         categorical_columns = df.select_dtypes(include=['object']).columns
@@ -200,7 +186,7 @@ class AdvancedExploratoryDataAnalysisB1:  # Updated class name
         self.interpret_results("Value Counts Analysis", results, table_name)
 
     def grouped_summary_statistics(self, df, table_name):
-        self.technique_counter += 1
+        
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Grouped Summary Statistics"))
         
         categorical_columns = df.select_dtypes(include=['object']).columns
@@ -216,7 +202,7 @@ class AdvancedExploratoryDataAnalysisB1:  # Updated class name
         self.interpret_results("Grouped Summary Statistics", results, table_name)
 
     def frequency_distribution_analysis(self, df, table_name):
-        self.technique_counter += 1
+        
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Frequency Distribution Analysis"))
         
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
@@ -244,7 +230,7 @@ class AdvancedExploratoryDataAnalysisB1:  # Updated class name
         self.interpret_results("Frequency Distribution Analysis", image_paths, table_name)
 
     def kde_plot_analysis(self, df, table_name):
-        self.technique_counter += 1
+        
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - KDE Plot Analysis"))
         
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
@@ -272,7 +258,7 @@ class AdvancedExploratoryDataAnalysisB1:  # Updated class name
         self.interpret_results("KDE Plot Analysis", image_paths, table_name)
 
     def violin_plot_analysis(self, df, table_name):
-        self.technique_counter += 1
+        
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Violin Plot Analysis"))
         
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
@@ -306,7 +292,7 @@ class AdvancedExploratoryDataAnalysisB1:  # Updated class name
 
 
     def pair_plot_analysis(self, df, table_name):
-        self.technique_counter += 1
+        
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Pair Plot Analysis"))
         
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
@@ -328,7 +314,7 @@ class AdvancedExploratoryDataAnalysisB1:  # Updated class name
             print("Not enough numerical columns for pair plot analysis.")
 
     def box_plot_analysis(self, df, table_name):
-        self.technique_counter += 1
+        
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Box Plot Analysis"))
         
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
@@ -355,7 +341,7 @@ class AdvancedExploratoryDataAnalysisB1:  # Updated class name
         self.interpret_results("Box Plot Analysis", image_paths, table_name)
 
     def scatter_plot_analysis(self, df, table_name):
-        self.technique_counter += 1
+        
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Scatter Plot Analysis"))
         
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
@@ -388,7 +374,7 @@ class AdvancedExploratoryDataAnalysisB1:  # Updated class name
         self.interpret_results("Scatter Plot Analysis", image_paths, table_name)
 
     def time_series_analysis(self, df, table_name):
-        self.technique_counter += 1
+        
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Time Series Analysis"))
         
         date_columns = df.select_dtypes(include=['datetime64']).columns
@@ -422,7 +408,7 @@ class AdvancedExploratoryDataAnalysisB1:  # Updated class name
         self.interpret_results("Time Series Analysis", image_paths, table_name)
 
     def outlier_detection(self, df, table_name):
-        self.technique_counter += 1
+        
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Outlier Detection"))
         
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
@@ -444,14 +430,14 @@ class AdvancedExploratoryDataAnalysisB1:  # Updated class name
         self.interpret_results("Outlier Detection", results, table_name)
 
     def feature_importance_analysis(self, df, table_name):
-        self.technique_counter += 1
+        
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Feature Importance Analysis"))
         
-        preprocessed_df = self.preprocess_data(df)
+        numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
         
-        if preprocessed_df.shape[1] > 1:
-            X = preprocessed_df.drop(preprocessed_df.columns[-1], axis=1)
-            y = preprocessed_df[preprocessed_df.columns[-1]]
+        if len(numerical_columns) > 1:
+            X = df[numerical_columns].drop(numerical_columns[-1], axis=1)
+            y = df[numerical_columns[-1]]
             
             model = RandomForestRegressor(n_estimators=100, random_state=42)
             model.fit(X, y)
@@ -482,13 +468,13 @@ class AdvancedExploratoryDataAnalysisB1:  # Updated class name
             print("Not enough numerical columns for feature importance analysis.")
 
     def pca_analysis(self, df, table_name):
-        self.technique_counter += 1
+        
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - PCA Analysis"))
         
-        preprocessed_df = self.preprocess_data(df)
+        numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
         
-        if preprocessed_df.shape[1] > 2:
-            X_scaled = StandardScaler().fit_transform(preprocessed_df)
+        if len(numerical_columns) > 2:
+            X_scaled = StandardScaler().fit_transform(df[numerical_columns])
             
             pca = PCA()
             pca_result = pca.fit_transform(X_scaled)
@@ -527,18 +513,17 @@ class AdvancedExploratoryDataAnalysisB1:  # Updated class name
             print("Not enough numerical columns for PCA analysis.")
 
     def cluster_analysis(self, df, table_name):
-        self.technique_counter += 1
+        
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Cluster Analysis"))
         
-        # Preprocess the data
-        preprocessed_df = self.preprocess_data(df)
+        numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
         
-        if preprocessed_df.shape[1] > 1:
-            X_scaled = StandardScaler().fit_transform(preprocessed_df)
+        if len(numerical_columns) > 1:
+            X_scaled = StandardScaler().fit_transform(df[numerical_columns])
             
             # Determine optimal number of clusters using elbow method
             inertias = []
-            max_clusters = min(10, preprocessed_df.shape[0] - 1)  # Limit to 10 clusters or one less than number of samples
+            max_clusters = min(10, X_scaled.shape[0] - 1)  # Limit to 10 clusters or one less than number of samples
             for k in range(1, max_clusters + 1):
                 kmeans = KMeans(n_clusters=k, random_state=42)
                 kmeans.fit(X_scaled)
@@ -585,13 +570,13 @@ class AdvancedExploratoryDataAnalysisB1:  # Updated class name
             print("Not enough numerical columns for cluster analysis.")
 
     def correlation_network_analysis(self, df, table_name):
-        self.technique_counter += 1
+        
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Correlation Network Analysis"))
         
-        preprocessed_df = self.preprocess_data(df)
+        numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
         
-        if preprocessed_df.shape[1] > 1:
-            corr_matrix = preprocessed_df.corr()
+        if len(numerical_columns) > 1:
+            corr_matrix = df[numerical_columns].corr()
             
             # Create a graph from the correlation matrix
             G = nx.Graph()
@@ -622,7 +607,7 @@ class AdvancedExploratoryDataAnalysisB1:  # Updated class name
             print("Not enough numerical columns for correlation network analysis.")
 
     def qq_plot_analysis(self, df, table_name):
-        self.technique_counter += 1
+        
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Q-Q Plot Analysis"))
         
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
@@ -736,19 +721,29 @@ class AdvancedExploratoryDataAnalysisB1:  # Updated class name
 
     def generate_executive_summary(self):
         if not self.findings:
-            self.executive_summary = "No significant findings were identified during the advanced analysis. This could be due to a lack of data, uniform data distribution, or absence of notable patterns or anomalies in the dataset."
+            self.executive_summary = "No significant findings were identified during the analysis. This could be due to a lack of data, uniform data distribution, or absence of notable patterns or anomalies in the dataset."
             return
 
+        # Count the number of successful techniques
+        successful_techniques = sum(1 for item in self.pdf_content if len(item[1]) > 0 or not item[2].startswith("An error occurred"))
+        failed_techniques = self.total_techniques - successful_techniques
+
         summary_prompt = f"""
-        Based on the following findings from the Advanced Exploratory Data Analysis:
+        Based on the following findings from the {'Advanced ' if 'Advanced' in self.__class__.__name__ else ''}Exploratory Data Analysis:
         
         {self.findings}
         
+        Additional context:
+        - {successful_techniques} out of {self.total_techniques} analysis techniques were successfully completed.
+        - {failed_techniques} techniques encountered errors and were skipped.
+        
         Please provide an executive summary of the analysis. The summary should:
-        1. Briefly introduce the purpose of the advanced analysis.
-        2. Highlight the most significant insights and patterns discovered.
-        3. Mention any potential issues or areas that require further investigation.
-        4. Conclude with recommendations for next steps or areas to focus on.
+        1. Briefly introduce the purpose of the {'advanced ' if 'Advanced' in self.__class__.__name__ else ''}analysis.
+        2. Mention the number of successful and failed techniques.
+        3. Highlight the most significant insights and patterns discovered.
+        4. Mention any potential issues or areas that require further investigation.
+        5. Discuss any limitations of the analysis due to failed techniques.
+        6. Conclude with recommendations for next steps or areas to focus on.
 
         Structure the summary in multiple paragraphs for readability.
         Please provide your response in plain text format, without any special formatting or markup.
@@ -756,7 +751,7 @@ class AdvancedExploratoryDataAnalysisB1:  # Updated class name
         
         try:
             interpretation = self.worker_erag_api.chat([
-                {"role": "system", "content": "You are a data analyst providing an executive summary of an advanced exploratory data analysis. Respond in plain text format."},
+                {"role": "system", "content": f"You are a data analyst providing an executive summary of an {'advanced ' if 'Advanced' in self.__class__.__name__ else ''}exploratory data analysis. Respond in plain text format."},
                 {"role": "user", "content": summary_prompt}
             ])
             
@@ -771,13 +766,14 @@ class AdvancedExploratoryDataAnalysisB1:  # Updated class name
                 1. Making it more comprehensive and narrative by adding context and explanations.
                 2. Addressing any important aspects of the analysis that weren't covered.
                 3. Ensuring it includes a clear introduction, highlights of significant insights, mention of potential issues, and recommendations for next steps.
+                4. Discussing the implications of any failed techniques on the overall analysis.
 
                 Provide your response in plain text format, without any special formatting or markup.
                 Do not add comments, questions, or explanations about the changes - simply provide the improved version.
                 """
 
                 enhanced_summary = self.supervisor_erag_api.chat([
-                    {"role": "system", "content": "You are a data analyst improving an executive summary of an advanced exploratory data analysis. Provide direct enhancements without adding meta-comments."},
+                    {"role": "system", "content": f"You are a data analyst improving an executive summary of an {'advanced ' if 'Advanced' in self.__class__.__name__ else ''}exploratory data analysis. Provide direct enhancements without adding meta-comments."},
                     {"role": "user", "content": check_prompt}
                 ])
 
