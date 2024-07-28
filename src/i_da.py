@@ -49,10 +49,17 @@ class InnovativeDataAnalysis:
         self.image_data = []
         self.pdf_generator = None
 
-    def calculate_figure_size(self, aspect_ratio=16/9):
-        max_width = int(np.sqrt(self.max_pixels * aspect_ratio))
-        max_height = int(max_width / aspect_ratio)
-        return (max_width / 100, max_height / 100)
+    def calculate_figure_size(self, data=None, aspect_ratio=16/9):
+        if data is not None:
+            rows, cols = data.shape
+            base_size = 8
+            width = base_size * min(cols, 10) / 5
+            height = base_size * min(rows, 20) / 10
+        else:
+            max_width = int(np.sqrt(self.max_pixels * aspect_ratio))
+            max_height = int(max_width / aspect_ratio)
+            width, height = max_width / 100, max_height / 100
+        return (width, height)
 
     def timeout(timeout_duration):
         def decorator(func):
@@ -87,22 +94,17 @@ class InnovativeDataAnalysis:
     def run(self):
         print(info(f"Starting Innovative Data Analysis on {self.db_path}"))
         
-        # Get all tables
         all_tables = self.get_tables()
-        
-        # Filter out system tables
         user_tables = [table for table in all_tables if table.lower() not in ['information_schema', 'sqlite_master', 'sqlite_sequence', 'sqlite_stat1']]
         
         if not user_tables:
             print(error("No user tables found in the database. Exiting."))
             return
         
-        # Present table choices to the user
         print(info("Available tables:"))
         for i, table in enumerate(user_tables, 1):
             print(f"{i}. {table}")
         
-        # Ask user to choose a table
         while True:
             try:
                 choice = int(input("Enter the number of the table you want to analyze: "))
@@ -116,13 +118,13 @@ class InnovativeDataAnalysis:
         
         print(info(f"You've selected to analyze the '{selected_table}' table."))
         
-        # Analyze the selected table
         self.analyze_table(selected_table)
         
         print(info("Generating Executive Summary..."))
         self.generate_executive_summary()
         
         self.save_text_output()
+        self.save_results_as_txt()
         self.generate_pdf_report()
         print(success(f"Innovative Data Analysis completed. Results saved in {self.output_folder}"))
 
@@ -137,7 +139,6 @@ class InnovativeDataAnalysis:
         self.output_folder = os.path.join(settings.output_folder, f"ida_{self.table_name}")
         os.makedirs(self.output_folder, exist_ok=True)
         
-        # Initialize PDFReportGenerator with table name
         self.pdf_generator = PDFReportGenerator(self.output_folder, self.llm_name, self.table_name)
         
         print(highlight(f"\nAnalyzing table: {table_name}"))
@@ -157,7 +158,6 @@ class InnovativeDataAnalysis:
         self.technique_counter += 1
         print(f"Performing test {self.technique_counter}/{self.total_techniques} - Adaptive Multi-dimensional Pattern Recognition (AMPR)")
 
-        # Prepare data
         numeric_columns = df.select_dtypes(include=['float64', 'int64']).columns
         X = df[numeric_columns].dropna()
 
@@ -165,25 +165,22 @@ class InnovativeDataAnalysis:
             print("No numeric data available for AMPR analysis.")
             return
 
-        # Perform AMPR analysis
         scaler = StandardScaler()
         X_scaled = scaler.fit_transform(X)
 
-        # Dynamic Feature Extraction
         pca = PCA()
         pca.fit(X_scaled)
         cumulative_variance_ratio = np.cumsum(pca.explained_variance_ratio_)
         n_components = np.argmax(cumulative_variance_ratio >= 0.95) + 1
         X_pca = pca.transform(X_scaled)[:, :n_components]
 
-        # Adaptive Clustering
         best_silhouette = -1
-        best_eps = 0.1  # Start with a small positive value
+        best_eps = 0.1
         for eps in np.arange(0.1, 1.1, 0.1):
             try:
-                dbscan = DBSCAN(eps=eps, min_samples=5)  # Add min_samples parameter
+                dbscan = DBSCAN(eps=eps, min_samples=5)
                 labels = dbscan.fit_predict(X_pca)
-                if len(np.unique(labels)) > 1:  # Ensure we have more than one cluster
+                if len(np.unique(labels)) > 1:
                     score = silhouette_score(X_pca, labels)
                     if score > best_silhouette:
                         best_silhouette = score
@@ -197,15 +194,42 @@ class InnovativeDataAnalysis:
         else:
             print("Could not find suitable clustering parameters. Using default KMeans clustering.")
             from sklearn.cluster import KMeans
-            kmeans = KMeans(n_clusters=3)  # You can adjust the number of clusters
+            kmeans = KMeans(n_clusters=3)
             cluster_labels = kmeans.fit_predict(X_pca)
 
-        # Anomaly Detection
         isolation_forest = IsolationForest(contamination=0.1, random_state=42)
         anomaly_labels = isolation_forest.fit_predict(X_pca)
 
-        # Visualize results
-        self.visualize_ampr_results(X_pca, cluster_labels, anomaly_labels, table_name)
+        fig = plt.figure(figsize=self.calculate_figure_size(X_pca))
+        gs = fig.add_gridspec(2, 2)
+
+        ax1 = fig.add_subplot(gs[0, 0])
+        ax1.scatter(X_pca[:, 0], X_pca[:, 1], c=cluster_labels, cmap='viridis')
+        ax1.set_title('Cluster Analysis')
+        ax1.set_xlabel('Principal Component 1')
+        ax1.set_ylabel('Principal Component 2')
+
+        ax2 = fig.add_subplot(gs[0, 1])
+        sns.heatmap(pd.DataFrame(X_pca).corr(), annot=True, cmap='coolwarm', ax=ax2)
+        ax2.set_title('Feature Correlation')
+
+        ax3 = fig.add_subplot(gs[1, 0])
+        ax3.scatter(X_pca[:, 0], X_pca[:, 1], c=anomaly_labels, cmap='RdYlGn')
+        ax3.set_title('Anomaly Detection')
+        ax3.set_xlabel('Principal Component 1')
+        ax3.set_ylabel('Principal Component 2')
+
+        ax4 = fig.add_subplot(gs[1, 1])
+        explained_variance_ratio = pca.explained_variance_ratio_[:n_components]
+        ax4.bar(range(1, n_components + 1), explained_variance_ratio)
+        ax4.set_xlabel('Principal Component')
+        ax4.set_ylabel('Explained Variance Ratio')
+        ax4.set_title('PCA Explained Variance')
+
+        plt.tight_layout()
+        img_path = os.path.join(self.output_folder, f"{table_name}_ampr_analysis.png")
+        plt.savefig(img_path, dpi=100, bbox_inches='tight')
+        plt.close()
 
         results = {
             "n_components": n_components,
@@ -213,37 +237,15 @@ class InnovativeDataAnalysis:
             "best_silhouette_score": best_silhouette,
             "n_clusters": len(np.unique(cluster_labels)),
             "n_anomalies": sum(anomaly_labels == -1),
+            "image_path": img_path
         }
 
         self.interpret_results("AMPR Analysis", results, table_name)
-
-    def visualize_ampr_results(self, X_pca, cluster_labels, anomaly_labels, table_name):
-        fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(15, 5))
-
-        ax1.scatter(X_pca[:, 0], X_pca[:, 1], c=cluster_labels, cmap='viridis')
-        ax1.set_title('Cluster Analysis')
-        ax1.set_xlabel('Principal Component 1')
-        ax1.set_ylabel('Principal Component 2')
-
-        sns.heatmap(pd.DataFrame(X_pca).corr(), annot=True, cmap='coolwarm', ax=ax2)
-        ax2.set_title('Feature Correlation')
-
-        ax3.scatter(X_pca[:, 0], X_pca[:, 1], c=anomaly_labels, cmap='RdYlGn')
-        ax3.set_title('Anomaly Detection')
-        ax3.set_xlabel('Principal Component 1')
-        ax3.set_ylabel('Principal Component 2')
-
-        plt.tight_layout()
-        img_path = os.path.join(self.output_folder, f"{table_name}_ampr_analysis.png")
-        plt.savefig(img_path, dpi=100, bbox_inches='tight')
-        plt.close()
-
 
     def etsf_analysis(self, df, table_name):
         self.technique_counter += 1
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Enhanced Time Series Forecasting (ETSF)"))
 
-        # Check if there's a date column
         date_columns = df.select_dtypes(include=['datetime64']).columns
         if len(date_columns) == 0:
             print(warning("No date column found for ETSF analysis."))
@@ -260,24 +262,20 @@ class InnovativeDataAnalysis:
 
         value_column = numeric_columns[0]
 
-        # Prepare data
         df = df[[date_column, value_column]].dropna().sort_values(date_column)
         df = df.set_index(date_column)
 
-        # Check if there's enough data
         if len(df) < 30:
             print(warning("Not enough data for meaningful ETSF analysis."))
             self.interpret_results("ETSF Analysis", "Not enough data", table_name)
             return
 
-        # Add features
         df['lag_1'] = df[value_column].shift(1)
         df['lag_7'] = df[value_column].shift(7)
         df['fourier_sin'] = np.sin(2 * np.pi * df.index.dayofyear / 365.25)
         df['fourier_cos'] = np.cos(2 * np.pi * df.index.dayofyear / 365.25)
         df = df.dropna()
 
-        # Check stationarity
         result = adfuller(df[value_column].dropna())
         adf_result = {
             'ADF Statistic': result[0],
@@ -285,24 +283,32 @@ class InnovativeDataAnalysis:
             'Critical Values': result[4]
         }
 
-        # Decompose series
         decomposition = seasonal_decompose(df[value_column], model='additive', period=min(len(df), 365))
         
-        fig, (ax1, ax2, ax3, ax4) = plt.subplots(4, 1, figsize=self.calculate_figure_size(aspect_ratio=4/3))
+        fig = plt.figure(figsize=self.calculate_figure_size(df))
+        gs = fig.add_gridspec(4, 1)
+
+        ax1 = fig.add_subplot(gs[0, 0])
         ax1.plot(decomposition.observed)
         ax1.set_title('Observed')
+
+        ax2 = fig.add_subplot(gs[1, 0])
         ax2.plot(decomposition.trend)
         ax2.set_title('Trend')
+
+        ax3 = fig.add_subplot(gs[2, 0])
         ax3.plot(decomposition.seasonal)
         ax3.set_title('Seasonal')
+
+        ax4 = fig.add_subplot(gs[3, 0])
         ax4.plot(decomposition.resid)
         ax4.set_title('Residual')
+
         plt.tight_layout()
         decomposition_path = os.path.join(self.output_folder, f"{table_name}_etsf_decomposition.png")
         plt.savefig(decomposition_path, dpi=100, bbox_inches='tight')
         plt.close()
 
-        # Simplified ETSF model (using ARIMA as an example)
         train_size = int(len(df) * 0.8)
         train, test = df[:train_size], df[train_size:]
 
@@ -310,12 +316,10 @@ class InnovativeDataAnalysis:
                       exog=train[['lag_1', 'lag_7', 'fourier_sin', 'fourier_cos']])
         results = model.fit()
 
-        # Make predictions
         predictions = results.forecast(steps=len(test), 
                                        exog=test[['lag_1', 'lag_7', 'fourier_sin', 'fourier_cos']])
 
-        # Plot results
-        plt.figure(figsize=self.calculate_figure_size())
+        plt.figure(figsize=self.calculate_figure_size(df))
         plt.plot(df.index, df[value_column], label='Actual')
         plt.plot(test.index, predictions, label='Forecast', color='red')
         plt.title('ETSF Forecast vs Actual')
@@ -324,7 +328,6 @@ class InnovativeDataAnalysis:
         plt.savefig(forecast_path, dpi=100, bbox_inches='tight')
         plt.close()
 
-        # Calculate error
         mse = mean_squared_error(test[value_column], predictions)
         rmse = np.sqrt(mse)
 
@@ -379,7 +382,6 @@ class InnovativeDataAnalysis:
         interpretation = self.worker_erag_api.chat([{"role": "system", "content": "You are a data analyst providing insights on innovative data analysis results. Respond in the requested format."}, 
                                                     {"role": "user", "content": prompt}])
         
-        # Second LLM call to review and enhance the interpretation
         check_prompt = f"""
         Original data and analysis type:
         {prompt}
@@ -407,17 +409,16 @@ class InnovativeDataAnalysis:
         
         self.text_output += f"\n{enhanced_interpretation.strip()}\n\n"
         
-        # Handle images
         image_data = []
-        if isinstance(results, dict) and 'image_path' in results:
-            image_data.append((f"{analysis_type} - Image", results['image_path']))
-        elif isinstance(results, dict) and 'decomposition_path' in results and 'forecast_path' in results:
-            image_data.append((f"{analysis_type} - Decomposition", results['decomposition_path']))
-            image_data.append((f"{analysis_type} - Forecast", results['forecast_path']))
+        if isinstance(results, dict):
+            if 'image_path' in results:
+                image_data.append((f"{analysis_type} - Image", results['image_path']))
+            if 'decomposition_path' in results and 'forecast_path' in results:
+                image_data.append((f"{analysis_type} - Decomposition", results['decomposition_path']))
+                image_data.append((f"{analysis_type} - Forecast", results['forecast_path']))
         
         self.pdf_content.append((analysis_type, image_data, enhanced_interpretation.strip()))
         
-        # Extract important findings
         lines = enhanced_interpretation.strip().split('\n')
         for i, line in enumerate(lines):
             if line.startswith("2. Key Findings:"):
@@ -427,7 +428,6 @@ class InnovativeDataAnalysis:
                     elif finding.startswith(("3.", "4.")):
                         break
 
-        # Update self.image_data
         self.image_data.extend(image_data)
 
     def generate_executive_summary(self):
@@ -457,7 +457,6 @@ class InnovativeDataAnalysis:
             ])
             
             if interpretation is not None:
-                # Updated second LLM call to focus on direct improvements
                 check_prompt = f"""
                 Please review and improve the following executive summary:
 
@@ -492,6 +491,19 @@ class InnovativeDataAnalysis:
         with open(output_file, "w", encoding='utf-8') as f:
             f.write(self.text_output)
 
+    def save_results_as_txt(self):
+        output_file = os.path.join(self.output_folder, f"ida_{self.table_name}_results.txt")
+        with open(output_file, "w", encoding='utf-8') as f:
+            f.write(f"Innovative Data Analysis Results for {self.table_name}\n\n")
+            f.write("Executive Summary:\n")
+            f.write(self.executive_summary)
+            f.write("\n\nKey Findings:\n")
+            for finding in self.findings:
+                f.write(f"- {finding}\n")
+            f.write("\nDetailed Analysis Results:\n")
+            f.write(self.text_output)
+        print(success(f"Results saved as txt file: {output_file}"))
+
     def generate_pdf_report(self):
         report_title = f"Innovative Data Analysis Report for {self.table_name}"
         pdf_file = self.pdf_generator.create_enhanced_pdf_report(
@@ -511,15 +523,11 @@ class InnovativeDataAnalysis:
 if __name__ == "__main__":
     from src.api_model import EragAPI
     
-    # Initialize EragAPI instances for worker and supervisor
     worker_api = EragAPI("worker_model_name")
     supervisor_api = EragAPI("supervisor_model_name")
     
-    # Specify the path to your SQLite database
     db_path = "path/to/your/database.sqlite"
     
-    # Create an instance of InnovativeDataAnalysis
     ida = InnovativeDataAnalysis(worker_api, supervisor_api, db_path)
     
-    # Run the analysis
     ida.run()
