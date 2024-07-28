@@ -137,7 +137,6 @@ class AdvancedExploratoryDataAnalysisB4:
                 self.text_output += f"\n{error_message}\n"
                 self.pdf_content.append((method.__name__, [], error_message))
 
-    # Implement the new techniques here
     def matrix_profile(self, df, table_name):
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Matrix Profile"))
         
@@ -147,7 +146,7 @@ class AdvancedExploratoryDataAnalysisB4:
                 from stumpy import stump
                 
                 # Select the first numerical column for demonstration
-                data = df[numerical_columns[0]].dropna().values
+                data = df[numerical_columns[0]].dropna().astype(float).values  # Convert to float
                 window_size = min(len(data) // 4, 100)  # Adjust window size as needed
                 
                 mp = stump(data, m=window_size)
@@ -368,24 +367,35 @@ class AdvancedExploratoryDataAnalysisB4:
             def plot_mahalanobis():
                 X = df[numerical_columns].dropna()
                 
+                # Remove constant columns
+                X = X.loc[:, (X != X.iloc[0]).any()]
+                
+                if X.shape[1] < 2:
+                    print("Not enough variable columns for Mahalanobis Distance analysis.")
+                    return None
+
                 # Calculate mean and covariance
                 mean = np.mean(X, axis=0)
                 cov = np.cov(X, rowvar=False)
                 
-                # Calculate Mahalanobis distance
-                inv_cov = np.linalg.inv(cov)
-                diff = X - mean
-                left = np.dot(diff, inv_cov)
-                mahalanobis = np.sqrt(np.sum(left * diff, axis=1))
-                
-                fig, ax = plt.subplots(figsize=self.calculate_figure_size())
-                scatter = ax.scatter(X.iloc[:, 0], X.iloc[:, 1], c=mahalanobis, cmap='viridis')
-                ax.set_xlabel(numerical_columns[0])
-                ax.set_ylabel(numerical_columns[1])
-                ax.set_title("Mahalanobis Distance")
-                plt.colorbar(scatter, label='Mahalanobis Distance')
-                plt.tight_layout()
-                return fig, ax
+                try:
+                    # Calculate Mahalanobis distance
+                    inv_cov = np.linalg.inv(cov)
+                    diff = X - mean
+                    left = np.dot(diff, inv_cov)
+                    mahalanobis = np.sqrt(np.sum(left * diff, axis=1))
+                    
+                    fig, ax = plt.subplots(figsize=self.calculate_figure_size())
+                    scatter = ax.scatter(X.iloc[:, 0], X.iloc[:, 1], c=mahalanobis, cmap='viridis')
+                    ax.set_xlabel(X.columns[0])
+                    ax.set_ylabel(X.columns[1])
+                    ax.set_title("Mahalanobis Distance")
+                    plt.colorbar(scatter, label='Mahalanobis Distance')
+                    plt.tight_layout()
+                    return fig, ax
+                except np.linalg.LinAlgError:
+                    print("Singular matrix encountered. Skipping Mahalanobis Distance analysis.")
+                    return None
 
             result = self.generate_plot(plot_mahalanobis)
             if result is not None:
@@ -570,31 +580,55 @@ class AdvancedExploratoryDataAnalysisB4:
                 # and highlight potential anomalies using Mahalanobis distance
                 X = df[numerical_columns].dropna()
                 
-                # Calculate Mahalanobis distance
-                mean = np.mean(X, axis=0)
-                cov = np.cov(X, rowvar=False)
-                inv_cov = np.linalg.inv(cov)
-                diff = X - mean
-                left = np.dot(diff, inv_cov)
-                mahalanobis = np.sqrt(np.sum(left * diff, axis=1))
+                # Remove constant columns
+                X = X.loc[:, (X != X.iloc[0]).any()]
                 
-                # Define threshold for anomalies (e.g., top 5% of Mahalanobis distances)
-                threshold = np.percentile(mahalanobis, 95)
-                
-                fig, ax = plt.subplots(figsize=self.calculate_figure_size())
-                scatter = ax.scatter(X.iloc[:, 0], X.iloc[:, 1], c=mahalanobis, cmap='viridis')
-                ax.set_xlabel(numerical_columns[0])
-                ax.set_ylabel(numerical_columns[1])
-                ax.set_title("Forensic Accounting: Potential Anomalies")
-                plt.colorbar(scatter, label='Mahalanobis Distance')
-                
-                # Highlight potential anomalies
-                anomalies = X[mahalanobis > threshold]
-                ax.scatter(anomalies.iloc[:, 0], anomalies.iloc[:, 1], color='red', s=100, facecolors='none', edgecolors='r', label='Potential Anomalies')
-                
-                ax.legend()
-                plt.tight_layout()
-                return fig, ax
+                if X.shape[1] < 2:
+                    print("Not enough variable columns for Forensic Accounting analysis.")
+                    return None
+
+                try:
+                    # Calculate Mahalanobis distance
+                    mean = np.mean(X, axis=0)
+                    cov = np.cov(X, rowvar=False)
+                    inv_cov = np.linalg.inv(cov)
+                    diff = X - mean
+                    left = np.dot(diff, inv_cov)
+                    mahalanobis = np.sqrt(np.sum(left * diff, axis=1))
+                    
+                    # Define threshold for anomalies (e.g., top 5% of Mahalanobis distances)
+                    threshold = np.percentile(mahalanobis, 95)
+                    
+                    fig, ax = plt.subplots(figsize=self.calculate_figure_size())
+                    scatter = ax.scatter(X.iloc[:, 0], X.iloc[:, 1], c=mahalanobis, cmap='viridis')
+                    ax.set_xlabel(X.columns[0])
+                    ax.set_ylabel(X.columns[1])
+                    ax.set_title("Forensic Accounting: Potential Anomalies")
+                    plt.colorbar(scatter, label='Mahalanobis Distance')
+                    
+                    # Highlight potential anomalies
+                    anomalies = X[mahalanobis > threshold]
+                    ax.scatter(anomalies.iloc[:, 0], anomalies.iloc[:, 1], color='red', s=100, facecolors='none', edgecolors='r', label='Potential Anomalies')
+                    
+                    ax.legend()
+                    plt.tight_layout()
+                    return fig, ax
+                except np.linalg.LinAlgError:
+                    print("Singular matrix encountered. Performing alternative analysis.")
+                    
+                    # Alternative analysis: Simple outlier detection using Z-score
+                    z_scores = np.abs(stats.zscore(X))
+                    outliers = (z_scores > 3).any(axis=1)
+                    
+                    fig, ax = plt.subplots(figsize=self.calculate_figure_size())
+                    ax.scatter(X.iloc[:, 0], X.iloc[:, 1], c='blue', label='Normal')
+                    ax.scatter(X[outliers].iloc[:, 0], X[outliers].iloc[:, 1], c='red', label='Potential Anomalies')
+                    ax.set_xlabel(X.columns[0])
+                    ax.set_ylabel(X.columns[1])
+                    ax.set_title("Forensic Accounting: Potential Anomalies (Z-score method)")
+                    ax.legend()
+                    plt.tight_layout()
+                    return fig, ax
 
             result = self.generate_plot(plot_forensic_accounting)
             if result is not None:
@@ -641,9 +675,32 @@ class AdvancedExploratoryDataAnalysisB4:
                 plt.close(fig)
                 self.interpret_results("Network Analysis for Fraud Detection", img_path, table_name)
             else:
-                print("Skipping Network Analysis plot due to error in plot generation.")
-        else:
-            print("Required columns (source, target, amount) not found for Network Analysis.")
+                print("Required columns (source, target, amount) not found. Performing alternative analysis.")
+                numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
+                if len(numerical_columns) >= 2:
+                    def plot_alternative_analysis():
+                        X = df[numerical_columns].dropna()
+                        
+                        # Perform a simple correlation analysis
+                        corr = X.corr()
+                        
+                        fig, ax = plt.subplots(figsize=self.calculate_figure_size())
+                        sns.heatmap(corr, annot=True, cmap='coolwarm', ax=ax)
+                        ax.set_title("Correlation Heatmap (Alternative to Network Analysis)")
+                        plt.tight_layout()
+                        return fig, ax
+
+                    result = self.generate_plot(plot_alternative_analysis)
+                    if result is not None:
+                        fig, _ = result
+                        img_path = os.path.join(self.output_folder, f"{table_name}_alternative_network_analysis.png")
+                        plt.savefig(img_path, dpi=100, bbox_inches='tight')
+                        plt.close(fig)
+                        self.interpret_results("Alternative Network Analysis", img_path, table_name)
+                    else:
+                        print("Skipping alternative analysis plot due to error in plot generation.")
+                else:
+                    print("Not enough numerical columns for alternative analysis.")
 
     def sequence_alignment(self, df, table_name):
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Sequence Alignment and Matching"))
@@ -651,32 +708,55 @@ class AdvancedExploratoryDataAnalysisB4:
         text_columns = df.select_dtypes(include=['object']).columns
         if len(text_columns) > 0:
             def plot_sequence_alignment():
-                from Bio import pairwise2
-                from Bio.SubsMat import MatrixInfo as matlist
+                try:
+                    from Bio import pairwise2
+                    from Bio.Align import substitution_matrices
+                    
+                    # Select the first text column
+                    sequences = df[text_columns[0]].dropna().head(10).tolist()  # Limit to 10 sequences for simplicity
+                    
+                    # Perform pairwise alignments
+                    alignments = []
+                    for i in range(len(sequences)):
+                        for j in range(i+1, len(sequences)):
+                            alignment = pairwise2.align.globalxx(sequences[i], sequences[j])
+                            alignments.append((i, j, alignment[0].score))  # Store indices and alignment score
+                    
+                    # Create a similarity matrix
+                    similarity_matrix = np.zeros((len(sequences), len(sequences)))
+                    for i, j, score in alignments:
+                        similarity_matrix[i, j] = similarity_matrix[j, i] = score
+                    
+                    fig, ax = plt.subplots(figsize=self.calculate_figure_size())
+                    im = ax.imshow(similarity_matrix, cmap='viridis')
+                    ax.set_title("Sequence Alignment Similarity Matrix")
+                    ax.set_xlabel("Sequence Index")
+                    ax.set_ylabel("Sequence Index")
+                    plt.colorbar(im, label='Alignment Score')
+                    plt.tight_layout()
+                    return fig, ax
                 
-                # Select the first text column
-                sequences = df[text_columns[0]].dropna().head(10).tolist()  # Limit to 10 sequences for simplicity
-                
-                # Perform pairwise alignments
-                alignments = []
-                for i in range(len(sequences)):
-                    for j in range(i+1, len(sequences)):
-                        alignment = pairwise2.align.globalds(sequences[i], sequences[j], matlist.blosum62, -10, -0.5)
-                        alignments.append((i, j, alignment[0][2]))  # Store indices and alignment score
-                
-                # Create a similarity matrix
-                similarity_matrix = np.zeros((len(sequences), len(sequences)))
-                for i, j, score in alignments:
-                    similarity_matrix[i, j] = similarity_matrix[j, i] = score
-                
-                fig, ax = plt.subplots(figsize=self.calculate_figure_size())
-                im = ax.imshow(similarity_matrix, cmap='viridis')
-                ax.set_title("Sequence Alignment Similarity Matrix")
-                ax.set_xlabel("Sequence Index")
-                ax.set_ylabel("Sequence Index")
-                plt.colorbar(im, label='Alignment Score')
-                plt.tight_layout()
-                return fig, ax
+                except ImportError:
+                    print("Bio module not found. Performing alternative text analysis.")
+                    
+                    # Select the first text column
+                    text_data = df[text_columns[0]].dropna().head(10).tolist()  # Limit to 10 texts for simplicity
+                    
+                    # Calculate simple text similarity based on character count difference
+                    similarity_matrix = np.zeros((len(text_data), len(text_data)))
+                    for i in range(len(text_data)):
+                        for j in range(i+1, len(text_data)):
+                            similarity = 1 - abs(len(text_data[i]) - len(text_data[j])) / max(len(text_data[i]), len(text_data[j]))
+                            similarity_matrix[i, j] = similarity_matrix[j, i] = similarity
+                    
+                    fig, ax = plt.subplots(figsize=self.calculate_figure_size())
+                    im = ax.imshow(similarity_matrix, cmap='viridis')
+                    ax.set_title("Text Similarity Matrix (Based on Length)")
+                    ax.set_xlabel("Text Index")
+                    ax.set_ylabel("Text Index")
+                    plt.colorbar(im, label='Similarity Score')
+                    plt.tight_layout()
+                    return fig, ax
 
             result = self.generate_plot(plot_sequence_alignment)
             if result is not None:
@@ -696,39 +776,43 @@ class AdvancedExploratoryDataAnalysisB4:
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
         if len(numerical_columns) >= 2:
             def plot_conformal_anomaly_detection():
-                from sklearn.model_selection import train_test_split
-                from sklearn.ensemble import RandomForestRegressor
-                from nonconformist.cp import IcpRegressor
-                from nonconformist.nc import AbsErrorErrFunc
-                
-                X = df[numerical_columns].dropna()
-                y = X.iloc[:, 0]  # Use the first column as the target
-                X = X.iloc[:, 1:]  # Use the remaining columns as features
-                
-                # Split the data
-                X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-                
-                # Create and fit underlying model
-                underlying_model = RandomForestRegressor(n_estimators=100, random_state=42)
-                underlying_model.fit(X_train, y_train)
-                
-                # Create ICP
-                icp = IcpRegressor(underlying_model, AbsErrorErrFunc())
-                
-                # Fit ICP
-                icp.fit(X_train, y_train)
-                
-                # Perform conformal prediction
-                predictions = icp.predict(X_test, significance=0.1)
-                
-                fig, ax = plt.subplots(figsize=self.calculate_figure_size())
-                scatter = ax.scatter(y_test, predictions[:, 0], alpha=0.5)
-                ax.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'r--', lw=2)
-                ax.set_xlabel("True Values")
-                ax.set_ylabel("Predicted Values")
-                ax.set_title("Conformal Anomaly Detection")
-                plt.tight_layout()
-                return fig, ax
+                try:
+                    from sklearn.model_selection import train_test_split
+                    from sklearn.ensemble import RandomForestRegressor
+                    from nonconformist.cp import IcpRegressor
+                    from nonconformist.nc import AbsErrorErrFunc
+                    
+                    X = df[numerical_columns].dropna()
+                    y = X.iloc[:, 0]  # Use the first column as the target
+                    X = X.iloc[:, 1:]  # Use the remaining columns as features
+                    
+                    # Split the data
+                    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+                    
+                    # Create and fit underlying model
+                    underlying_model = RandomForestRegressor(n_estimators=100, random_state=42)
+                    underlying_model.fit(X_train, y_train)
+                    
+                    # Create ICP
+                    icp = IcpRegressor(underlying_model, AbsErrorErrFunc())
+                    
+                    # Fit ICP
+                    icp.fit(X_train, y_train)
+                    
+                    # Perform conformal prediction
+                    predictions = icp.predict(X_test, significance=0.1)
+                    
+                    fig, ax = plt.subplots(figsize=self.calculate_figure_size())
+                    scatter = ax.scatter(y_test, predictions[:, 0], alpha=0.5)
+                    ax.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'r--', lw=2)
+                    ax.set_xlabel("True Values")
+                    ax.set_ylabel("Predicted Values")
+                    ax.set_title("Conformal Anomaly Detection")
+                    plt.tight_layout()
+                    return fig, ax
+                except Exception as e:
+                    print(f"Error in Conformal Anomaly Detection: {str(e)}")
+                    return None
 
             result = self.generate_plot(plot_conformal_anomaly_detection)
             if result is not None:
