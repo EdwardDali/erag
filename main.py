@@ -1475,35 +1475,11 @@ class ERAGGUI:
             # Create InnovativeDataAnalysis instance with both APIs
             ixda = InnovativeDataAnalysis(worker_erag_api, supervisor_erag_api, db_path)
             
-            # Get available tables
-            tables = ixda.get_tables()
-            
-            if not tables:
-                messagebox.showwarning("Warning", "No tables found in the database.")
-                return
-            
-            # Present table choices to the user in the console
-            print(info("Available tables:"))
-            for i, table in enumerate(tables, 1):
-                print(f"{i}. {table}")
-            
-            # Ask user to choose a table
-            while True:
-                try:
-                    choice = int(input("Enter the number of the table you want to analyze: "))
-                    if 1 <= choice <= len(tables):
-                        selected_table = tables[choice - 1]
-                        break
-                    else:
-                        print(error("Invalid choice. Please enter a number from the list."))
-                except ValueError:
-                    print(error("Invalid input. Please enter a number."))
-            
             # Apply settings to I-XDA
             settings.apply_settings()
             
             # Run I-XDA in a separate thread to keep the GUI responsive
-            threading.Thread(target=self.run_ixda_thread, args=(ixda, selected_table), daemon=True).start()
+            threading.Thread(target=self.run_ixda_thread, args=(ixda,), daemon=True).start()
             
             output_folder = os.path.join(os.path.dirname(db_path), "ixda_output")
             
@@ -1518,7 +1494,7 @@ class ERAGGUI:
             
             messagebox.showinfo("I-XDA Process Started", 
                                 f"{architecture_info}\n\n"
-                                f"Innovative Exploratory Data Analysis started on table '{selected_table}' in {os.path.basename(db_path)}.\n"
+                                f"Innovative Exploratory Data Analysis started on the selected database {os.path.basename(db_path)}.\n"
                                 f"Check the console for progress updates and AI interpretations.\n"
                                 f"Results will be saved in {output_folder}")
         except Exception as e:
@@ -1526,9 +1502,9 @@ class ERAGGUI:
             print(error(error_message))
             messagebox.showerror("Error", error_message)
 
-    def run_ixda_thread(self, ixda, selected_table):
+    def run_ixda_thread(self, ixda):
         try:
-            ixda.analyze_table(selected_table)
+            ixda.run()
             print(success("Innovative Exploratory Data Analysis completed successfully."))
             
             # Generate PDF report
