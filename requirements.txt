@@ -30,3 +30,6 @@ joypy
 shap
 statsmodels
 wordcloud
+pgmpy
+hmmlearn
+dtaidistance
