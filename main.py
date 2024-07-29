@@ -43,6 +43,7 @@ from src.i_da import InnovativeDataAnalysis
 from src.ax_da_b3 import AdvancedExploratoryDataAnalysisB3
 from src.ax_da_b4 import AdvancedExploratoryDataAnalysisB4
 from src.fn_processing import process_financial_data
+from src.f_da import FinancialExploratoryDataAnalysis
 
 
 # Load environment variables from .env file
@@ -168,6 +169,10 @@ class ERAGGUI:
         ixda_button = tk.Button(rag_frame, text="I-XDA", command=self.run_ixda)
         ixda_button.pack(side="left", padx=5, pady=5)
         ToolTip(ixda_button, "Perform Innovative Exploratory Data Analysis on a selected SQLite database")
+
+        fxda_button = tk.Button(rag_frame, text="F-XDA", command=self.run_fxda)
+        fxda_button.pack(side="left", padx=5, pady=5)
+        ToolTip(fxda_button, "Perform Financial Exploratory Data Analysis on a selected SQLite database")
 
 
     def create_upload_frame(self):
@@ -1729,6 +1734,74 @@ class ERAGGUI:
                 messagebox.showwarning("Warning", f"Failed to process financial data for {company_name}.")
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred while processing the financial data: {str(e)}")
+
+    def run_fxda(self):
+        try:
+            db_path = filedialog.askopenfilename(
+                title="Select Financial SQLite Database",
+                filetypes=[("SQLite files", "*.db"), ("All files", "*.*")]
+            )
+            if not db_path:
+                messagebox.showwarning("Warning", "No database selected.")
+                return
+
+            api_type = self.api_type_var.get()
+            worker_model = self.model_var.get()
+            supervisor_model = self.supervisor_model_var.get()
+            
+            # Create separate EragAPI instances for worker and supervisor
+            worker_erag_api = create_erag_api(api_type, worker_model)
+            supervisor_erag_api = create_erag_api(api_type, supervisor_model)
+            
+            # Create FinancialExploratoryDataAnalysis instance with both APIs
+            fxda = FinancialExploratoryDataAnalysis(worker_erag_api, supervisor_erag_api, db_path)
+            
+            # Apply settings to F-XDA
+            settings.apply_settings()
+            
+            # Run F-XDA in a separate thread to keep the GUI responsive
+            threading.Thread(target=self.run_fxda_thread, args=(fxda,), daemon=True).start()
+            
+            output_folder = os.path.join(os.path.dirname(db_path), "fxda_output")
+            
+            # Create an informative message about the Worker-Supervisor Model architecture
+            architecture_info = (
+                "This F-XDA module supports a Worker Model and Supervisory Model architecture:\n\n"
+                f"Worker Model: {worker_model}\n"
+                f"Supervisory Model: {supervisor_model}\n\n"
+                "The Worker Model performs the initial financial analysis, while the Supervisory Model reviews and enhances the results, "
+                "providing a more comprehensive and refined analysis using advanced financial techniques."
+            )
+            
+            messagebox.showinfo("F-XDA Process Started", 
+                                f"{architecture_info}\n\n"
+                                f"Financial Exploratory Data Analysis started on the selected database {os.path.basename(db_path)}.\n"
+                                f"Check the console for progress updates and AI interpretations.\n"
+                                f"Results will be saved in {output_folder}")
+        except Exception as e:
+            error_message = f"An error occurred while starting the F-XDA process: {str(e)}"
+            print(error(error_message))
+            messagebox.showerror("Error", error_message)
+
+    def run_fxda_thread(self, fxda):
+        try:
+            fxda.run()
+            print(success("Financial Exploratory Data Analysis completed successfully."))
+            
+            # Generate PDF report
+            pdf_path = fxda.generate_pdf_report()
+            
+            if pdf_path:
+                print(success(f"PDF report generated successfully: {pdf_path}"))
+                messagebox.showinfo("Success", f"Financial Exploratory Data Analysis completed successfully.\n"
+                                               f"PDF report generated: {pdf_path}")
+            else:
+                print(error("Failed to generate PDF report."))
+                messagebox.showwarning("Warning", "Financial Exploratory Data Analysis completed, but PDF report generation failed.")
+        except Exception as e:
+            error_message = f"An error occurred during Financial Exploratory Data Analysis: {str(e)}"
+            print(error(error_message))
+            messagebox.showerror("Error", error_message)
             
 
     def create_server_tab(self):
