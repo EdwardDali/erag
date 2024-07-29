@@ -37,10 +37,12 @@ from src.talk2sd import Talk2SD
 from src.x_da import ExploratoryDataAnalysis
 from src.file_processing import upload_multiple_files, FileProcessor
 from src.self_knol import SelfKnolCreator
-from src.ax_da_b1 import AdvancedExploratoryDataAnalysisB1  # Updated import
-from src.ax_da_b2 import AdvancedExploratoryDataAnalysisB2  # New import
+from src.ax_da_b1 import AdvancedExploratoryDataAnalysisB1  
+from src.ax_da_b2 import AdvancedExploratoryDataAnalysisB2  
 from src.i_da import InnovativeDataAnalysis
 from src.ax_da_b3 import AdvancedExploratoryDataAnalysisB3
+from src.ax_da_b4 import AdvancedExploratoryDataAnalysisB4
+from src.fn_processing import process_financial_data
 
 
 # Load environment variables from .env file
@@ -169,7 +171,7 @@ class ERAGGUI:
 
 
     def create_upload_frame(self):
-        upload_frame = tk.LabelFrame(self.main_tab, text="Upload Unstructured Data")
+        upload_frame = tk.LabelFrame(self.main_tab, text="Upload Data")
         upload_frame.pack(fill="x", padx=10, pady=5)
 
         file_types = ["DOCX", "JSON", "PDF", "Text"]
@@ -184,6 +186,12 @@ class ERAGGUI:
                                            command=self.upload_structured_data)
         structured_data_button.pack(side="left", padx=5, pady=5)
         ToolTip(structured_data_button, "Upload and process structured data (CSV or XLSX)")
+
+        # Add new button for financial data
+        financial_data_button = tk.Button(upload_frame, text="Upload Financial Data", 
+                                          command=self.upload_financial_data)
+        financial_data_button.pack(side="left", padx=5, pady=5)
+        ToolTip(financial_data_button, "Upload and process financial data (CSV or XLSX)")
 
     def create_embeddings_frame(self):
         embeddings_frame = tk.LabelFrame(self.main_tab, text="Embeddings and Graph")
@@ -1695,6 +1703,32 @@ class ERAGGUI:
             error_message = f"An error occurred during Advanced Exploratory Data Analysis (Batch 4): {str(e)}"
             print(error(error_message))
             messagebox.showerror("Error", error_message)
+
+
+    def upload_financial_data(self):
+        try:
+            file_paths = filedialog.askopenfilenames(
+                title="Select Financial Data Files",
+                filetypes=[("CSV files", "*.csv"), ("Excel files", "*.xlsx"), ("All files", "*.*")]
+            )
+            if not file_paths:
+                messagebox.showwarning("Warning", "No files selected.")
+                return
+
+            company_name = simpledialog.askstring("Company Name", "Enter the name of the company:")
+            if not company_name:
+                messagebox.showwarning("Warning", "Company name is required.")
+                return
+
+            from src.fn_processing import process_financial_data
+            result = process_financial_data(file_paths, company_name)
+            
+            if result:
+                messagebox.showinfo("Success", f"Financial data for {company_name} processed and saved to SQLite database.")
+            else:
+                messagebox.showwarning("Warning", f"Failed to process financial data for {company_name}.")
+        except Exception as e:
+            messagebox.showerror("Error", f"An error occurred while processing the financial data: {str(e)}")
             
 
     def create_server_tab(self):
