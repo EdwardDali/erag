@@ -10,7 +10,7 @@ from reportlab.lib.enums import TA_JUSTIFY, TA_CENTER
 
 # Define RGB values for custom colors
 DARK_BLUE_RGB = (34/255, 34/255, 59/255)
-MEDIUM_BLUE_RGB = (70/255, 130/255, 180/255)  # Steel Blue
+MEDIUM_BLUE_RGB = (43/255, 116/255, 238/255)
 
 class PDFReportGenerator:
     def __init__(self, output_folder, llm_name, project_name):
@@ -51,25 +51,21 @@ class PDFReportGenerator:
             elements.append(PageBreak())
 
         # Main content
-        for analysis_type, results, interpretation in pdf_content:
+        for analysis_type, image_paths, interpretation in pdf_content:
             elements.append(Paragraph(analysis_type, self.styles['Heading1']))
             elements.extend(self._text_to_reportlab(interpretation))
 
             # Add images for this analysis type
-            analysis_images = [img for img in image_data if img[0].startswith(analysis_type)]
-            for description, img_path in analysis_images:
+            for description, img_path in image_paths:
                 if os.path.exists(img_path):
-                    try:
-                        img = Image(img_path)
-                        available_width = doc.width
-                        aspect = img.drawHeight / img.drawWidth
-                        img.drawWidth = available_width
-                        img.drawHeight = available_width * aspect
-                        elements.append(img)
-                        elements.append(Paragraph(description, self.styles['Caption']))
-                        elements.append(Spacer(1, 12))
-                    except Exception as e:
-                        print(f"Error adding image {img_path}: {str(e)}")
+                    img = Image(img_path)
+                    available_width = doc.width
+                    aspect = img.drawHeight / img.drawWidth
+                    img.drawWidth = available_width
+                    img.drawHeight = available_width * aspect
+                    elements.append(img)
+                    elements.append(Paragraph(description, self.styles['Caption']))
+                    elements.append(Spacer(1, 12))
 
             elements.append(PageBreak())
 
@@ -79,22 +75,17 @@ class PDFReportGenerator:
             return pdf_file
         except Exception as e:
             print(f"Error building PDF: {str(e)}")
-            print("Attempting to save partial PDF...")
-            try:
-                doc.build(elements[:len(elements)//2])  # Try to build with only half the content
-                print(f"Partial PDF report saved to {pdf_file}")
-                return pdf_file
-            except:
-                print("Failed to save even a partial PDF.")
-                return None
+            return None
 
     def _create_styles(self):
         styles = getSampleStyleSheet()
         styles['Title'].fontSize = 24
         styles['Title'].alignment = TA_CENTER
-        styles['Title'].spaceAfter = 24
         styles['Title'].textColor = colors.white
-        styles['Title'].backColor = colors.Color(*DARK_BLUE_RGB)
+        styles['Title'].backColor = colors.Color(*MEDIUM_BLUE_RGB)
+        styles['Title'].spaceAfter = 12
+        styles['Title'].spaceBefore = 12
+        styles['Title'].leading = 30
 
         styles['Heading1'].fontSize = 18
         styles['Heading1'].alignment = TA_JUSTIFY
@@ -111,14 +102,26 @@ class PDFReportGenerator:
         return styles
 
     def _create_cover_page(self, doc):
-        cover_frame = Frame(doc.leftMargin, doc.bottomMargin, doc.width, doc.height, id='CoverFrame')
-        cover_template = PageTemplate(id='CoverPage', frames=[cover_frame])
+        def draw_background(canvas, doc):
+            canvas.saveState()
+            canvas.setFillColor(colors.Color(*MEDIUM_BLUE_RGB))
+            canvas.rect(0, 0, doc.pagesize[0], doc.pagesize[1], fill=1)
+            canvas.restoreState()
+
+        cover_frame = Frame(
+            doc.leftMargin, 
+            doc.bottomMargin, 
+            doc.width, 
+            doc.height,
+            id='CoverFrame'
+        )
+        cover_template = PageTemplate(id='CoverPage', frames=[cover_frame], onPage=draw_background)
         doc.addPageTemplates([cover_template])
 
         elements = []
         elements.append(Spacer(1, 2*inch))
         elements.append(Paragraph(self.report_title, self.styles['Title']))
-        elements.append(Spacer(1, 12))
+        elements.append(Spacer(1, 0.5*inch))
         elements.append(Paragraph(f"Generated on: {datetime.now().strftime('%Y-%m-%d')}", self.styles['Normal']))
         elements.append(Paragraph(f"AI-powered analysis by ERAG using {self.llm_name}", self.styles['Normal']))
         elements.append(PageBreak())
@@ -134,7 +137,7 @@ class PDFReportGenerator:
         canvas.saveState()
         
         # Header
-        canvas.setFillColor(colors.Color(*MEDIUM_BLUE_RGB))
+        canvas.setFillColor(colors.Color(*DARK_BLUE_RGB))
         canvas.setFont('Helvetica-Bold', 8)
         canvas.drawString(inch, doc.pagesize[1] - 0.5*inch, self.report_title)
         
