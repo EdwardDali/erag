@@ -1301,35 +1301,11 @@ class ERAGGUI:
             # Create AdvancedExploratoryDataAnalysisB1 instance with both APIs
             axda_b1 = AdvancedExploratoryDataAnalysisB1(worker_erag_api, supervisor_erag_api, db_path)
             
-            # Get available tables
-            tables = axda_b1.get_tables()
-            
-            if not tables:
-                messagebox.showwarning("Warning", "No tables found in the database.")
-                return
-            
-            # Present table choices to the user in the console
-            print(info("Available tables:"))
-            for i, table in enumerate(tables, 1):
-                print(f"{i}. {table}")
-            
-            # Ask user to choose a table
-            while True:
-                try:
-                    choice = int(input("Enter the number of the table you want to analyze: "))
-                    if 1 <= choice <= len(tables):
-                        selected_table = tables[choice - 1]
-                        break
-                    else:
-                        print(error("Invalid choice. Please enter a number from the list."))
-                except ValueError:
-                    print(error("Invalid input. Please enter a number."))
-            
             # Apply settings to A-XDA-B1
             settings.apply_settings()
             
             # Run A-XDA-B1 in a separate thread to keep the GUI responsive
-            threading.Thread(target=self.run_axda_b1_thread, args=(axda_b1, selected_table), daemon=True).start()
+            threading.Thread(target=self.run_axda_b1_thread, args=(axda_b1,), daemon=True).start()
             
             output_folder = os.path.join(os.path.dirname(db_path), "axda_b1_output")
             
@@ -1344,7 +1320,7 @@ class ERAGGUI:
             
             messagebox.showinfo("A-XDA-B1 Process Started", 
                                 f"{architecture_info}\n\n"
-                                f"Advanced Exploratory Data Analysis (Batch 1) started on table '{selected_table}' in {os.path.basename(db_path)}.\n"
+                                f"Advanced Exploratory Data Analysis (Batch 1) started on the selected database {os.path.basename(db_path)}.\n"
                                 f"Check the console for progress updates and AI interpretations.\n"
                                 f"Results will be saved in {output_folder}")
         except Exception as e:
