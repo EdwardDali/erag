@@ -12,32 +12,6 @@ def sanitize_table_name(name):
         name = '_' + name
     return name
 
-def create_information_schema(conn, table_name, column_info):
-    cursor = conn.cursor()
-    
-    # Create the information_schema.columns table if it doesn't exist
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS information_schema_columns (
-        table_catalog TEXT,
-        table_schema TEXT,
-        table_name TEXT,
-        column_name TEXT,
-        ordinal_position INTEGER,
-        data_type TEXT,
-        PRIMARY KEY (table_name, column_name)
-    )
-    ''')
-    
-    # Insert the column information into the information_schema.columns table
-    for i, column in enumerate(column_info, start=1):
-        cursor.execute('''
-        INSERT OR REPLACE INTO information_schema_columns 
-        (table_catalog, table_schema, table_name, column_name, ordinal_position, data_type)
-        VALUES (?, ?, ?, ?, ?, ?)
-        ''', ('main', 'main', table_name, column['name'], i, column['type']))
-    
-    conn.commit()
-
 def process_structured_data(file_path):
     try:
         # Read the file
@@ -59,19 +33,9 @@ def process_structured_data(file_path):
         # Save data to SQLite
         df.to_sql(sanitized_table_name, conn, if_exists='replace', index=False)
 
-        # Get column information
-        column_info = [
-            {'name': col, 'type': str(df[col].dtype)} 
-            for col in df.columns
-        ]
-
-        # Create or update the information schema
-        create_information_schema(conn, sanitized_table_name, column_info)
-
         conn.close()
         
         print(f"Table '{original_table_name}' has been processed and saved as '{sanitized_table_name}' in the database.")
-        print(f"Information schema has been updated for table '{sanitized_table_name}'.")
         return True
     except Exception as e:
         print(f"Error processing structured data: {str(e)}")

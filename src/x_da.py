@@ -38,6 +38,7 @@ class ExploratoryDataAnalysis:
         self.timeout_seconds = 10
         self.image_data = []
         self.pdf_generator = None
+        self.selected_table = None 
 
     def calculate_figure_size(self, aspect_ratio=16/9):
         max_width = int(np.sqrt(self.max_pixels * aspect_ratio))
@@ -77,34 +78,30 @@ class ExploratoryDataAnalysis:
     def run(self):
         print(info(f"Starting Exploratory Data Analysis on {self.db_path}"))
         
-        # Get all tables
         all_tables = self.get_tables()
         
         if not all_tables:
             print(error("No tables found in the database. Exiting."))
             return
         
-        # Present table choices to the user
         print(info("Available tables:"))
         for i, table in enumerate(all_tables, 1):
             print(f"{i}. {table}")
         
-        # Ask user to choose a table
         while True:
             try:
                 choice = int(input("Enter the number of the table you want to analyze: "))
                 if 1 <= choice <= len(all_tables):
-                    selected_table = all_tables[choice - 1]
+                    self.selected_table = all_tables[choice - 1]
                     break
                 else:
                     print(error("Invalid choice. Please enter a number from the list."))
             except ValueError:
                 print(error("Invalid input. Please enter a number."))
         
-        print(info(f"You've selected to analyze the '{selected_table}' table."))
+        print(info(f"You've selected to analyze the '{self.selected_table}' table."))
         
-        # Analyze only the selected table
-        self.analyze_table(selected_table)
+        self.analyze_table(self.selected_table)
         
         print(info("Generating Executive Summary..."))
         self.generate_executive_summary()
@@ -112,6 +109,7 @@ class ExploratoryDataAnalysis:
         self.save_text_output()
         self.generate_pdf_report()
         print(success(f"Exploratory Data Analysis completed. Results saved in {self.output_folder}"))
+
 
     def get_tables(self):
         with sqlite3.connect(self.db_path) as conn:
@@ -148,17 +146,7 @@ class ExploratoryDataAnalysis:
         ]
 
         for method in analysis_methods:
-            try:
-                method(df, table_name)
-            except Exception as e:
-                error_message = f"An error occurred during {method.__name__}: {str(e)}"
-                print(error(error_message))
-                self.text_output += f"\n{error_message}\n"
-                # Optionally, you can add this error to the PDF report as well
-                self.pdf_content.append((method.__name__, [], error_message))
-            finally:
-                # Ensure we always increment the technique counter, even if the method fails
-                self.technique_counter += 1
+            method(df, table_name)
 
 
 
@@ -175,15 +163,7 @@ class ExploratoryDataAnalysis:
             mean = np.mean(data)
             std_dev = np.std(data, ddof=1)
             median = np.median(data)
-            variance = np.var(data, ddof=1)
-            skewness = data.skew()
-            kurtosis = data.kurt()
-            n = len(data)
-            ci_mean = [mean - 1.96 * (std_dev / np.sqrt(n)), mean + 1.96 * (std_dev / np.sqrt(n))]
-            ci_median = [np.percentile(data, 25), np.percentile(data, 75)]
-            ci_std_dev = [std_dev - 1.96 * (std_dev / np.sqrt(2 * (n - 1))), std_dev + 1.96 * (std_dev / np.sqrt(2 * (n - 1)))]
-            ad_stat, _, ad_significance = anderson(data)
-
+            
             # Histogram with normal curve
             def plot_histogram():
                 fig, ax = plt.subplots(figsize=self.calculate_figure_size())
@@ -203,9 +183,7 @@ class ExploratoryDataAnalysis:
                 img_path = os.path.join(self.output_folder, f"{table_name}_{col}_histogram.png")
                 plt.savefig(img_path, dpi=100, bbox_inches='tight')
                 plt.close(fig)
-                image_paths.append(img_path)
-            else:
-                print(f"Skipping histogram for {col} due to timeout.")
+                image_paths.append((f"{col} Histogram", img_path))
 
             # Boxplot
             def plot_boxplot():
@@ -221,70 +199,7 @@ class ExploratoryDataAnalysis:
                 img_path = os.path.join(self.output_folder, f"{table_name}_{col}_boxplot.png")
                 plt.savefig(img_path, dpi=100, bbox_inches='tight')
                 plt.close(fig)
-                image_paths.append(img_path)
-            else:
-                print(f"Skipping boxplot for {col} due to timeout.")
-
-            # Confidence Intervals
-            def plot_confidence_intervals():
-                fig, ax = plt.subplots(figsize=self.calculate_figure_size())
-                ax.errorbar(mean, 0, xerr=[[mean - ci_mean[0]], [ci_mean[1] - mean]], fmt='o', color='blue', label='Mean')
-                ax.errorbar(median, 0, xerr=[[median - ci_median[0]], [ci_median[1] - median]], fmt='o', color='green', label='Median')
-                ax.errorbar(std_dev, 0, xerr=[[std_dev - ci_std_dev[0]], [ci_std_dev[1] - std_dev]], fmt='o', color='red', label='Std Dev')
-                ax.legend()
-                ax.set_title(f'{col}: 95% Confidence Intervals')
-                ax.set_yticks([])
-                return fig, ax
-
-            result = self.generate_plot(plot_confidence_intervals)
-            if result is not None:
-                fig, ax = result
-                img_path = os.path.join(self.output_folder, f"{table_name}_{col}_confidence_intervals.png")
-                plt.savefig(img_path, dpi=100, bbox_inches='tight')
-                plt.close(fig)
-                image_paths.append(img_path)
-            else:
-                print(f"Skipping confidence intervals for {col} due to timeout.")
-
-            # Anderson-Darling Normality Test
-            def plot_anderson_darling():
-                fig, ax = plt.subplots(figsize=self.calculate_figure_size())
-                summary_text = f"""
-                Anderson-Darling Normality Test
-                A-Squared: {ad_stat:.2f}
-                P-Value: {ad_significance[2] if ad_stat < ad_significance[2] else ad_significance[-1]:.3f}
-
-                Mean: {mean:.2f}
-                StDev: {std_dev:.4f}
-                Variance: {variance:.4f}
-                Skewness: {skewness:.6f}
-                Kurtosis: {kurtosis:.6f}
-                N: {n}
-
-                Minimum: {np.min(data):.2f}
-                1st Quartile: {np.percentile(data, 25):.2f}
-                Median: {median:.2f}
-                3rd Quartile: {np.percentile(data, 75):.2f}
-                Maximum: {np.max(data):.2f}
-
-                95% CI for Mean: {ci_mean[0]:.4f}, {ci_mean[1]:.4f}
-                95% CI for Median: {ci_median[0]:.4f}, {ci_median[1]:.4f}
-                95% CI for Std Dev: {ci_std_dev[0]:.4f}, {ci_std_dev[1]:.4f}
-                """
-                ax.text(0.5, 0.5, summary_text, ha='center', va='center', fontsize=10, bbox=dict(facecolor='white', alpha=0.8))
-                ax.set_title(f'{col}: Anderson-Darling Normality Test')
-                ax.axis('off')
-                return fig, ax
-
-            result = self.generate_plot(plot_anderson_darling)
-            if result is not None:
-                fig, ax = result
-                img_path = os.path.join(self.output_folder, f"{table_name}_{col}_anderson_darling.png")
-                plt.savefig(img_path, dpi=100, bbox_inches='tight')
-                plt.close(fig)
-                image_paths.append(img_path)
-            else:
-                print(f"Skipping Anderson-Darling test for {col} due to timeout.")
+                image_paths.append((f"{col} Boxplot", img_path))
 
         self.interpret_results("Basic Statistics", image_paths, table_name)
 
@@ -421,6 +336,25 @@ class ExploratoryDataAnalysis:
             "Preview": df.head().to_string()
         }
         
+        # Create a bar plot of column types
+        def plot_column_types():
+            dtype_counts = df.dtypes.value_counts()
+            fig, ax = plt.subplots(figsize=self.calculate_figure_size())
+            dtype_counts.plot(kind='bar', ax=ax)
+            ax.set_title('Distribution of Column Types')
+            ax.set_xlabel('Data Type')
+            ax.set_ylabel('Count')
+            plt.xticks(rotation=45)
+            return fig, ax
+
+        result = self.generate_plot(plot_column_types)
+        if result is not None:
+            fig, ax = result
+            img_path = os.path.join(self.output_folder, f"{table_name}_column_types.png")
+            plt.savefig(img_path, dpi=100, bbox_inches='tight')
+            plt.close(fig)
+            summary['image_paths'] = [("Data Summary - Column Types", img_path)]
+        
         self.interpret_results("Data Summary", summary, table_name)
 
     def detailed_statistics_summary(self, df, table_name):
@@ -431,12 +365,8 @@ class ExploratoryDataAnalysis:
         categorical_columns = df.select_dtypes(include=['object']).columns
         
         numeric_stats = df[numeric_columns].agg(['mean', 'median', 'std', 'min', 'max'])
-        
-        # Calculate percentiles separately
         percentiles = df[numeric_columns].quantile([0.25, 0.5, 0.75])
         percentiles.index = ['25th Percentile', '50th Percentile', '75th Percentile']
-        
-        # Combine all numeric statistics
         numeric_stats = pd.concat([numeric_stats, percentiles])
         
         categorical_stats = {col: df[col].value_counts().to_dict() for col in categorical_columns}
@@ -445,6 +375,22 @@ class ExploratoryDataAnalysis:
             "Numeric Statistics": numeric_stats.to_dict(),
             "Categorical Statistics": categorical_stats
         }
+        
+        # Create a box plot for numeric columns
+        def plot_numeric_boxplot():
+            fig, ax = plt.subplots(figsize=self.calculate_figure_size())
+            df[numeric_columns].boxplot(ax=ax)
+            ax.set_title('Box Plot of Numeric Columns')
+            ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha='right')
+            return fig, ax
+
+        result = self.generate_plot(plot_numeric_boxplot)
+        if result is not None:
+            fig, ax = result
+            img_path = os.path.join(self.output_folder, f"{table_name}_numeric_boxplot.png")
+            plt.savefig(img_path, dpi=100, bbox_inches='tight')
+            plt.close(fig)
+            stats_summary['image_paths'] = [("Detailed Statistics Summary - Numeric Box Plot", img_path)]
         
         self.interpret_results("Detailed Statistics Summary", stats_summary, table_name)
 
@@ -461,6 +407,21 @@ class ExploratoryDataAnalysis:
             "Null Percentages": null_percentages.to_dict(),
             "Unique Value Counts": unique_counts.to_dict()
         }
+        
+        # Create a heatmap of missing values
+        def plot_missing_values_heatmap():
+            fig, ax = plt.subplots(figsize=self.calculate_figure_size())
+            sns.heatmap(df.isnull(), yticklabels=False, cbar=False, cmap='viridis', ax=ax)
+            ax.set_title('Missing Value Heatmap')
+            return fig, ax
+
+        result = self.generate_plot(plot_missing_values_heatmap)
+        if result is not None:
+            fig, ax = result
+            img_path = os.path.join(self.output_folder, f"{table_name}_missing_values_heatmap.png")
+            plt.savefig(img_path, dpi=100, bbox_inches='tight')
+            plt.close(fig)
+            analysis['image_paths'] = [("Null, Missing, and Unique Value Analysis - Missing Value Heatmap", img_path)]
         
         self.interpret_results("Null, Missing, and Unique Value Analysis", analysis, table_name)
 
@@ -692,7 +653,7 @@ class ExploratoryDataAnalysis:
         failed_techniques = self.total_techniques - successful_techniques
 
         summary_prompt = f"""
-        Based on the following findings from the {'Advanced ' if 'Advanced' in self.__class__.__name__ else ''}Exploratory Data Analysis:
+        Based on the following findings from the Exploratory Data Analysis:
         
         {self.findings}
         
@@ -701,7 +662,7 @@ class ExploratoryDataAnalysis:
         - {failed_techniques} techniques encountered errors and were skipped.
         
         Please provide an executive summary of the analysis. The summary should:
-        1. Briefly introduce the purpose of the {'advanced ' if 'Advanced' in self.__class__.__name__ else ''}analysis.
+        1. Briefly introduce the purpose of the analysis.
         2. Mention the number of successful and failed techniques.
         3. Highlight the most significant insights and patterns discovered.
         4. Mention any potential issues or areas that require further investigation.
@@ -714,7 +675,7 @@ class ExploratoryDataAnalysis:
         
         try:
             interpretation = self.worker_erag_api.chat([
-                {"role": "system", "content": f"You are a data analyst providing an executive summary of an {'advanced ' if 'Advanced' in self.__class__.__name__ else ''}exploratory data analysis. Respond in plain text format."},
+                {"role": "system", "content": "You are a data analyst providing an executive summary of an exploratory data analysis. Respond in plain text format."},
                 {"role": "user", "content": summary_prompt}
             ])
             
@@ -736,7 +697,7 @@ class ExploratoryDataAnalysis:
                 """
 
                 enhanced_summary = self.supervisor_erag_api.chat([
-                    {"role": "system", "content": f"You are a data analyst improving an executive summary of an {'advanced ' if 'Advanced' in self.__class__.__name__ else ''}exploratory data analysis. Provide direct enhancements without adding meta-comments."},
+                    {"role": "system", "content": "You are a data analyst improving an executive summary of an exploratory data analysis. Provide direct enhancements without adding meta-comments."},
                     {"role": "user", "content": check_prompt}
                 ])
 
@@ -767,5 +728,7 @@ class ExploratoryDataAnalysis:
         )
         if pdf_file:
             print(success(f"PDF report generated successfully: {pdf_file}"))
+            return pdf_file
         else:
             print(error("Failed to generate PDF report"))
+            return None
