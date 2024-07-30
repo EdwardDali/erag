@@ -146,7 +146,17 @@ class ExploratoryDataAnalysis:
         ]
 
         for method in analysis_methods:
-            method(df, table_name)
+            try:
+                method(df, table_name)
+            except Exception as e:
+                error_message = f"An error occurred during {method.__name__}: {str(e)}"
+                print(error(error_message))
+                self.text_output += f"\n{error_message}\n"
+                # Optionally, add this error to the PDF report
+                self.pdf_content.append((method.__name__, [], error_message))
+            finally:
+                # Ensure we always increment the technique counter, even if the method fails
+                self.technique_counter += 1
 
 
 
@@ -156,6 +166,8 @@ class ExploratoryDataAnalysis:
         
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
         image_paths = []
+        results = {}
+        
         for col in numerical_columns:
             data = df[col].dropna()
             
@@ -163,6 +175,12 @@ class ExploratoryDataAnalysis:
             mean = np.mean(data)
             std_dev = np.std(data, ddof=1)
             median = np.median(data)
+            
+            results[col] = {
+                'mean': mean,
+                'std_dev': std_dev,
+                'median': median
+            }
             
             # Histogram with normal curve
             def plot_histogram():
@@ -201,7 +219,8 @@ class ExploratoryDataAnalysis:
                 plt.close(fig)
                 image_paths.append((f"{col} Boxplot", img_path))
 
-        self.interpret_results("Basic Statistics", image_paths, table_name)
+        results['image_paths'] = image_paths
+        self.interpret_results("Basic Statistics", results, table_name)
 
     def data_types_and_missing_values(self, df, table_name):
         self.technique_counter += 1
@@ -218,6 +237,8 @@ class ExploratoryDataAnalysis:
         
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
         image_paths = []
+        results = {}
+        
         if len(numerical_columns) > 0:
             for col in numerical_columns:
                 data = df[col].dropna()
@@ -237,9 +258,7 @@ class ExploratoryDataAnalysis:
                     img_path = os.path.join(self.output_folder, f"{table_name}_{col}_distribution.png")
                     plt.savefig(img_path, dpi=100, bbox_inches='tight')
                     plt.close(fig)
-                    image_paths.append(img_path)
-                else:
-                    print(f"Skipping histogram with KDE for {col} due to timeout.")
+                    image_paths.append((f"{col} Distribution", img_path))
                 
                 # Q-Q plot
                 def plot_qq():
@@ -254,11 +273,10 @@ class ExploratoryDataAnalysis:
                     img_path = os.path.join(self.output_folder, f"{table_name}_{col}_qq_plot.png")
                     plt.savefig(img_path, dpi=100, bbox_inches='tight')
                     plt.close(fig)
-                    image_paths.append(img_path)
-                else:
-                    print(f"Skipping Q-Q plot for {col} due to timeout.")
+                    image_paths.append((f"{col} Q-Q Plot", img_path))
             
-            self.interpret_results("Numerical Features Distribution", image_paths, table_name)
+            results['image_paths'] = image_paths
+            self.interpret_results("Numerical Features Distribution", results, table_name)
         else:
             self.interpret_results("Numerical Features Distribution", "N/A - No numerical features found", table_name)
 
@@ -267,8 +285,11 @@ class ExploratoryDataAnalysis:
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Correlation Analysis"))
         
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
+        results = {}
+        
         if len(numerical_columns) > 1:
             correlation_matrix = df[numerical_columns].corr()
+            results['correlation_matrix'] = correlation_matrix.to_dict()
             
             def plot_correlation_heatmap():
                 fig, ax = plt.subplots(figsize=self.calculate_figure_size())
@@ -282,10 +303,9 @@ class ExploratoryDataAnalysis:
                 img_path = os.path.join(self.output_folder, f"{table_name}_correlation_matrix.png")
                 plt.savefig(img_path, dpi=100, bbox_inches='tight')
                 plt.close(fig)
-                self.interpret_results("Correlation Analysis", img_path, table_name)
-            else:
-                print("Skipping correlation heatmap due to timeout.")
-                self.interpret_results("Correlation Analysis", "N/A - Correlation heatmap generation timed out", table_name)
+                results['image_paths'] = [("Correlation Matrix Heatmap", img_path)]
+            
+            self.interpret_results("Correlation Analysis", results, table_name)
         else:
             self.interpret_results("Correlation Analysis", "N/A - Not enough numerical features for correlation analysis", table_name)
 
@@ -295,8 +315,12 @@ class ExploratoryDataAnalysis:
         
         categorical_columns = df.select_dtypes(include=['object']).columns
         image_paths = []
+        results = {}
+        
         if len(categorical_columns) > 0:
             for col in categorical_columns:
+                results[col] = df[col].value_counts().to_dict()
+                
                 def plot_categorical_distribution():
                     fig, ax = plt.subplots(figsize=self.calculate_figure_size())
                     value_counts = df[col].value_counts().nlargest(10)  # Get top 10 categories
@@ -316,11 +340,10 @@ class ExploratoryDataAnalysis:
                     img_path = os.path.join(self.output_folder, f"{table_name}_{col}_top10_categorical_distribution.png")
                     plt.savefig(img_path, dpi=100, bbox_inches='tight')
                     plt.close(fig)
-                    image_paths.append(img_path)
-                else:
-                    print(f"Skipping categorical distribution for {col} due to timeout.")
+                    image_paths.append((f"{col} Top 10 Categories", img_path))
             
-            self.interpret_results("Categorical Features Analysis (Top 10 Categories)", image_paths, table_name)
+            results['image_paths'] = image_paths
+            self.interpret_results("Categorical Features Analysis (Top 10 Categories)", results, table_name)
         else:
             self.interpret_results("Categorical Features Analysis", "N/A - No categorical features found", table_name)
 
@@ -445,18 +468,40 @@ class ExploratoryDataAnalysis:
         self.technique_counter += 1
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Outlier Detection"))
         
-        numeric_columns = df.select_dtypes(include=['float64', 'int64']).columns
+        numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
+        image_paths = []
+        results = {}
         
-        outliers = {}
-        for col in numeric_columns:
+        for col in numerical_columns:
             Q1 = df[col].quantile(0.25)
             Q3 = df[col].quantile(0.75)
             IQR = Q3 - Q1
             lower_bound = Q1 - 1.5 * IQR
             upper_bound = Q3 + 1.5 * IQR
-            outliers[col] = ((df[col] < lower_bound) | (df[col] > upper_bound)).sum()
+            outliers = ((df[col] < lower_bound) | (df[col] > upper_bound)).sum()
+            results[col] = {
+                'outliers_count': outliers,
+                'lower_bound': lower_bound,
+                'upper_bound': upper_bound
+            }
+            
+            def plot_boxplot_with_outliers():
+                fig, ax = plt.subplots(figsize=self.calculate_figure_size())
+                sns.boxplot(x=df[col], ax=ax)
+                ax.set_title(f'Boxplot with Outliers for {col}')
+                ax.set_xlabel(col)
+                return fig, ax
+
+            result = self.generate_plot(plot_boxplot_with_outliers)
+            if result is not None:
+                fig, ax = result
+                img_path = os.path.join(self.output_folder, f"{table_name}_{col}_boxplot_outliers.png")
+                plt.savefig(img_path, dpi=100, bbox_inches='tight')
+                plt.close(fig)
+                image_paths.append((f"{col} Boxplot with Outliers", img_path))
         
-        self.interpret_results("Outlier Detection", outliers, table_name)
+        results['image_paths'] = image_paths
+        self.interpret_results("Outlier Detection", results, table_name)
 
     def data_quality_report(self, df, table_name):
         self.technique_counter += 1
@@ -464,10 +509,33 @@ class ExploratoryDataAnalysis:
         
         quality_report = {
             "Missing Values": df.isnull().sum().to_dict(),
+            "Missing Percentages": (df.isnull().sum() / len(df) * 100).to_dict(),
             "Duplicate Rows": df.duplicated().sum(),
             "Data Types": df.dtypes.to_dict(),
             "Unique Values": df.nunique().to_dict()
         }
+        
+        # Create a bar plot of missing value percentages
+        def plot_missing_percentages():
+            missing_percentages = (df.isnull().sum() / len(df) * 100).sort_values(ascending=False)
+            fig, ax = plt.subplots(figsize=self.calculate_figure_size())
+            missing_percentages.plot(kind='bar', ax=ax)
+            ax.set_title('Percentage of Missing Values by Column')
+            ax.set_xlabel('Columns')
+            ax.set_ylabel('Percentage Missing')
+            plt.xticks(rotation=45, ha='right')
+            plt.tight_layout()
+            return fig, ax
+
+        result = self.generate_plot(plot_missing_percentages)
+        if result is not None:
+            fig, ax = result
+            img_path = os.path.join(self.output_folder, f"{table_name}_missing_percentages.png")
+            plt.savefig(img_path, dpi=100, bbox_inches='tight')
+            plt.close(fig)
+            quality_report['image_paths'] = [("Missing Values Percentage", img_path)]
+        else:
+            quality_report['image_paths'] = []
         
         self.interpret_results("Data Quality Report", quality_report, table_name)
 
@@ -481,15 +549,32 @@ class ExploratoryDataAnalysis:
         suggestions = []
         
         if len(numeric_columns) >= 2:
-            suggestions.append(f"Correlation test between {numeric_columns[0]} and {numeric_columns[1]}")
+            suggestions.append({
+                "test": "Correlation test",
+                "variables": f"{numeric_columns[0]} and {numeric_columns[1]}",
+                "description": f"Test the correlation between {numeric_columns[0]} and {numeric_columns[1]} to determine if there's a significant relationship."
+            })
         
         if len(categorical_columns) >= 1 and len(numeric_columns) >= 1:
-            suggestions.append(f"ANOVA test to compare {numeric_columns[0]} across different categories of {categorical_columns[0]}")
+            suggestions.append({
+                "test": "ANOVA",
+                "variables": f"{numeric_columns[0]} across categories of {categorical_columns[0]}",
+                "description": f"Compare the means of {numeric_columns[0]} across different categories of {categorical_columns[0]} to see if there are significant differences."
+            })
         
         if len(numeric_columns) >= 1:
-            suggestions.append(f"One-sample t-test to compare the mean of {numeric_columns[0]} to a hypothesized value")
+            suggestions.append({
+                "test": "One-sample t-test",
+                "variables": numeric_columns[0],
+                "description": f"Compare the mean of {numeric_columns[0]} to a hypothesized value to determine if it's significantly different."
+            })
         
-        self.interpret_results("Hypothesis Testing Suggestions", suggestions, table_name)
+        results = {
+            "suggestions": suggestions,
+            "image_paths": []  # No images for this analysis
+        }
+        
+        self.interpret_results("Hypothesis Testing Suggestions", results, table_name)
 
     def run(self):
         print(info(f"Starting Exploratory Data Analysis on {self.db_path}"))
@@ -539,75 +624,77 @@ class ExploratoryDataAnalysis:
         if isinstance(results, dict) and "Numeric Statistics" in results:
             numeric_stats = results["Numeric Statistics"]
             categorical_stats = results["Categorical Statistics"]
-            
-            # Convert numeric stats to a formatted string
+        
             numeric_table = "| Statistic | " + " | ".join(numeric_stats.keys()) + " |\n"
             numeric_table += "| --- | " + " | ".join(["---" for _ in numeric_stats.keys()]) + " |\n"
             for stat in numeric_stats[list(numeric_stats.keys())[0]].keys():
                 numeric_table += f"| {stat} | " + " | ".join([f"{numeric_stats[col][stat]:.2f}" for col in numeric_stats.keys()]) + " |\n"
             
-            # Convert categorical stats to a formatted string
             categorical_summary = "\n".join([f"{col}:\n" + "\n".join([f"  - {value}: {count}" for value, count in stats.items()]) for col, stats in categorical_stats.items()])
             
             results_str = f"Numeric Statistics:\n{numeric_table}\n\nCategorical Statistics:\n{categorical_summary}"
         elif isinstance(results, pd.DataFrame):
             results_str = f"DataFrame with shape {results.shape}:\n{results.to_string()}"
-        elif isinstance(results, tuple) and isinstance(results[0], pd.DataFrame):
-            results_str = f"DataFrame with shape {results[0].shape}:\n{results[0].to_string()}\nImage path: {results[1]}"
-        elif isinstance(results, list):
-            results_str = "\n".join([str(item) for item in results])
+        elif isinstance(results, dict):
+            results_str = "\n".join([f"{k}: {v}" for k, v in results.items() if k != 'image_paths'])
         else:
             results_str = str(results)
 
         prompt = f"""
+        You are an expert data analyst providing insights on exploratory data analysis results. Your task is to interpret the following analysis results and provide a detailed, data-driven interpretation.
+
         Analysis type: {analysis_type}
         Table name: {table_name}
         Results:
         {results_str}
 
-        Please provide a detailed interpretation of these results, highlighting any noteworthy patterns, anomalies, or insights. Focus on the most important aspects that would be valuable for data analysis.
+        Please provide a thorough interpretation of these results, highlighting noteworthy patterns, anomalies, or insights. Focus on the most important aspects that would be valuable for data analysis. Always provide specific numbers and percentages when discussing findings.
+
+        If some data appears to be missing or incomplete, work with the available information without mentioning the limitations. Your goal is to extract as much insight as possible from the given data.
 
         Structure your response in the following format:
 
         1. Analysis:
-        [Provide a detailed description of the analysis performed]
+        [Provide a detailed description of the analysis performed, including specific metrics and their values]
 
-        2. Positive Findings:
-        [List any positive findings, or state "No significant positive findings" if none]
+        2. Key Findings:
+        [List the most important discoveries, always including relevant numbers and percentages]
 
-        3. Negative Findings:
-        [List any negative findings, or state "No significant negative findings" if none]
+        3. Implications:
+        [Discuss the potential impact of these findings on business decisions or further analyses]
 
-        4. Conclusion:
-        [Summarize the key takeaways and implications of this analysis]
+        4. Recommendations:
+        [Suggest next steps or areas for deeper investigation based on these results]
 
-        If there are no significant findings, state "No significant findings" in the appropriate sections and briefly explain why.
+        Ensure your interpretation is concise yet comprehensive, focusing on actionable insights derived from the data.
 
         Interpretation:
         """
-        interpretation = self.worker_erag_api.chat([{"role": "system", "content": "You are a data analyst providing insights on exploratory data analysis results. Respond in the requested format."}, 
+        interpretation = self.worker_erag_api.chat([{"role": "system", "content": "You are an expert data analyst providing insights on exploratory data analysis results. Respond in the requested format."}, 
                                                     {"role": "user", "content": prompt}])
         
-        # Second LLM call to review and enhance the interpretation
+        # Updated supervisor prompt
         check_prompt = f"""
-        Original data and analysis type:
+        As a senior data analyst, review and enhance the following interpretation of exploratory data analysis results. The original data and analysis type are:
+
         {prompt}
 
         Previous interpretation:
         {interpretation}
 
-        Please review and improve the above interpretation. Ensure it accurately reflects the original data and analysis type. Enhance the text by:
-        1. Verifying the accuracy of the interpretation against the original data.
-        2. Ensuring the structure (Analysis, Positive Findings, Negative Findings, Conclusion) is maintained.
-        3. Making the interpretation more narrative and detailed by adding context and explanations.
-        4. Addressing any important aspects of the data that weren't covered.
+        Improve this interpretation by:
+        1. Ensuring all statements are backed by specific data points, numbers, or percentages from the original results.
+        2. Removing any vague statements and replacing them with precise, data-driven observations.
+        3. Adding any critical insights that may have been overlooked, always referencing specific data.
+        4. Strengthening the implications and recommendations sections with concrete, actionable suggestions based on the data.
 
-        Provide your response in the same format, maintaining the original structure. 
-        Do not add comments, questions, or explanations about the changes - simply provide the improved version.
+        Provide your enhanced interpretation in the same format (Analysis, Key Findings, Implications, Recommendations). Do not list your changes or repeat the original interpretation. Simply provide the improved version, focusing on clarity, specificity, and actionable insights.
+
+        Enhanced Interpretation:
         """
 
         enhanced_interpretation = self.supervisor_erag_api.chat([
-            {"role": "system", "content": "You are a data analyst improving interpretations of exploratory data analysis results. Provide direct enhancements without adding meta-comments or detailing the changes done."},
+            {"role": "system", "content": "You are a senior data analyst improving interpretations of exploratory data analysis results. Provide direct enhancements without meta-comments."},
             {"role": "user", "content": check_prompt}
         ])
 
@@ -618,25 +705,19 @@ class ExploratoryDataAnalysis:
         
         # Handle images
         image_data = []
-        if isinstance(results, tuple) and len(results) == 2 and isinstance(results[1], str) and results[1].endswith(('.png', '.jpg', '.jpeg', '.gif')):
-            image_data.append((f"{analysis_type} - Image", results[1]))
-        elif isinstance(results, list):
-            for i, item in enumerate(results):
-                if isinstance(item, str) and item.endswith(('.png', '.jpg', '.jpeg', '.gif')):
-                    image_data.append((f"{analysis_type} - Image {i+1}", item))
-                elif isinstance(item, tuple) and len(item) == 2 and isinstance(item[1], str) and item[1].endswith(('.png', '.jpg', '.jpeg', '.gif')):
-                    image_data.append((f"{analysis_type} - {item[0]}", item[1]))
+        if isinstance(results, dict) and 'image_paths' in results:
+            image_data = results['image_paths']
         
         self.pdf_content.append((analysis_type, image_data, enhanced_interpretation.strip()))
         
         # Extract important findings
         lines = enhanced_interpretation.strip().split('\n')
         for i, line in enumerate(lines):
-            if line.startswith("2. Positive Findings:") or line.startswith("3. Negative Findings:"):
+            if line.startswith("2. Key Findings:"):
                 for finding in lines[i+1:]:
-                    if finding.strip() and not finding.startswith(("2.", "3.", "4.")):
+                    if finding.strip() and not finding.startswith(("3.", "4.")):
                         self.findings.append(f"{analysis_type}: {finding.strip()}")
-                    elif finding.startswith(("2.", "3.", "4.")):
+                    elif finding.startswith(("3.", "4.")):
                         break
 
         # Update self.image_data

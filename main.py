@@ -1352,9 +1352,9 @@ class ERAGGUI:
             print(error(error_message))
             messagebox.showerror("Error", error_message)
 
-    def run_axda_b1_thread(self, axda_b1, selected_table):
+    def run_axda_b1_thread(self, axda_b1):
         try:
-            axda_b1.analyze_table(selected_table)
+            axda_b1.run()
             print(success("Advanced Exploratory Data Analysis (Batch 1) completed successfully."))
             
             # Generate PDF report
@@ -1440,9 +1440,9 @@ class ERAGGUI:
             print(error(error_message))
             messagebox.showerror("Error", error_message)
 
-    def run_axda_b2_thread(self, axda_b2, selected_table):
+    def run_axda_b2_thread(self, axda_b2):
         try:
-            axda_b2.analyze_table(selected_table)
+            axda_b2.run()
             print(success("Advanced Exploratory Data Analysis (Batch 2) completed successfully."))
             
             # Generate PDF report
@@ -1594,9 +1594,9 @@ class ERAGGUI:
             print(error(error_message))
             messagebox.showerror("Error", error_message)
 
-    def run_axda_b3_thread(self, axda_b3, selected_table):
+    def run_axda_b3_thread(self, axda_b3):
         try:
-            axda_b3.analyze_table(selected_table)
+            axda_b3.run()
             print(success("Advanced Exploratory Data Analysis (Batch 3) completed successfully."))
             
             # Generate PDF report
@@ -1683,9 +1683,9 @@ class ERAGGUI:
             print(error(error_message))
             messagebox.showerror("Error", error_message)
 
-    def run_axda_b4_thread(self, axda_b4, selected_table):
+    def run_axda_b4_thread(self, axda_b4):
         try:
-            axda_b4.analyze_table(selected_table)
+            axda_b4.run()
             print(success("Advanced Exploratory Data Analysis (Batch 4) completed successfully."))
             
             # Generate PDF report
@@ -1772,9 +1772,9 @@ class ERAGGUI:
             print(error(error_message))
             messagebox.showerror("Error", error_message)
 
-    def run_axda_b5_thread(self, axda_b5, selected_table):
+    def run_axda_b5_thread(self, axda_b5):
         try:
-            axda_b5.analyze_table(selected_table)
+            axda_b5.run()
             print(success("Advanced Exploratory Data Analysis (Batch 5) completed successfully."))
             
             # Generate PDF report
