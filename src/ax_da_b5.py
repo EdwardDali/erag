@@ -8,6 +8,12 @@ from statsmodels.stats.outliers_influence import OLSInfluence
 from statsmodels.tsa.seasonal import STL
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LinearRegression
+from statsmodels.graphics.gofplots import qqplot
+from statsmodels.tsa.stattools import acf
+from statsmodels.graphics.tsaplots import plot_acf
+from statsmodels.tsa.statespace.tools import diff
+from scipy.stats import t, chi2, norm, jarque_bera
+from statsmodels.stats.diagnostic import lilliefors
 import os
 from src.api_model import EragAPI
 from src.settings import settings
@@ -22,13 +28,14 @@ from functools import wraps
 class TimeoutException(Exception):
     pass
 
+
 class AdvancedExploratoryDataAnalysisB5:
     def __init__(self, worker_erag_api, supervisor_erag_api, db_path):
         self.worker_erag_api = worker_erag_api
         self.supervisor_erag_api = supervisor_erag_api
         self.db_path = db_path
         self.technique_counter = 0
-        self.total_techniques = 3
+        self.total_techniques = 15
         self.table_name = None
         self.output_folder = None
         self.text_output = ""
@@ -99,7 +106,19 @@ class AdvancedExploratoryDataAnalysisB5:
         analysis_methods = [
             self.cooks_distance_analysis,
             self.stl_decomposition_analysis,
-            self.hampel_filter_analysis
+            self.hampel_filter_analysis,
+            self.gesd_test_analysis,
+            self.dixons_q_test_analysis,
+            self.peirce_criterion_analysis,
+            self.thompson_tau_test_analysis,
+            self.control_charts_analysis,
+            self.kde_anomaly_detection_analysis,
+            self.hotellings_t_squared_analysis,
+            self.breakdown_point_analysis,
+            self.chi_square_test_analysis,
+            self.simple_thresholding_analysis,
+            self.lilliefors_test_analysis,
+            self.jarque_bera_test_analysis
         ]
 
         for method in analysis_methods:
@@ -124,10 +143,9 @@ class AdvancedExploratoryDataAnalysisB5:
         X = df[numeric_cols].drop(numeric_cols[-1], axis=1)
         y = df[numeric_cols[-1]]
         
-        model = LinearRegression()
-        model.fit(X, y)
+        model = LinearRegression().fit(X, y)
         
-        influence = OLSInfluence(model.fit(X, y))
+        influence = OLSInfluence(model)
         cooks_d = influence.cooks_distance[0]
         
         def plot_cooks_distance():
@@ -249,6 +267,438 @@ class AdvancedExploratoryDataAnalysisB5:
                 print(f"Skipping Hampel Filter plot for {col} due to timeout.")
         
         self.interpret_results("Hampel Filter Analysis", results, table_name)
+
+    def gesd_test_analysis(self, df, table_name):
+        print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - GESD Test Analysis"))
+        
+        numeric_cols = df.select_dtypes(include=[np.number]).columns
+        results = {}
+        
+        for col in numeric_cols:
+            data = df[col].dropna()
+            if len(data) < 3:  # GESD test requires at least 3 data points
+                continue
+            
+            def gesd_test(data, alpha=0.05, max_outliers=10):
+                n = len(data)
+                if n <= 2:
+                    return []
+                
+                outliers = []
+                for i in range(max_outliers):
+                    if n <= 2:
+                        break
+                    mean = np.mean(data)
+                    std = np.std(data, ddof=1)
+                    R = np.max(np.abs(data - mean)) / std
+                    idx = np.argmax(np.abs(data - mean))
+                    
+                    t_ppf = t.ppf(1 - alpha / (2 * n), n - 2)
+                    lambda_crit = ((n - 1) * t_ppf) / np.sqrt((n - 2 + t_ppf**2) * n)
+                    
+                    if R > lambda_crit:
+                        outliers.append((idx, data[idx]))
+                        data = np.delete(data, idx)
+                        n -= 1
+                    else:
+                        break
+                
+                return outliers
+            
+            outliers = gesd_test(data.values)
+            results[col] = outliers
+        
+        self.interpret_results("GESD Test Analysis", results, table_name)
+
+    def dixons_q_test_analysis(self, df, table_name):
+        print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Dixon's Q Test Analysis"))
+        
+        numeric_cols = df.select_dtypes(include=[np.number]).columns
+        results = {}
+        
+        for col in numeric_cols:
+            data = df[col].dropna().sort_values()
+            if len(data) < 3 or len(data) > 30:  # Dixon's Q test is typically used for sample sizes between 3 and 30
+                continue
+            
+            def dixon_q_test(data, alpha=0.05):
+                n = len(data)
+                if n < 3 or n > 30:
+                    return None, None
+                
+                q_crit_table = {
+                    3: 0.970, 4: 0.829, 5: 0.710, 6: 0.628, 7: 0.569, 8: 0.608, 9: 0.564, 10: 0.530,
+                    11: 0.502, 12: 0.479, 13: 0.611, 14: 0.586, 15: 0.565, 16: 0.546, 17: 0.529,
+                    18: 0.514, 19: 0.501, 20: 0.489, 21: 0.478, 22: 0.468, 23: 0.459, 24: 0.451,
+                    25: 0.443, 26: 0.436, 27: 0.429, 28: 0.423, 29: 0.417, 30: 0.412
+                }
+                
+                q_crit = q_crit_table[n]
+                
+                if n <= 7:
+                    q_low = (data[1] - data[0]) / (data[-1] - data[0])
+                    q_high = (data[-1] - data[-2]) / (data[-1] - data[0])
+                else:
+                    q_low = (data[1] - data[0]) / (data[-2] - data[0])
+                    q_high = (data[-1] - data[-2]) / (data[-1] - data[1])
+                
+                outlier_low = q_low > q_crit
+                outlier_high = q_high > q_crit
+                
+                return (data[0] if outlier_low else None, data[-1] if outlier_high else None)
+            
+            low_outlier, high_outlier = dixon_q_test(data.values)
+            results[col] = {'low_outlier': low_outlier, 'high_outlier': high_outlier}
+        
+        self.interpret_results("Dixon's Q Test Analysis", results, table_name)
+
+    def peirce_criterion_analysis(self, df, table_name):
+        print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Peirce's Criterion Analysis"))
+        
+        numeric_cols = df.select_dtypes(include=[np.number]).columns
+        results = {}
+        
+        def peirce_criterion(data):
+            n = len(data)
+            mean = np.mean(data)
+            std = np.std(data, ddof=1)
+            
+            # Peirce's criterion table (approximation)
+            R_table = {1: 1.0, 2: 1.28, 3: 1.38, 4: 1.44, 5: 1.48, 6: 1.51, 7: 1.53, 8: 1.55, 9: 1.57, 10: 1.58}
+            
+            if n <= 10:
+                R = R_table[n]
+            else:
+                R = 1.58 + 0.2 * np.log10(n / 10)
+            
+            threshold = R * std
+            outliers = [x for x in data if abs(x - mean) > threshold]
+            
+            return outliers
+        
+        for col in numeric_cols:
+            data = df[col].dropna()
+            outliers = peirce_criterion(data.values)
+            results[col] = outliers
+        
+        self.interpret_results("Peirce's Criterion Analysis", results, table_name)
+
+    def thompson_tau_test_analysis(self, df, table_name):
+        print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Thompson Tau Test Analysis"))
+        
+        numeric_cols = df.select_dtypes(include=[np.number]).columns
+        results = {}
+        
+        def thompson_tau_test(data, alpha=0.05):
+            n = len(data)
+            mean = np.mean(data)
+            std = np.std(data, ddof=1)
+            
+            t_value = t.ppf(1 - alpha / 2, n - 2)
+            tau = (t_value * (n - 1)) / (np.sqrt(n) * np.sqrt(n - 2 + t_value**2))
+            
+            delta = tau * std
+            outliers = [x for x in data if abs(x - mean) > delta]
+            
+            return outliers
+        
+        for col in numeric_cols:
+            data = df[col].dropna()
+            outliers = thompson_tau_test(data.values)
+            results[col] = outliers
+        
+        self.interpret_results("Thompson Tau Test Analysis", results, table_name)
+
+    def control_charts_analysis(self, df, table_name):
+        print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Control Charts Analysis (CUSUM, EWMA)"))
+        
+        numeric_cols = df.select_dtypes(include=[np.number]).columns
+        results = {}
+        
+        def cusum_chart(data, threshold=1, drift=0):
+            cumsum = np.zeros(len(data))
+            for i in range(1, len(data)):
+                cumsum[i] = max(0, cumsum[i-1] + data[i] - (np.mean(data) + drift))
+            
+            upper_control_limit = threshold * np.std(data)
+            return cumsum, upper_control_limit
+        
+        def ewma_chart(data, lambda_param=0.2, L=3):
+            ewma = np.zeros(len(data))
+            ewma[0] = data[0]
+            for i in range(1, len(data)):
+                ewma[i] = lambda_param * data[i] + (1 - lambda_param) * ewma[i-1]
+            
+            std_ewma = np.std(data) * np.sqrt(lambda_param / (2 - lambda_param))
+            upper_control_limit = np.mean(data) + L * std_ewma
+            lower_control_limit = np.mean(data) - L * std_ewma
+            
+            return ewma, upper_control_limit, lower_control_limit
+        
+        for col in numeric_cols:
+            data = df[col].dropna().values
+            
+            cusum, cusum_ucl = cusum_chart(data)
+            ewma, ewma_ucl, ewma_lcl = ewma_chart(data)
+            
+            def plot_control_charts():
+                fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(self.calculate_figure_size()[0], self.calculate_figure_size()[1]*2))
+                
+                # CUSUM chart
+                ax1.plot(cusum, label='CUSUM')
+                ax1.axhline(y=cusum_ucl, color='r', linestyle='--', label='Upper Control Limit')
+                ax1.set_title(f'CUSUM Control Chart for {col}')
+                ax1.set_xlabel('Observation')
+                ax1.set_ylabel('Cumulative Sum')
+                ax1.legend()
+                
+                # EWMA chart
+                ax2.plot(ewma, label='EWMA')
+                ax2.axhline(y=ewma_ucl, color='r', linestyle='--', label='Upper Control Limit')
+                ax2.axhline(y=ewma_lcl, color='r', linestyle='--', label='Lower Control Limit')
+                ax2.set_title(f'EWMA Control Chart for {col}')
+                ax2.set_xlabel('Observation')
+                ax2.set_ylabel('EWMA')
+                ax2.legend()
+                
+                plt.tight_layout()
+                return fig, (ax1, ax2)
+            
+            result = self.generate_plot(plot_control_charts)
+            if result is not None:
+                fig, _ = result
+                img_path = os.path.join(self.output_folder, f"{table_name}_{col}_control_charts.png")
+                plt.savefig(img_path, dpi=100, bbox_inches='tight')
+                plt.close(fig)
+                
+                results[col] = {
+                    'image_path': img_path,
+                    'cusum_out_of_control': np.sum(cusum > cusum_ucl),
+                    'ewma_out_of_control': np.sum((ewma > ewma_ucl) | (ewma < ewma_lcl))
+                }
+            else:
+                print(f"Skipping control charts for {col} due to timeout.")
+        
+        self.interpret_results("Control Charts Analysis (CUSUM, EWMA)", results, table_name)
+
+    def kde_anomaly_detection_analysis(self, df, table_name):
+        print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - KDE Anomaly Detection Analysis"))
+        
+        numeric_cols = df.select_dtypes(include=[np.number]).columns
+        results = {}
+        
+        for col in numeric_cols:
+            data = df[col].dropna().values
+            
+            kde = stats.gaussian_kde(data)
+            x_range = np.linspace(min(data), max(data), 1000)
+            density = kde(x_range)
+            
+            threshold = np.percentile(density, 5)  # Use 5th percentile as anomaly threshold
+            anomalies = data[kde(data) < threshold]
+            
+            def plot_kde_anomalies():
+                fig, ax = plt.subplots(figsize=self.calculate_figure_size())
+                ax.plot(x_range, density, label='KDE')
+                ax.axhline(y=threshold, color='r', linestyle='--', label='Anomaly Threshold')
+                ax.scatter(anomalies, kde(anomalies), color='r', label='Anomalies')
+                ax.set_title(f'KDE Anomaly Detection for {col}')
+                ax.set_xlabel('Value')
+                ax.set_ylabel('Density')
+                ax.legend()
+                return fig, ax
+
+            result = self.generate_plot(plot_kde_anomalies)
+            if result is not None:
+                fig, _ = result
+                img_path = os.path.join(self.output_folder, f"{table_name}_{col}_kde_anomalies.png")
+                plt.savefig(img_path, dpi=100, bbox_inches='tight')
+                plt.close(fig)
+                
+                results[col] = {
+                    'image_path': img_path,
+                    'anomalies_count': len(anomalies),
+                    'anomalies_percentage': (len(anomalies) / len(data)) * 100
+                }
+            else:
+                print(f"Skipping KDE anomaly detection plot for {col} due to timeout.")
+        
+        self.interpret_results("KDE Anomaly Detection Analysis", results, table_name)
+
+    def hotellings_t_squared_analysis(self, df, table_name):
+        print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Hotelling's T-squared Analysis"))
+        
+        numeric_cols = df.select_dtypes(include=[np.number]).columns
+        if len(numeric_cols) < 2:
+            print(warning("Not enough numeric columns for Hotelling's T-squared analysis."))
+            return
+        
+        X = df[numeric_cols].dropna()
+        n, p = X.shape
+        
+        if n <= p:
+            print(warning("Not enough samples for Hotelling's T-squared analysis."))
+            return
+        
+        mean = np.mean(X, axis=0)
+        cov = np.cov(X, rowvar=False)
+        
+        try:
+            inv_cov = np.linalg.inv(cov)
+        except np.linalg.LinAlgError:
+            print(warning("Singular matrix encountered. Using pseudo-inverse instead."))
+            inv_cov = np.linalg.pinv(cov)
+        
+        def t_squared(x):
+            diff = x - mean
+            return np.dot(np.dot(diff, inv_cov), diff.T)
+        
+        t_sq = np.array([t_squared(x) for x in X.values])
+        
+        # Calculate critical value
+        f_crit = stats.f.ppf(0.95, p, n-p)
+        t_sq_crit = ((n-1)*p/(n-p)) * f_crit
+        
+        outliers = X[t_sq > t_sq_crit]
+        
+        def plot_t_squared():
+            fig, ax = plt.subplots(figsize=self.calculate_figure_size())
+            ax.plot(t_sq, label="T-squared")
+            ax.axhline(y=t_sq_crit, color='r', linestyle='--', label='Critical Value')
+            ax.set_title("Hotelling's T-squared Control Chart")
+            ax.set_xlabel('Observation')
+            ax.set_ylabel('T-squared')
+            ax.legend()
+            return fig, ax
+
+        result = self.generate_plot(plot_t_squared)
+        if result is not None:
+            fig, _ = result
+            img_path = os.path.join(self.output_folder, f"{table_name}_hotellings_t_squared.png")
+            plt.savefig(img_path, dpi=100, bbox_inches='tight')
+            plt.close(fig)
+            
+            results = {
+                'image_path': img_path,
+                'outliers_count': len(outliers),
+                'outliers_percentage': (len(outliers) / n) * 100
+            }
+            
+            self.interpret_results("Hotelling's T-squared Analysis", results, table_name)
+        else:
+            print("Skipping Hotelling's T-squared plot due to timeout.")
+
+    def breakdown_point_analysis(self, df, table_name):
+        print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Breakdown Point Analysis"))
+        
+        numeric_cols = df.select_dtypes(include=[np.number]).columns
+        results = {}
+        
+        for col in numeric_cols:
+            data = df[col].dropna().values
+            n = len(data)
+            
+            # Calculate breakdown point for mean and median
+            bp_mean = 1 / n
+            bp_median = 0.5
+            
+            # Calculate trimmed mean with different trimming levels
+            trim_levels = [0.1, 0.2, 0.3]
+            trimmed_means = [stats.trim_mean(data, trim) for trim in trim_levels]
+            
+            results[col] = {
+                'bp_mean': bp_mean,
+                'bp_median': bp_median,
+                'trimmed_means': dict(zip(trim_levels, trimmed_means))
+            }
+        
+        self.interpret_results("Breakdown Point Analysis", results, table_name)
+
+    def chi_square_test_analysis(self, df, table_name):
+        print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Chi-Square Test Analysis"))
+        
+        categorical_cols = df.select_dtypes(include=['object', 'category']).columns
+        results = {}
+        
+        for col in categorical_cols:
+            observed = df[col].value_counts()
+            n = len(df)
+            expected = pd.Series(n/len(observed), index=observed.index)
+            
+            chi2, p_value = stats.chisquare(observed, expected)
+            
+            results[col] = {
+                'chi2_statistic': chi2,
+                'p_value': p_value,
+                'degrees_of_freedom': len(observed) - 1
+            }
+        
+        self.interpret_results("Chi-Square Test Analysis", results, table_name)
+
+    def simple_thresholding_analysis(self, df, table_name):
+        print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Simple Thresholding Analysis"))
+        
+        numeric_cols = df.select_dtypes(include=[np.number]).columns
+        results = {}
+        
+        for col in numeric_cols:
+            data = df[col].dropna()
+            
+            q1 = data.quantile(0.25)
+            q3 = data.quantile(0.75)
+            iqr = q3 - q1
+            
+            lower_bound = q1 - 1.5 * iqr
+            upper_bound = q3 + 1.5 * iqr
+            
+            outliers = data[(data < lower_bound) | (data > upper_bound)]
+            
+            results[col] = {
+                'lower_bound': lower_bound,
+                'upper_bound': upper_bound,
+                'outliers_count': len(outliers),
+                'outliers_percentage': (len(outliers) / len(data)) * 100
+            }
+        
+        self.interpret_results("Simple Thresholding Analysis", results, table_name)
+
+    def lilliefors_test_analysis(self, df, table_name):
+        print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Lilliefors Test Analysis"))
+        
+        numeric_cols = df.select_dtypes(include=[np.number]).columns
+        results = {}
+        
+        for col in numeric_cols:
+            data = df[col].dropna().values
+            
+            statistic, p_value = lilliefors(data)
+            
+            results[col] = {
+                'test_statistic': statistic,
+                'p_value': p_value
+            }
+        
+        self.interpret_results("Lilliefors Test Analysis", results, table_name)
+
+    def jarque_bera_test_analysis(self, df, table_name):
+        print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Jarque-Bera Test Analysis"))
+        
+        numeric_cols = df.select_dtypes(include=[np.number]).columns
+        results = {}
+        
+        for col in numeric_cols:
+            data = df[col].dropna().values
+            
+            statistic, p_value, skew, kurtosis = jarque_bera(data)
+            
+            results[col] = {
+                'test_statistic': statistic,
+                'p_value': p_value,
+                'skewness': skew,
+                'kurtosis': kurtosis
+            }
+        
+        self.interpret_results("Jarque-Bera Test Analysis", results, table_name)
 
     def interpret_results(self, analysis_type, results, table_name):
         prompt = f"""
