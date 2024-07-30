@@ -582,61 +582,67 @@ class FinancialExploratoryDataAnalysis:
     def interpret_results(self, analysis_type, results, time_frame):
         results_str = self.format_results(results)
         prompt = f"""
+        As an expert financial analyst, provide a detailed interpretation of these financial results:
+
         Analysis type: {analysis_type}
         Time frame: {time_frame}
         Results:
         {results_str}
 
-        Please provide a detailed interpretation of these financial results, highlighting any noteworthy patterns, anomalies, or insights. Focus on the most important aspects that would be valuable for financial analysis.
+        Highlight noteworthy patterns, anomalies, or insights. Focus on the most important aspects valuable for financial analysis. Provide specific figures and numbers where possible. If there are errors in the data, try to infer meaningful insights from the available information.
 
-        Structure your response in the following format:
+        Structure your response as follows:
 
         1. Analysis:
         [Provide a detailed description of the financial analysis performed]
 
         2. Key Findings:
-        [List the most significant findings from the analysis]
+        [List the most significant findings from the analysis, including specific figures]
 
         3. Trends and Patterns:
-        [Describe any notable trends or patterns observed in the data]
+        [Describe notable trends or patterns observed in the data, with numerical examples]
 
         4. Potential Risks or Opportunities:
-        [Identify any potential risks or opportunities based on the analysis]
+        [Identify potential risks or opportunities based on the analysis, quantifying where possible]
 
         5. Recommendations:
-        [Provide actionable recommendations based on the analysis]
+        [Provide actionable recommendations based on the analysis, with specific targets or thresholds]
 
         If there are no significant findings in any section, briefly explain why.
 
         Interpretation:
         """
-        interpretation = self.worker_erag_api.chat([{"role": "system", "content": "You are a financial analyst providing insights on exploratory financial data analysis results. Respond in the requested format."}, 
+        interpretation = self.worker_erag_api.chat([{"role": "system", "content": "You are an expert financial analyst providing insights on exploratory financial data analysis results. Use your expertise to infer meaningful insights even if there are data inconsistencies. Respond in the requested format."}, 
                                                     {"role": "user", "content": prompt}])
         
-        # Second LLM call to review and enhance the interpretation
+        # Supervisory review to enhance the interpretation
         check_prompt = f"""
+        As an expert financial analyst, review and enhance the following financial interpretation:
+
         Original financial data and analysis type:
         {prompt}
 
         Previous interpretation:
         {interpretation}
 
-        Please review and improve the above financial interpretation. Ensure it accurately reflects the original data and analysis type. Enhance the text by:
-        1. Verifying the accuracy of the interpretation against the original financial data.
+        Improve the interpretation by:
+        1. Verifying the accuracy against the original financial data.
         2. Ensuring the structure (Analysis, Key Findings, Trends and Patterns, Potential Risks or Opportunities, Recommendations) is maintained.
         3. Making the interpretation more narrative and detailed by adding context and explanations specific to financial analysis.
         4. Addressing any important aspects of the financial data that weren't covered.
+        5. Providing more specific figures, percentages, and numerical examples throughout the analysis.
+        6. Inferring meaningful insights even if there are inconsistencies in the data.
 
         Provide your response in the same format, maintaining the original structure. 
         Do not add comments, questions, or explanations about the changes - simply provide the improved version.
         """
 
         enhanced_interpretation = self.supervisor_erag_api.chat([
-            {"role": "system", "content": "You are a financial analyst improving interpretations of exploratory financial data analysis results. Provide direct enhancements without adding meta-comments or detailing the changes done."},
+            {"role": "system", "content": "You are an expert financial analyst improving interpretations of exploratory financial data analysis results. Provide direct enhancements without adding meta-comments or detailing the changes done."},
             {"role": "user", "content": check_prompt}
         ])
 
-        print(success(f"AI Interpretation for {analysis_type}:"))
+        print(success(f"Expert Financial Analysis Interpretation for {analysis_type}:"))
         print(enhanced_interpretation.strip())
         
         self.text_output += f"\n{enhanced_interpretation.strip()}\n\n"
@@ -678,46 +684,47 @@ class FinancialExploratoryDataAnalysis:
             return
 
         summary_prompt = f"""
-        Based on the following findings from the Financial Exploratory Data Analysis:
+        As an expert financial analyst, provide an executive summary of the following financial exploratory data analysis findings:
         
         {self.findings}
         
-        Please provide an executive summary of the financial analysis. The summary should:
+        The summary should:
         1. Briefly introduce the purpose of the financial analysis.
-        2. Highlight the most significant financial insights and patterns discovered.
-        3. Mention any potential financial issues or areas that require further investigation.
-        4. Discuss any limitations of the analysis due to data constraints or other factors.
-        5. Conclude with recommendations for next steps or areas to focus on from a financial perspective.
+        2. Highlight the most significant financial insights and patterns discovered, using specific figures and percentages.
+        3. Mention any potential financial issues or areas that require further investigation, quantifying the concerns where possible.
+        4. Discuss any limitations of the analysis due to data constraints or other factors, and how you've attempted to infer insights despite these limitations.
+        5. Conclude with recommendations for next steps or areas to focus on from a financial perspective, providing specific targets or thresholds where applicable.
 
         Structure the summary in multiple paragraphs for readability.
-        Please provide your response in plain text format, without any special formatting or markup.
+        Provide your response in plain text format, without any special formatting or markup.
         """
         
         try:
             interpretation = self.worker_erag_api.chat([
-                {"role": "system", "content": "You are a financial analyst providing an executive summary of a financial exploratory data analysis. Respond in plain text format."},
+                {"role": "system", "content": "You are an expert financial analyst providing an executive summary of a financial exploratory data analysis. Use your expertise to provide meaningful insights even if there are data inconsistencies. Respond in plain text format."},
                 {"role": "user", "content": summary_prompt}
             ])
             
             if interpretation is not None:
-                # Updated second LLM call to focus on direct improvements
+                # Updated supervisory review to focus on direct improvements
                 check_prompt = f"""
-                Please review and improve the following financial executive summary:
+                As an expert financial analyst, review and enhance the following financial executive summary:
 
                 {interpretation}
 
-                Enhance the summary by:
+                Improve the summary by:
                 1. Making it more comprehensive and narrative by adding financial context and explanations.
                 2. Addressing any important aspects of the financial analysis that weren't covered.
-                3. Ensuring it includes a clear introduction, highlights of significant financial insights, mention of potential issues, and recommendations for next steps.
-                4. Discussing the implications of any data limitations on the overall financial analysis.
+                3. Ensuring it includes a clear introduction, highlights of significant financial insights with specific figures, mention of potential issues with quantified concerns, and recommendations for next steps with specific targets.
+                4. Discussing the implications of any data limitations on the overall financial analysis and how you've attempted to infer insights despite these limitations.
+                5. Adding more specific figures, percentages, and numerical examples throughout the summary.
 
                 Provide your response in plain text format, without any special formatting or markup.
                 Do not add comments, questions, or explanations about the changes - simply provide the improved version.
                 """
 
                 enhanced_summary = self.supervisor_erag_api.chat([
-                    {"role": "system", "content": "You are a financial analyst improving an executive summary of a financial exploratory data analysis. Provide direct enhancements without adding meta-comments."},
+                    {"role": "system", "content": "You are an expert financial analyst improving an executive summary of a financial exploratory data analysis. Provide direct enhancements without adding meta-comments."},
                     {"role": "user", "content": check_prompt}
                 ])
 
@@ -728,7 +735,7 @@ class FinancialExploratoryDataAnalysis:
             print(error(f"An error occurred while generating the financial executive summary: {str(e)}"))
             self.executive_summary = "Error: Unable to generate financial executive summary due to an exception."
 
-        print(success("Enhanced Financial Executive Summary generated successfully."))
+        print(success("Enhanced Expert Financial Executive Summary generated successfully."))
         print(self.executive_summary)
 
     def save_text_output(self):

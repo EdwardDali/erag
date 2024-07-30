@@ -245,10 +245,16 @@ class InnovativeDataAnalysis:
             "best_silhouette_score": best_silhouette,
             "n_clusters": len(np.unique(cluster_labels)),
             "n_anomalies": sum(anomaly_labels == -1),
-            "image_paths": [cluster_img_path, correlation_img_path, anomaly_img_path, pca_img_path]
+            "image_paths": [
+                ("AMPR Analysis - Cluster Analysis", cluster_img_path),
+                ("AMPR Analysis - Feature Correlation", correlation_img_path),
+                ("AMPR Analysis - Anomaly Detection", anomaly_img_path),
+                ("AMPR Analysis - PCA Explained Variance", pca_img_path)
+            ]
         }
 
         self.interpret_results("AMPR Analysis", results, table_name)
+
 
     def etsf_analysis(self, df, table_name):
         self.technique_counter += 1
@@ -346,7 +352,13 @@ class InnovativeDataAnalysis:
             "adf_result": adf_result,
             "mse": mse,
             "rmse": rmse,
-            "image_paths": [observed_img_path, trend_img_path, seasonal_img_path, residual_img_path, forecast_img_path]
+            "image_paths": [
+                ("ETSF Analysis - Observed Data", observed_img_path),
+                ("ETSF Analysis - Trend", trend_img_path),
+                ("ETSF Analysis - Seasonal", seasonal_img_path),
+                ("ETSF Analysis - Residual", residual_img_path),
+                ("ETSF Analysis - Forecast", forecast_img_path)
+            ]
         }
 
         self.interpret_results("ETSF Analysis", results, table_name)
@@ -420,12 +432,8 @@ class InnovativeDataAnalysis:
         self.text_output += f"\n{enhanced_interpretation.strip()}\n\n"
         
         image_data = []
-        if isinstance(results, dict):
-            if 'image_path' in results:
-                image_data.append((f"{analysis_type} - Image", results['image_path']))
-            if 'decomposition_path' in results and 'forecast_path' in results:
-                image_data.append((f"{analysis_type} - Decomposition", results['decomposition_path']))
-                image_data.append((f"{analysis_type} - Forecast", results['forecast_path']))
+        if isinstance(results, dict) and 'image_paths' in results:
+            image_data = results['image_paths']
         
         self.pdf_content.append((analysis_type, image_data, enhanced_interpretation.strip()))
         
@@ -520,7 +528,7 @@ class InnovativeDataAnalysis:
             self.executive_summary,
             self.findings,
             self.pdf_content,
-            self.image_data,
+            self.image_data,  # This now contains all image paths
             filename=f"ida_{self.table_name}_report",
             report_title=report_title
         )
