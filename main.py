@@ -44,6 +44,7 @@ from src.ax_da_b3 import AdvancedExploratoryDataAnalysisB3
 from src.ax_da_b4 import AdvancedExploratoryDataAnalysisB4
 from src.fn_processing import process_financial_data
 from src.f_da import FinancialExploratoryDataAnalysis
+from src.ax_da_b5 import AdvancedExploratoryDataAnalysisB5
 
 
 # Load environment variables from .env file
@@ -136,6 +137,7 @@ class ERAGGUI:
         self.create_doc_rag_frame()
         self.create_web_rag_frame()
         self.create_structured_data_rag_frame()
+        self.create_financial_data_rag_frame()
 
 
     def create_structured_data_rag_frame(self):
@@ -166,13 +168,23 @@ class ERAGGUI:
         axda_b4_button.pack(side="left", padx=5, pady=5)
         ToolTip(axda_b4_button, "Perform Advanced Exploratory Data Analysis (Batch 4) on a selected SQLite database")
 
+        axda_b5_button = tk.Button(rag_frame, text="A-XDA-B5", command=self.run_axda_b5)
+        axda_b5_button.pack(side="left", padx=5, pady=5)
+        ToolTip(axda_b5_button, "Perform Advanced Exploratory Data Analysis (Batch 5) on a selected SQLite database")
+
         ixda_button = tk.Button(rag_frame, text="I-XDA", command=self.run_ixda)
         ixda_button.pack(side="left", padx=5, pady=5)
         ToolTip(ixda_button, "Perform Innovative Exploratory Data Analysis on a selected SQLite database")
 
-        fxda_button = tk.Button(rag_frame, text="F-XDA", command=self.run_fxda)
+    def create_financial_data_rag_frame(self):
+        financial_frame = tk.LabelFrame(self.main_tab, text="Financial Data RAG")
+        financial_frame.pack(fill="x", padx=10, pady=5)
+
+        fxda_button = tk.Button(financial_frame, text="F-XDA", command=self.run_fxda)
         fxda_button.pack(side="left", padx=5, pady=5)
         ToolTip(fxda_button, "Perform Financial Exploratory Data Analysis on a selected SQLite database")
+
+
 
 
     def create_upload_frame(self):
@@ -1706,6 +1718,95 @@ class ERAGGUI:
                                            f"PDF report generated: {pdf_path}")
         except Exception as e:
             error_message = f"An error occurred during Advanced Exploratory Data Analysis (Batch 4): {str(e)}"
+            print(error(error_message))
+            messagebox.showerror("Error", error_message)
+
+
+    def run_axda_b5(self):
+        try:
+            db_path = filedialog.askopenfilename(
+                title="Select SQLite Database",
+                filetypes=[("SQLite files", "*.db"), ("All files", "*.*")]
+            )
+            if not db_path:
+                messagebox.showwarning("Warning", "No database selected.")
+                return
+
+            api_type = self.api_type_var.get()
+            worker_model = self.model_var.get()
+            supervisor_model = self.supervisor_model_var.get()
+            
+            # Create separate EragAPI instances for worker and supervisor
+            worker_erag_api = create_erag_api(api_type, worker_model)
+            supervisor_erag_api = create_erag_api(api_type, supervisor_model)
+            
+            # Create AdvancedExploratoryDataAnalysisB5 instance with both APIs
+            axda_b5 = AdvancedExploratoryDataAnalysisB5(worker_erag_api, supervisor_erag_api, db_path)
+            
+            # Get available tables
+            tables = axda_b5.get_tables()
+            
+            if not tables:
+                messagebox.showwarning("Warning", "No tables found in the database.")
+                return
+            
+            # Present table choices to the user in the console
+            print(info("Available tables:"))
+            for i, table in enumerate(tables, 1):
+                print(f"{i}. {table}")
+            
+            # Ask user to choose a table
+            while True:
+                try:
+                    choice = int(input("Enter the number of the table you want to analyze: "))
+                    if 1 <= choice <= len(tables):
+                        selected_table = tables[choice - 1]
+                        break
+                    else:
+                        print(error("Invalid choice. Please enter a number from the list."))
+                except ValueError:
+                    print(error("Invalid input. Please enter a number."))
+            
+            # Apply settings to A-XDA-B5
+            settings.apply_settings()
+            
+            # Run A-XDA-B5 in a separate thread to keep the GUI responsive
+            threading.Thread(target=self.run_axda_b5_thread, args=(axda_b5, selected_table), daemon=True).start()
+            
+            output_folder = os.path.join(os.path.dirname(db_path), "axda_b5_output")
+            
+            # Create an informative message about the Worker-Supervisor Model architecture
+            architecture_info = (
+                "This A-XDA-B5 module supports a Worker Model and Supervisory Model architecture:\n\n"
+                f"Worker Model: {worker_model}\n"
+                f"Supervisory Model: {supervisor_model}\n\n"
+                "The Worker Model performs the initial analysis, while the Supervisory Model reviews and enhances the results, "
+                "providing a more comprehensive and refined analysis."
+            )
+            
+            messagebox.showinfo("A-XDA-B5 Process Started", 
+                                f"{architecture_info}\n\n"
+                                f"Advanced Exploratory Data Analysis (Batch 5) started on table '{selected_table}' in {os.path.basename(db_path)}.\n"
+                                f"Check the console for progress updates and AI interpretations.\n"
+                                f"Results will be saved in {output_folder}")
+        except Exception as e:
+            error_message = f"An error occurred while starting the A-XDA-B5 process: {str(e)}"
+            print(error(error_message))
+            messagebox.showerror("Error", error_message)
+
+    def run_axda_b5_thread(self, axda_b5, selected_table):
+        try:
+            axda_b5.analyze_table(selected_table)
+            print(success("Advanced Exploratory Data Analysis (Batch 5) completed successfully."))
+            
+            # Generate PDF report
+            pdf_path = axda_b5.generate_pdf_report()
+            
+            print(success(f"PDF report generated successfully: {pdf_path}"))
+            messagebox.showinfo("Success", f"Advanced Exploratory Data Analysis (Batch 5) completed successfully.\n"
+                                           f"PDF report generated: {pdf_path}")
+        except Exception as e:
+            error_message = f"An error occurred during Advanced Exploratory Data Analysis (Batch 5): {str(e)}"
             print(error(error_message))
             messagebox.showerror("Error", error_message)
 
