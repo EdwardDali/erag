@@ -103,43 +103,20 @@ class AdvancedExploratoryDataAnalysisB3:
         return plot_function(*args, **kwargs)
 
     def run(self):
-        print(info(f"Starting Advanced Exploratory Data Analysis (Batch 3) on {self.db_path}"))
+        print(info(f"Starting Advanced Exploratory Data Analysis (Batch3) on {self.db_path}"))
         
-        # Get all tables
-        all_tables = self.get_tables()
+        tables = self.get_tables()
+        for table in tables:
+            self.analyze_table(table)
         
-        if not all_tables:
-            print(error("No tables found in the database. Exiting."))
-            return
-        
-        # Present table choices to the user
-        print(info("Available tables:"))
-        for i, table in enumerate(all_tables, 1):
-            print(f"{i}. {table}")
-        
-        # Ask user to choose a table
-        while True:
-            try:
-                choice = int(input("Enter the number of the table you want to analyze: "))
-                if 1 <= choice <= len(all_tables):
-                    selected_table = all_tables[choice - 1]
-                    break
-                else:
-                    print(error("Invalid choice. Please enter a number from the list."))
-            except ValueError:
-                print(error("Invalid input. Please enter a number."))
-        
-        print(info(f"You've selected to analyze the '{selected_table}' table."))
-        
-        # Analyze the selected table
-        self.analyze_table(selected_table)
-            
         print(info("Generating Executive Summary..."))
         self.generate_executive_summary()
         
         self.save_text_output()
         self.generate_pdf_report()
-        print(success(f"Advanced Exploratory Data Analysis (Batch 3) completed. Results saved in {self.output_folder}"))
+        print(success(f"Advanced Exploratory Data Analysis (Batch3) completed. Results saved in {self.output_folder}"))
+
+
 
     def get_tables(self):
         with sqlite3.connect(self.db_path) as conn:
@@ -189,6 +166,7 @@ class AdvancedExploratoryDataAnalysisB3:
 
     def factor_analysis(self, df, table_name):
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Factor Analysis"))
+        image_paths = []
         
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
         if len(numerical_columns) > 1:
@@ -217,14 +195,17 @@ class AdvancedExploratoryDataAnalysisB3:
                 img_path = os.path.join(self.output_folder, f"{table_name}_factor_analysis.png")
                 plt.savefig(img_path, dpi=100, bbox_inches='tight')
                 plt.close(fig)
-                self.interpret_results("Factor Analysis", img_path, table_name)
+                image_paths.append(img_path)
+                
             else:
                 print("Skipping Factor Analysis plot due to error in plot generation.")
         else:
             print("Not enough numerical columns for Factor Analysis.")
+        self.interpret_results("Factor Analysis", {'image_paths': image_paths}, table_name)
 
     def multidimensional_scaling(self, df, table_name):
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Multidimensional Scaling (MDS)"))
+        image_paths = []
         
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
         if len(numerical_columns) >= 2:
@@ -250,14 +231,17 @@ class AdvancedExploratoryDataAnalysisB3:
                 img_path = os.path.join(self.output_folder, f"{table_name}_mds.png")
                 plt.savefig(img_path, dpi=100, bbox_inches='tight')
                 plt.close(fig)
-                self.interpret_results("Multidimensional Scaling (MDS)", img_path, table_name)
+                image_paths.append(img_path)
+                
             else:
                 print("Skipping Multidimensional Scaling (MDS) plot due to error in plot generation.")
         else:
             print("Not enough numerical columns for Multidimensional Scaling (MDS).")
+        self.interpret_results("Multidimensional Scaling (MDS)", {'image_paths': image_paths}, table_name)
 
     def t_sne(self, df, table_name):
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - t-Distributed Stochastic Neighbor Embedding (t-SNE)"))
+        image_paths = []
         
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
         if len(numerical_columns) >= 2:
@@ -283,49 +267,55 @@ class AdvancedExploratoryDataAnalysisB3:
                 img_path = os.path.join(self.output_folder, f"{table_name}_tsne.png")
                 plt.savefig(img_path, dpi=100, bbox_inches='tight')
                 plt.close(fig)
-                self.interpret_results("t-Distributed Stochastic Neighbor Embedding (t-SNE)", img_path, table_name)
+                image_paths.append(img_path)
+                
             else:
                 print("Skipping t-SNE plot due to error in plot generation.")
         else:
             print("Not enough numerical columns for t-SNE.")
+        self.interpret_results("t-Distributed Stochastic Neighbor Embedding (t-SNE)", {'image_paths': image_paths}, table_name)
 
     def conditional_plots(self, df, table_name):
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Conditional Plots"))
+        image_paths = []
         
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
         categorical_columns = df.select_dtypes(include=['object', 'category']).columns
 
         if len(numerical_columns) >= 2 and len(categorical_columns) > 0:
-            def plot_coplots():
-                x = numerical_columns[0]
-                y = numerical_columns[1]
-                z = categorical_columns[0]
-                
-                # Limit the number of categories to plot
-                top_categories = df[z].value_counts().nlargest(5).index
-                plot_data = df[df[z].isin(top_categories)].copy()
-                
-                g = sns.FacetGrid(plot_data, col=z, col_wrap=3, height=4, aspect=1.5)
-                g.map(sns.scatterplot, x, y)
-                g.add_legend()
-                g.fig.suptitle(f'Conditional Plots: {y} vs {x} conditioned on {z}')
-                plt.tight_layout()
-                return g.fig, g.axes
+            x = numerical_columns[0]
+            y = numerical_columns[1]
+            z = categorical_columns[0]
+            
+            # Limit the number of categories to plot
+            top_categories = df[z].value_counts().nlargest(5).index
+            plot_data = df[df[z].isin(top_categories)].copy()
+            
+            for category in top_categories:
+                def plot_conditional(cat):
+                    fig, ax = plt.subplots(figsize=self.calculate_figure_size())
+                    sns.scatterplot(data=plot_data[plot_data[z] == cat], x=x, y=y, ax=ax)
+                    ax.set_title(f'{y} vs {x} for {z}={cat}')
+                    ax.set_xlabel(x)
+                    ax.set_ylabel(y)
+                    return fig, ax
 
-            result = self.generate_plot(plot_coplots)
-            if result is not None:
-                fig, _ = result
-                img_path = os.path.join(self.output_folder, f"{table_name}_conditional_plots.png")
-                plt.savefig(img_path, dpi=100, bbox_inches='tight')
-                plt.close(fig)
-                self.interpret_results("Conditional Plots", img_path, table_name)
-            else:
-                print("Skipping Conditional Plots due to error in plot generation.")
+                result = self.generate_plot(lambda: plot_conditional(category))
+                if result is not None:
+                    fig, _ = result
+                    img_path = os.path.join(self.output_folder, f"{table_name}_conditional_plot_{category}.png")
+                    plt.savefig(img_path, dpi=100, bbox_inches='tight')
+                    plt.close(fig)
+                    image_paths.append(img_path)
+                else:
+                    print(f"Skipping Conditional Plot for {category} due to error in plot generation.")
         else:
             print("Not enough suitable columns for Conditional Plots.")
+        self.interpret_results("Conditional Plots", {'image_paths': image_paths}, table_name)
 
     def ice_plots(self, df, table_name):
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Individual Conditional Expectation (ICE) Plots"))
+        image_paths = []
         
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
         if len(numerical_columns) >= 2:
@@ -368,15 +358,18 @@ class AdvancedExploratoryDataAnalysisB3:
                 img_path = os.path.join(self.output_folder, f"{table_name}_ice_plots.png")
                 plt.savefig(img_path, dpi=100, bbox_inches='tight')
                 plt.close(fig)
-                self.interpret_results("Individual Conditional Expectation (ICE) Plots", img_path, table_name)
+                image_paths.append(img_path)
+                
             else:
                 print("Skipping ICE Plots due to error in plot generation.")
         else:
             print("Not enough numerical columns for ICE Plots.")
+        self.interpret_results("Individual Conditional Expectation (ICE) Plots", {'image_paths': image_paths}, table_name)
 
     def time_series_decomposition(self, df, table_name):
         
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Time Series Decomposition"))
+        image_paths = []
         
         date_columns = df.select_dtypes(include=['datetime64']).columns
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
@@ -418,15 +411,18 @@ class AdvancedExploratoryDataAnalysisB3:
                 img_path = os.path.join(self.output_folder, f"{table_name}_time_series_decomposition.png")
                 plt.savefig(img_path, dpi=100, bbox_inches='tight')
                 plt.close(fig)
-                self.interpret_results("Time Series Decomposition", img_path, table_name)
+                image_paths.append(img_path)
+                
             else:
                 print("Skipping Time Series Decomposition due to error in plot generation.")
         else:
             print("No suitable date and numerical columns found for Time Series Decomposition.")
+        self.interpret_results("Time Series Decomposition", {'image_paths': image_paths}, table_name)
 
     def autocorrelation_plots(self, df, table_name):
         
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Autocorrelation Plots"))
+        image_paths = []
         
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
         if len(numerical_columns) > 0:
@@ -454,17 +450,18 @@ class AdvancedExploratoryDataAnalysisB3:
                 img_path = os.path.join(self.output_folder, f"{table_name}_autocorrelation_plot.png")
                 plt.savefig(img_path, dpi=100, bbox_inches='tight')
                 plt.close(fig)
-                self.interpret_results("Autocorrelation Plots", img_path, table_name)
+                image_paths.append(img_path)
+                
             else:
                 print("Skipping Autocorrelation Plot due to error in plot generation.")
         else:
             print("No numerical columns found for Autocorrelation Plot.")
+        self.interpret_results("Autocorrelation Plots", {'image_paths': image_paths}, table_name)
 
     def bayesian_networks(self, df, table_name):
-        
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Bayesian Networks"))
+        image_paths = []
         
-        # Select a subset of columns for Bayesian Network analysis
         columns = df.select_dtypes(include=['float64', 'int64', 'bool', 'category']).columns[:5]
         if len(columns) >= 2:
             def plot_bayesian_network():
@@ -502,15 +499,35 @@ class AdvancedExploratoryDataAnalysisB3:
                 img_path = os.path.join(self.output_folder, f"{table_name}_bayesian_network.png")
                 plt.savefig(img_path, dpi=100, bbox_inches='tight')
                 plt.close(fig)
-                self.interpret_results("Bayesian Networks", img_path, table_name)
+                image_paths.append(img_path)
+                
+                # Add a heatmap of the learned CPDs
+                def plot_cpd_heatmap():
+                    fig, axes = plt.subplots(1, len(columns), figsize=(20, 5))
+                    for i, node in enumerate(columns):
+                        cpd = model.get_cpds(node)
+                        sns.heatmap(cpd.values, annot=True, cmap='YlGnBu', ax=axes[i])
+                        axes[i].set_title(f'CPD for {node}')
+                    plt.tight_layout()
+                    return fig, axes
+
+                result_cpd = self.generate_plot(plot_cpd_heatmap)
+                if result_cpd is not None:
+                    fig_cpd, _ = result_cpd
+                    img_path_cpd = os.path.join(self.output_folder, f"{table_name}_bayesian_network_cpd.png")
+                    plt.savefig(img_path_cpd, dpi=100, bbox_inches='tight')
+                    plt.close(fig_cpd)
+                    image_paths.append(img_path_cpd)
             else:
                 print("Skipping Bayesian Network plot due to error in plot generation.")
         else:
             print("Not enough suitable columns for Bayesian Network analysis.")
+        self.interpret_results("Bayesian Networks", {'image_paths': image_paths}, table_name)
 
     def isolation_forest(self, df, table_name):
         
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Isolation Forest"))
+        image_paths = []
         
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
         if len(numerical_columns) >= 2:
@@ -539,15 +556,18 @@ class AdvancedExploratoryDataAnalysisB3:
                 img_path = os.path.join(self.output_folder, f"{table_name}_isolation_forest.png")
                 plt.savefig(img_path, dpi=100, bbox_inches='tight')
                 plt.close(fig)
-                self.interpret_results("Isolation Forest", img_path, table_name)
+                image_paths.append(img_path)
+                
             else:
                 print("Skipping Isolation Forest plot due to error in plot generation.")
         else:
             print("Not enough numerical columns for Isolation Forest analysis.")
+        self.interpret_results("Isolation Forest", {'image_paths': image_paths}, table_name)
 
     def one_class_svm(self, df, table_name):
         
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - One-Class SVM"))
+        image_paths = []
         
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
         if len(numerical_columns) >= 2:
@@ -577,16 +597,19 @@ class AdvancedExploratoryDataAnalysisB3:
                 img_path = os.path.join(self.output_folder, f"{table_name}_one_class_svm.png")
                 plt.savefig(img_path, dpi=100, bbox_inches='tight')
                 plt.close(fig)
-                self.interpret_results("One-Class SVM", img_path, table_name)
+                image_paths.append(img_path)
+                
             else:
                 print("Skipping One-Class SVM plot due to error in plot generation.")
         else:
             print("Not enough numerical columns for One-Class SVM analysis.")
+        self.interpret_results("One-Class SVM", {'image_paths': image_paths}, table_name)
 
 
     def local_outlier_factor(self, df, table_name):
         
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Local Outlier Factor (LOF)"))
+        image_paths = []
         
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
         if len(numerical_columns) >= 2:
@@ -615,15 +638,18 @@ class AdvancedExploratoryDataAnalysisB3:
                 img_path = os.path.join(self.output_folder, f"{table_name}_local_outlier_factor.png")
                 plt.savefig(img_path, dpi=100, bbox_inches='tight')
                 plt.close(fig)
-                self.interpret_results("Local Outlier Factor (LOF)", img_path, table_name)
+                image_paths.append(img_path)
+                
             else:
                 print("Skipping Local Outlier Factor plot due to error in plot generation.")
         else:
             print("Not enough numerical columns for Local Outlier Factor analysis.")
+        self.interpret_results("Local Outlier Factor (LOF)", {'image_paths': image_paths}, table_name)
 
     def robust_pca(self, df, table_name):
         
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Robust Principal Component Analysis (RPCA)"))
+        image_paths = []
         
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
         if len(numerical_columns) >= 2:
@@ -662,15 +688,18 @@ class AdvancedExploratoryDataAnalysisB3:
                 img_path = os.path.join(self.output_folder, f"{table_name}_robust_pca.png")
                 plt.savefig(img_path, dpi=100, bbox_inches='tight')
                 plt.close(fig)
-                self.interpret_results("Robust Principal Component Analysis (RPCA)", img_path, table_name)
+                image_paths.append(img_path)
             else:
                 print("Skipping Robust PCA plot due to error in plot generation.")
         else:
             print("Not enough numerical columns for Robust PCA analysis.")
+        self.interpret_results("Robust Principal Component Analysis (RPCA)", {'image_paths': image_paths}, table_name)
+
 
     def bayesian_change_point_detection(self, df, table_name):
         
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Bayesian Change Point Detection"))
+        image_paths = []
         
         date_columns = df.select_dtypes(include=['datetime64']).columns
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
@@ -704,15 +733,17 @@ class AdvancedExploratoryDataAnalysisB3:
                 img_path = os.path.join(self.output_folder, f"{table_name}_change_point_detection.png")
                 plt.savefig(img_path, dpi=100, bbox_inches='tight')
                 plt.close(fig)
-                self.interpret_results("Bayesian Change Point Detection", img_path, table_name)
+                image_paths.append(img_path)
+                
             else:
                 print("Skipping Change Point Detection plot due to error in plot generation.")
         else:
             print("No suitable date and numerical columns found for Change Point Detection.")
+        self.interpret_results("Bayesian Change Point Detection", {'image_paths': image_paths}, table_name)
 
     def hidden_markov_models(self, df, table_name):
-        
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Hidden Markov Models (HMMs)"))
+        image_paths = []
         
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
         if len(numerical_columns) > 0:
@@ -726,16 +757,25 @@ class AdvancedExploratoryDataAnalysisB3:
                 # Predict hidden states
                 hidden_states = model.predict(X)
                 
-                fig, ax = plt.subplots(figsize=self.calculate_figure_size())
+                fig, (ax1, ax2) = plt.subplots(1, 2, figsize=self.calculate_figure_size())
+                
+                # Plot states
                 for i in range(model.n_components):
                     idx = (hidden_states == i)
-                    ax.plot(X[idx, 0], X[idx, 1], 'o', label=f'State {i}')
-                ax.legend()
-                ax.set_title('Hidden Markov Model States')
-                ax.set_xlabel(numerical_columns[0])
-                ax.set_ylabel(numerical_columns[1])
+                    ax1.plot(X[idx, 0], X[idx, 1], 'o', label=f'State {i}')
+                ax1.legend()
+                ax1.set_title('Hidden Markov Model States')
+                ax1.set_xlabel(numerical_columns[0])
+                ax1.set_ylabel(numerical_columns[1])
+                
+                # Plot state sequence
+                ax2.plot(hidden_states)
+                ax2.set_title('Hidden State Sequence')
+                ax2.set_xlabel('Time')
+                ax2.set_ylabel('Hidden State')
+                
                 plt.tight_layout()
-                return fig, ax
+                return fig, (ax1, ax2)
 
             result = self.generate_plot(plot_hmm)
             if result is not None:
@@ -743,14 +783,32 @@ class AdvancedExploratoryDataAnalysisB3:
                 img_path = os.path.join(self.output_folder, f"{table_name}_hidden_markov_model.png")
                 plt.savefig(img_path, dpi=100, bbox_inches='tight')
                 plt.close(fig)
-                self.interpret_results("Hidden Markov Models (HMMs)", img_path, table_name)
+                image_paths.append(img_path)
+                
+                # Add transition matrix heatmap
+                def plot_transition_matrix():
+                    fig, ax = plt.subplots(figsize=self.calculate_figure_size())
+                    sns.heatmap(model.transmat_, annot=True, cmap='YlGnBu', ax=ax)
+                    ax.set_title('HMM Transition Matrix')
+                    plt.tight_layout()
+                    return fig, ax
+
+                result_transition = self.generate_plot(plot_transition_matrix)
+                if result_transition is not None:
+                    fig_transition, _ = result_transition
+                    img_path_transition = os.path.join(self.output_folder, f"{table_name}_hmm_transition_matrix.png")
+                    plt.savefig(img_path_transition, dpi=100, bbox_inches='tight')
+                    plt.close(fig_transition)
+                    image_paths.append(img_path_transition)
             else:
                 print("Skipping Hidden Markov Model plot due to error in plot generation.")
         else:
             print("Not enough numerical columns for Hidden Markov Model analysis.")
+        self.interpret_results("Hidden Markov Models (HMMs)", {'image_paths': image_paths}, table_name)
 
     def dynamic_time_warping(self, df, table_name):
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Dynamic Time Warping (DTW)"))
+        image_paths = []
         
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
         
@@ -799,69 +857,89 @@ class AdvancedExploratoryDataAnalysisB3:
                 img_path = os.path.join(self.output_folder, f"{table_name}_dynamic_time_warping.png")
                 plt.savefig(img_path, dpi=100, bbox_inches='tight')
                 plt.close(fig)
-                self.interpret_results("Dynamic Time Warping (DTW)", img_path, table_name)
+                image_paths.append(img_path)
+                
             else:
                 print("Skipping Dynamic Time Warping plot due to error in plot generation.")
         else:
             print("Not enough numerical columns for Dynamic Time Warping analysis.")
+        self.interpret_results("Dynamic Time Warping (DTW)", {'image_paths': image_paths}, table_name)
 
     def interpret_results(self, analysis_type, results, table_name):
-        if isinstance(results, dict):
-            results_str = "\n".join([f"{k}: {v}" for k, v in results.items()])
-        elif isinstance(results, list):
-            results_str = "\n".join([str(item) for item in results])
+        if isinstance(results, dict) and "Numeric Statistics" in results:
+            numeric_stats = results["Numeric Statistics"]
+            categorical_stats = results["Categorical Statistics"]
+        
+            numeric_table = "| Statistic | " + " | ".join(numeric_stats.keys()) + " |\n"
+            numeric_table += "| --- | " + " | ".join(["---" for _ in numeric_stats.keys()]) + " |\n"
+            for stat in numeric_stats[list(numeric_stats.keys())[0]].keys():
+                numeric_table += f"| {stat} | " + " | ".join([f"{numeric_stats[col][stat]:.2f}" for col in numeric_stats.keys()]) + " |\n"
+            
+            categorical_summary = "\n".join([f"{col}:\n" + "\n".join([f"  - {value}: {count}" for value, count in stats.items()]) for col, stats in categorical_stats.items()])
+            
+            results_str = f"Numeric Statistics:\n{numeric_table}\n\nCategorical Statistics:\n{categorical_summary}"
+        elif isinstance(results, pd.DataFrame):
+            results_str = f"DataFrame with shape {results.shape}:\n{results.to_string()}"
+        elif isinstance(results, dict):
+            results_str = "\n".join([f"{k}: {v}" for k, v in results.items() if k != 'image_paths'])
         else:
             results_str = str(results)
 
         prompt = f"""
+        You are an expert data analyst providing insights on exploratory data analysis results. Your task is to interpret the following analysis results and provide a detailed, data-driven interpretation.
+
         Analysis type: {analysis_type}
         Table name: {table_name}
         Results:
         {results_str}
 
-        Please provide a detailed interpretation of these results, highlighting any noteworthy patterns, anomalies, or insights. Focus on the most important aspects that would be valuable for data analysis.
+        Please provide a thorough interpretation of these results, highlighting noteworthy patterns, anomalies, or insights. Focus on the most important aspects that would be valuable for data analysis. Always provide specific numbers and percentages when discussing findings.
+
+        If some data appears to be missing or incomplete, work with the available information without mentioning the limitations. Your goal is to extract as much insight as possible from the given data.
 
         Structure your response in the following format:
 
         1. Analysis:
-        [Provide a detailed description of the analysis performed]
+        [Provide a detailed description of the analysis performed, including specific metrics and their values]
 
-        2. Positive Findings:
-        [List any positive findings, or state "No significant positive findings" if none]
+        2. Key Findings:
+        [List the most important discoveries, always including relevant numbers and percentages]
 
-        3. Negative Findings:
-        [List any negative findings, or state "No significant negative findings" if none]
+        3. Implications:
+        [Discuss the potential impact of these findings on business decisions or further analyses]
 
-        4. Conclusion:
-        [Summarize the key takeaways and implications of this analysis]
+        4. Recommendations:
+        [Suggest next steps or areas for deeper investigation based on these results]
 
-        If there are no significant findings, state "No significant findings" in the appropriate sections and briefly explain why.
+        Ensure your interpretation is concise yet comprehensive, focusing on actionable insights derived from the data.
 
         Interpretation:
         """
-        interpretation = self.worker_erag_api.chat([{"role": "system", "content": "You are a data analyst providing insights on advanced exploratory data analysis results. Respond in the requested format."}, 
+        interpretation = self.worker_erag_api.chat([{"role": "system", "content": "You are an expert data analyst providing insights on exploratory data analysis results. Respond in the requested format."}, 
                                                     {"role": "user", "content": prompt}])
         
-        # Second LLM call to review and enhance the interpretation
+        # Updated supervisor prompt
         check_prompt = f"""
-        Original data and analysis type:
+        As a senior data analyst, review and enhance the following interpretation of exploratory data analysis results. The original data and analysis type are:
+
         {prompt}
 
         Previous interpretation:
         {interpretation}
 
-        Please review and improve the above interpretation. Ensure it accurately reflects the original data and analysis type. Enhance the text by:
-        1. Verifying the accuracy of the interpretation against the original data.
-        2. Ensuring the structure (Analysis, Positive Findings, Negative Findings, Conclusion) is maintained.
-        3. Making the interpretation more narrative and detailed by adding context and explanations.
-        4. Addressing any important aspects of the data that weren't covered.
+        Improve this interpretation by:
+        1. Ensuring all statements are backed by specific data points, numbers, or percentages from the original results.
+        2. Removing any vague statements and replacing them with precise, data-driven observations.
+        3. Adding any critical insights that may have been overlooked, always referencing specific data.
+        4. Strengthening the implications and recommendations sections with concrete, actionable suggestions based on the data.
 
-        Provide your response in the same format, maintaining the original structure. 
-        Do not add comments, questions, or explanations about the changes - simply provide the improved version.
+        Provide your enhanced interpretation in the same format (Analysis, Key Findings, Implications, Recommendations). Do not list your changes or repeat the original interpretation. Simply provide the improved version, focusing on clarity, specificity, and actionable insights.
+
+        Enhanced Interpretation:
         """
 
         enhanced_interpretation = self.supervisor_erag_api.chat([
-            {"role": "system", "content": "You are a data analyst improving interpretations of advanced exploratory data analysis results. Provide direct enhancements without adding meta-comments or detailing the changes done."},
+            {"role": "system", "content": "You are a senior data analyst improving interpretations of exploratory data analysis results. Provide direct enhancements without meta-comments."},
             {"role": "user", "content": check_prompt}
         ])
 
@@ -870,26 +948,31 @@ class AdvancedExploratoryDataAnalysisB3:
         
         self.text_output += f"\n{enhanced_interpretation.strip()}\n\n"
         
-        # Handle images
+         # Handle images
         image_data = []
-        if isinstance(results, str) and results.endswith(('.png', '.jpg', '.jpeg', '.gif')):
-            image_data.append((f"{analysis_type}", results))
+        if isinstance(results, dict) and 'image_paths' in results:
+            for img in results['image_paths']:
+                if isinstance(img, tuple) and len(img) == 2:
+                    image_data.append(img)
+                elif isinstance(img, str):
+                    image_data.append((analysis_type, img))
         
         self.pdf_content.append((analysis_type, image_data, enhanced_interpretation.strip()))
         
         # Extract important findings
         lines = enhanced_interpretation.strip().split('\n')
         for i, line in enumerate(lines):
-            if line.startswith("2. Positive Findings:") or line.startswith("3. Negative Findings:"):
+            if line.startswith("2. Key Findings:"):
                 for finding in lines[i+1:]:
-                    if finding.strip() and not finding.startswith(("2.", "3.", "4.")):
+                    if finding.strip() and not finding.startswith(("3.", "4.")):
                         self.findings.append(f"{analysis_type}: {finding.strip()}")
-                    elif finding.startswith(("2.", "3.", "4.")):
+                    elif finding.startswith(("3.", "4.")):
                         break
 
         # Update self.image_data
         self.image_data.extend(image_data)
 
+    
     def generate_executive_summary(self):
         if not self.findings:
             self.executive_summary = "No significant findings were identified during the analysis. This could be due to a lack of data, uniform data distribution, or absence of notable patterns or anomalies in the dataset."
@@ -900,7 +983,7 @@ class AdvancedExploratoryDataAnalysisB3:
         failed_techniques = self.total_techniques - successful_techniques
 
         summary_prompt = f"""
-        Based on the following findings from the {'Advanced ' if 'Advanced' in self.__class__.__name__ else ''}Exploratory Data Analysis:
+        Based on the following findings from the Exploratory Data Analysis:
         
         {self.findings}
         
@@ -909,7 +992,7 @@ class AdvancedExploratoryDataAnalysisB3:
         - {failed_techniques} techniques encountered errors and were skipped.
         
         Please provide an executive summary of the analysis. The summary should:
-        1. Briefly introduce the purpose of the {'advanced ' if 'Advanced' in self.__class__.__name__ else ''}analysis.
+        1. Briefly introduce the purpose of the analysis.
         2. Mention the number of successful and failed techniques.
         3. Highlight the most significant insights and patterns discovered.
         4. Mention any potential issues or areas that require further investigation.
@@ -922,7 +1005,7 @@ class AdvancedExploratoryDataAnalysisB3:
         
         try:
             interpretation = self.worker_erag_api.chat([
-                {"role": "system", "content": f"You are a data analyst providing an executive summary of an {'advanced ' if 'Advanced' in self.__class__.__name__ else ''}exploratory data analysis. Respond in plain text format."},
+                {"role": "system", "content": "You are a data analyst providing an executive summary of an exploratory data analysis. Respond in plain text format."},
                 {"role": "user", "content": summary_prompt}
             ])
             
@@ -944,7 +1027,7 @@ class AdvancedExploratoryDataAnalysisB3:
                 """
 
                 enhanced_summary = self.supervisor_erag_api.chat([
-                    {"role": "system", "content": f"You are a data analyst improving an executive summary of an {'advanced ' if 'Advanced' in self.__class__.__name__ else ''}exploratory data analysis. Provide direct enhancements without adding meta-comments."},
+                    {"role": "system", "content": "You are a data analyst improving an executive summary of an exploratory data analysis. Provide direct enhancements without adding meta-comments."},
                     {"role": "user", "content": check_prompt}
                 ])
 
@@ -965,15 +1048,33 @@ class AdvancedExploratoryDataAnalysisB3:
 
     def generate_pdf_report(self):
         report_title = f"Advanced Exploratory Data Analysis (Batch 3) Report for {self.table_name}"
+        
+        # Ensure all image data is in the correct format
+        formatted_image_data = []
+        for item in self.pdf_content:
+            analysis_type, images, interpretation = item
+            if isinstance(images, list):
+                for image in images:
+                    if isinstance(image, tuple) and len(image) == 2:
+                        formatted_image_data.append(image)
+                    elif isinstance(image, str):
+                        # If it's just a string (path), use the analysis type as the title
+                        formatted_image_data.append((analysis_type, image))
+            elif isinstance(images, str):
+                # If it's just a string (path), use the analysis type as the title
+                formatted_image_data.append((analysis_type, images))
+        
         pdf_file = self.pdf_generator.create_enhanced_pdf_report(
             self.executive_summary,
             self.findings,
             self.pdf_content,
-            self.image_data,
-            filename=f"axda_b3_{self.table_name}_report",
+            formatted_image_data,  # Use the formatted image data
+            filename=f"axda_b1_{self.table_name}_report",
             report_title=report_title
         )
         if pdf_file:
             print(success(f"PDF report generated successfully: {pdf_file}"))
+            return pdf_file
         else:
             print(error("Failed to generate PDF report"))
+            return None

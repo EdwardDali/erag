@@ -1362,40 +1362,16 @@ class ERAGGUI:
             worker_erag_api = create_erag_api(api_type, worker_model)
             supervisor_erag_api = create_erag_api(api_type, supervisor_model)
             
-            # Create AdvancedExploratoryDataAnalysisB2 instance with both APIs
+            # Create AdvancedExploratoryDataAnalysisB1 instance with both APIs
             axda_b2 = AdvancedExploratoryDataAnalysisB2(worker_erag_api, supervisor_erag_api, db_path)
             
-            # Get available tables
-            tables = axda_b2.get_tables()
-            
-            if not tables:
-                messagebox.showwarning("Warning", "No tables found in the database.")
-                return
-            
-            # Present table choices to the user in the console
-            print(info("Available tables:"))
-            for i, table in enumerate(tables, 1):
-                print(f"{i}. {table}")
-            
-            # Ask user to choose a table
-            while True:
-                try:
-                    choice = int(input("Enter the number of the table you want to analyze: "))
-                    if 1 <= choice <= len(tables):
-                        selected_table = tables[choice - 1]
-                        break
-                    else:
-                        print(error("Invalid choice. Please enter a number from the list."))
-                except ValueError:
-                    print(error("Invalid input. Please enter a number."))
-            
-            # Apply settings to A-XDA-B2
+            # Apply settings to A-XDA-B1
             settings.apply_settings()
             
             # Run A-XDA-B2 in a separate thread to keep the GUI responsive
-            threading.Thread(target=self.run_axda_b2_thread, args=(axda_b2, selected_table), daemon=True).start()
+            threading.Thread(target=self.run_axda_b2_thread, args=(axda_b2,), daemon=True).start()
             
-            output_folder = os.path.join(os.path.dirname(db_path), "axda_b2_output")
+            output_folder = os.path.join(os.path.dirname(db_path), "axda_b1_output")
             
             # Create an informative message about the Worker-Supervisor Model architecture
             architecture_info = (
@@ -1408,7 +1384,7 @@ class ERAGGUI:
             
             messagebox.showinfo("A-XDA-B2 Process Started", 
                                 f"{architecture_info}\n\n"
-                                f"Advanced Exploratory Data Analysis (Batch 2) started on table '{selected_table}' in {os.path.basename(db_path)}.\n"
+                                f"Advanced Exploratory Data Analysis (Batch 2) started on the selected database {os.path.basename(db_path)}.\n"
                                 f"Check the console for progress updates and AI interpretations.\n"
                                 f"Results will be saved in {output_folder}")
         except Exception as e:
@@ -1519,35 +1495,11 @@ class ERAGGUI:
             # Create AdvancedExploratoryDataAnalysisB3 instance with both APIs
             axda_b3 = AdvancedExploratoryDataAnalysisB3(worker_erag_api, supervisor_erag_api, db_path)
             
-            # Get available tables
-            tables = axda_b3.get_tables()
-            
-            if not tables:
-                messagebox.showwarning("Warning", "No tables found in the database.")
-                return
-            
-            # Present table choices to the user in the console
-            print(info("Available tables:"))
-            for i, table in enumerate(tables, 1):
-                print(f"{i}. {table}")
-            
-            # Ask user to choose a table
-            while True:
-                try:
-                    choice = int(input("Enter the number of the table you want to analyze: "))
-                    if 1 <= choice <= len(tables):
-                        selected_table = tables[choice - 1]
-                        break
-                    else:
-                        print(error("Invalid choice. Please enter a number from the list."))
-                except ValueError:
-                    print(error("Invalid input. Please enter a number."))
-            
             # Apply settings to A-XDA-B3
             settings.apply_settings()
             
             # Run A-XDA-B3 in a separate thread to keep the GUI responsive
-            threading.Thread(target=self.run_axda_b3_thread, args=(axda_b3, selected_table), daemon=True).start()
+            threading.Thread(target=self.run_axda_b3_thread, args=(axda_b3,), daemon=True).start()
             
             output_folder = os.path.join(os.path.dirname(db_path), "axda_b3_output")
             
@@ -1562,7 +1514,7 @@ class ERAGGUI:
             
             messagebox.showinfo("A-XDA-B3 Process Started", 
                                 f"{architecture_info}\n\n"
-                                f"Advanced Exploratory Data Analysis (Batch 3) started on table '{selected_table}' in {os.path.basename(db_path)}.\n"
+                                f"Advanced Exploratory Data Analysis (Batch 3) started on the selected database {os.path.basename(db_path)}.\n"
                                 f"Check the console for progress updates and AI interpretations.\n"
                                 f"Results will be saved in {output_folder}")
         except Exception as e:
@@ -1605,38 +1557,13 @@ class ERAGGUI:
             supervisor_erag_api = create_erag_api(api_type, supervisor_model)
             
             # Create AdvancedExploratoryDataAnalysisB4 instance with both APIs
-            from src.ax_da_b4 import AdvancedExploratoryDataAnalysisB4
             axda_b4 = AdvancedExploratoryDataAnalysisB4(worker_erag_api, supervisor_erag_api, db_path)
-            
-            # Get available tables
-            tables = axda_b4.get_tables()
-            
-            if not tables:
-                messagebox.showwarning("Warning", "No tables found in the database.")
-                return
-            
-            # Present table choices to the user in the console
-            print(info("Available tables:"))
-            for i, table in enumerate(tables, 1):
-                print(f"{i}. {table}")
-            
-            # Ask user to choose a table
-            while True:
-                try:
-                    choice = int(input("Enter the number of the table you want to analyze: "))
-                    if 1 <= choice <= len(tables):
-                        selected_table = tables[choice - 1]
-                        break
-                    else:
-                        print(error("Invalid choice. Please enter a number from the list."))
-                except ValueError:
-                    print(error("Invalid input. Please enter a number."))
             
             # Apply settings to A-XDA-B4
             settings.apply_settings()
             
             # Run A-XDA-B4 in a separate thread to keep the GUI responsive
-            threading.Thread(target=self.run_axda_b4_thread, args=(axda_b4, selected_table), daemon=True).start()
+            threading.Thread(target=self.run_axda_b4_thread, args=(axda_b4,), daemon=True).start()
             
             output_folder = os.path.join(os.path.dirname(db_path), "axda_b4_output")
             
@@ -1651,7 +1578,7 @@ class ERAGGUI:
             
             messagebox.showinfo("A-XDA-B4 Process Started", 
                                 f"{architecture_info}\n\n"
-                                f"Advanced Exploratory Data Analysis (Batch 4) started on table '{selected_table}' in {os.path.basename(db_path)}.\n"
+                                f"Advanced Exploratory Data Analysis (Batch 4) started on the selected database {os.path.basename(db_path)}.\n"
                                 f"Check the console for progress updates and AI interpretations.\n"
                                 f"Results will be saved in {output_folder}")
         except Exception as e:
@@ -1675,7 +1602,6 @@ class ERAGGUI:
             print(error(error_message))
             messagebox.showerror("Error", error_message)
 
-
     def run_axda_b5(self):
         try:
             db_path = filedialog.askopenfilename(
@@ -1697,35 +1623,11 @@ class ERAGGUI:
             # Create AdvancedExploratoryDataAnalysisB5 instance with both APIs
             axda_b5 = AdvancedExploratoryDataAnalysisB5(worker_erag_api, supervisor_erag_api, db_path)
             
-            # Get available tables
-            tables = axda_b5.get_tables()
-            
-            if not tables:
-                messagebox.showwarning("Warning", "No tables found in the database.")
-                return
-            
-            # Present table choices to the user in the console
-            print(info("Available tables:"))
-            for i, table in enumerate(tables, 1):
-                print(f"{i}. {table}")
-            
-            # Ask user to choose a table
-            while True:
-                try:
-                    choice = int(input("Enter the number of the table you want to analyze: "))
-                    if 1 <= choice <= len(tables):
-                        selected_table = tables[choice - 1]
-                        break
-                    else:
-                        print(error("Invalid choice. Please enter a number from the list."))
-                except ValueError:
-                    print(error("Invalid input. Please enter a number."))
-            
             # Apply settings to A-XDA-B5
             settings.apply_settings()
             
             # Run A-XDA-B5 in a separate thread to keep the GUI responsive
-            threading.Thread(target=self.run_axda_b5_thread, args=(axda_b5, selected_table), daemon=True).start()
+            threading.Thread(target=self.run_axda_b5_thread, args=(axda_b5,), daemon=True).start()
             
             output_folder = os.path.join(os.path.dirname(db_path), "axda_b5_output")
             
@@ -1740,7 +1642,7 @@ class ERAGGUI:
             
             messagebox.showinfo("A-XDA-B5 Process Started", 
                                 f"{architecture_info}\n\n"
-                                f"Advanced Exploratory Data Analysis (Batch 5) started on table '{selected_table}' in {os.path.basename(db_path)}.\n"
+                                f"Advanced Exploratory Data Analysis (Batch 5) started on the selected database {os.path.basename(db_path)}.\n"
                                 f"Check the console for progress updates and AI interpretations.\n"
                                 f"Results will be saved in {output_folder}")
         except Exception as e:

@@ -91,6 +91,22 @@ class AdvancedExploratoryDataAnalysisB5:
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
             return [table[0] for table in cursor.fetchall()]
 
+    def run(self):
+        print(info(f"Starting Advanced Exploratory Data Analysis (Batch5) on {self.db_path}"))
+        
+        tables = self.get_tables()
+        for table in tables:
+            self.analyze_table(table)
+        
+        print(info("Generating Executive Summary..."))
+        self.generate_executive_summary()
+        
+        self.save_text_output()
+        self.generate_pdf_report()
+        print(success(f"Advanced Exploratory Data Analysis (Batch5) completed. Results saved in {self.output_folder}"))
+
+
+
     def analyze_table(self, table_name):
         self.table_name = table_name
         self.output_folder = os.path.join(settings.output_folder, f"axda_b5_{self.table_name}")
@@ -134,6 +150,7 @@ class AdvancedExploratoryDataAnalysisB5:
 
     def cooks_distance_analysis(self, df, table_name):
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Cook's Distance Analysis"))
+        image_paths = []
         
         numeric_cols = df.select_dtypes(include=[np.number]).columns
         if len(numeric_cols) < 2:
@@ -162,22 +179,22 @@ class AdvancedExploratoryDataAnalysisB5:
             img_path = os.path.join(self.output_folder, f"{table_name}_cooks_distance.png")
             plt.savefig(img_path, dpi=100, bbox_inches='tight')
             plt.close(fig)
+            image_paths.append(img_path)
             
             threshold = 4 / len(df)
             influential_points = np.where(cooks_d > threshold)[0]
             
-            results = {
-                'image_path': img_path,
+            self.interpret_results("Cook's Distance Analysis", {
+                'image_paths': image_paths,
                 'influential_points': influential_points.tolist(),
                 'threshold': threshold
-            }
-            
-            self.interpret_results("Cook's Distance Analysis", results, table_name)
+            }, table_name)
         else:
             print("Skipping Cook's Distance plot due to timeout.")
 
     def stl_decomposition_analysis(self, df, table_name):
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - STL Decomposition Analysis"))
+        image_paths = []
         
         date_cols = df.select_dtypes(include=['datetime64']).columns
         numeric_cols = df.select_dtypes(include=[np.number]).columns
@@ -214,19 +231,19 @@ class AdvancedExploratoryDataAnalysisB5:
             img_path = os.path.join(self.output_folder, f"{table_name}_stl_decomposition.png")
             plt.savefig(img_path, dpi=100, bbox_inches='tight')
             plt.close(fig)
+            image_paths.append(img_path)
             
-            results = {
-                'image_path': img_path,
+            self.interpret_results("STL Decomposition Analysis", {
+                'image_paths': image_paths,
                 'trend_strength': 1 - np.var(result.resid) / np.var(result.trend + result.resid),
                 'seasonal_strength': 1 - np.var(result.resid) / np.var(result.seasonal + result.resid)
-            }
-            
-            self.interpret_results("STL Decomposition Analysis", results, table_name)
+            }, table_name)
         else:
             print("Skipping STL Decomposition plot due to timeout.")
 
     def hampel_filter_analysis(self, df, table_name):
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Hampel Filter Analysis"))
+        image_paths = []
         
         numeric_cols = df.select_dtypes(include=[np.number]).columns
         if len(numeric_cols) == 0:
@@ -257,19 +274,24 @@ class AdvancedExploratoryDataAnalysisB5:
                 img_path = os.path.join(self.output_folder, f"{table_name}_{col}_hampel_filter.png")
                 plt.savefig(img_path, dpi=100, bbox_inches='tight')
                 plt.close(fig)
+                image_paths.append(img_path)
                 
                 results[col] = {
-                    'image_path': img_path,
                     'outliers_count': outliers.sum(),
                     'outliers_percentage': (outliers.sum() / len(series)) * 100
                 }
             else:
                 print(f"Skipping Hampel Filter plot for {col} due to timeout.")
         
-        self.interpret_results("Hampel Filter Analysis", results, table_name)
+        self.interpret_results("Hampel Filter Analysis", {
+            'image_paths': image_paths,
+            'results': results
+        }, table_name)
+
 
     def gesd_test_analysis(self, df, table_name):
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - GESD Test Analysis"))
+        image_paths = []
         
         numeric_cols = df.select_dtypes(include=[np.number]).columns
         results = {}
@@ -307,11 +329,37 @@ class AdvancedExploratoryDataAnalysisB5:
             
             outliers = gesd_test(data.values)
             results[col] = outliers
+
+            def plot_gesd():
+                fig, ax = plt.subplots(figsize=self.calculate_figure_size())
+                ax.plot(df.index, df[col], label='Original Data')
+                outlier_indices = [idx for idx, _ in outliers]
+                outlier_values = [val for _, val in outliers]
+                ax.scatter(df.index[outlier_indices], outlier_values, color='red', label='Outliers')
+                ax.set_title(f'GESD Test Outliers - {col}')
+                ax.set_xlabel('Index')
+                ax.set_ylabel('Value')
+                ax.legend()
+                return fig, ax
+
+            result = self.generate_plot(plot_gesd)
+            if result is not None:
+                fig, ax = result
+                img_path = os.path.join(self.output_folder, f"{table_name}_{col}_gesd_test.png")
+                plt.savefig(img_path, dpi=100, bbox_inches='tight')
+                plt.close(fig)
+                image_paths.append(img_path)
+            else:
+                print(f"Skipping GESD Test plot for {col} due to timeout.")
         
-        self.interpret_results("GESD Test Analysis", results, table_name)
+        self.interpret_results("GESD Test Analysis", {
+            'image_paths': image_paths,
+            'results': results
+        }, table_name)
 
     def dixons_q_test_analysis(self, df, table_name):
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Dixon's Q Test Analysis"))
+        image_paths = []
         
         numeric_cols = df.select_dtypes(include=[np.number]).columns
         results = {}
@@ -349,11 +397,38 @@ class AdvancedExploratoryDataAnalysisB5:
             
             low_outlier, high_outlier = dixon_q_test(data.values)
             results[col] = {'low_outlier': low_outlier, 'high_outlier': high_outlier}
+
+            def plot_dixon_q():
+                fig, ax = plt.subplots(figsize=self.calculate_figure_size())
+                ax.plot(range(len(data)), data, 'bo-')
+                if low_outlier is not None:
+                    ax.plot(0, low_outlier, 'ro', markersize=10, label='Low Outlier')
+                if high_outlier is not None:
+                    ax.plot(len(data)-1, high_outlier, 'go', markersize=10, label='High Outlier')
+                ax.set_title(f"Dixon's Q Test - {col}")
+                ax.set_xlabel('Sorted Data Index')
+                ax.set_ylabel('Value')
+                ax.legend()
+                return fig, ax
+
+            result = self.generate_plot(plot_dixon_q)
+            if result is not None:
+                fig, ax = result
+                img_path = os.path.join(self.output_folder, f"{table_name}_{col}_dixon_q_test.png")
+                plt.savefig(img_path, dpi=100, bbox_inches='tight')
+                plt.close(fig)
+                image_paths.append(img_path)
+            else:
+                print(f"Skipping Dixon's Q Test plot for {col} due to timeout.")
         
-        self.interpret_results("Dixon's Q Test Analysis", results, table_name)
+        self.interpret_results("Dixon's Q Test Analysis", {
+            'image_paths': image_paths,
+            'results': results
+        }, table_name)
 
     def peirce_criterion_analysis(self, df, table_name):
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Peirce's Criterion Analysis"))
+        image_paths = []
         
         numeric_cols = df.select_dtypes(include=[np.number]).columns
         results = {}
@@ -380,11 +455,35 @@ class AdvancedExploratoryDataAnalysisB5:
             data = df[col].dropna()
             outliers = peirce_criterion(data.values)
             results[col] = outliers
+
+            def plot_peirce():
+                fig, ax = plt.subplots(figsize=self.calculate_figure_size())
+                ax.plot(df.index, df[col], label='Original Data')
+                ax.scatter(df.index[df[col].isin(outliers)], outliers, color='red', label='Outliers')
+                ax.set_title(f"Peirce's Criterion Outliers - {col}")
+                ax.set_xlabel('Index')
+                ax.set_ylabel('Value')
+                ax.legend()
+                return fig, ax
+
+            result = self.generate_plot(plot_peirce)
+            if result is not None:
+                fig, ax = result
+                img_path = os.path.join(self.output_folder, f"{table_name}_{col}_peirce_criterion.png")
+                plt.savefig(img_path, dpi=100, bbox_inches='tight')
+                plt.close(fig)
+                image_paths.append(img_path)
+            else:
+                print(f"Skipping Peirce's Criterion plot for {col} due to timeout.")
         
-        self.interpret_results("Peirce's Criterion Analysis", results, table_name)
+        self.interpret_results("Peirce's Criterion Analysis", {
+            'image_paths': image_paths,
+            'results': results
+        }, table_name)
 
     def thompson_tau_test_analysis(self, df, table_name):
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Thompson Tau Test Analysis"))
+        image_paths = []
         
         numeric_cols = df.select_dtypes(include=[np.number]).columns
         results = {}
@@ -406,11 +505,35 @@ class AdvancedExploratoryDataAnalysisB5:
             data = df[col].dropna()
             outliers = thompson_tau_test(data.values)
             results[col] = outliers
+
+            def plot_thompson_tau():
+                fig, ax = plt.subplots(figsize=self.calculate_figure_size())
+                ax.plot(df.index, df[col], label='Original Data')
+                ax.scatter(df.index[df[col].isin(outliers)], outliers, color='red', label='Outliers')
+                ax.set_title(f'Thompson Tau Test Outliers - {col}')
+                ax.set_xlabel('Index')
+                ax.set_ylabel('Value')
+                ax.legend()
+                return fig, ax
+
+            result = self.generate_plot(plot_thompson_tau)
+            if result is not None:
+                fig, ax = result
+                img_path = os.path.join(self.output_folder, f"{table_name}_{col}_thompson_tau.png")
+                plt.savefig(img_path, dpi=100, bbox_inches='tight')
+                plt.close(fig)
+                image_paths.append(img_path)
+            else:
+                print(f"Skipping Thompson Tau Test plot for {col} due to timeout.")
         
-        self.interpret_results("Thompson Tau Test Analysis", results, table_name)
+        self.interpret_results("Thompson Tau Test Analysis", {
+            'image_paths': image_paths,
+            'results': results
+        }, table_name)
 
     def control_charts_analysis(self, df, table_name):
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Control Charts Analysis (CUSUM, EWMA)"))
+        image_paths = []
         
         numeric_cols = df.select_dtypes(include=[np.number]).columns
         results = {}
@@ -470,19 +593,23 @@ class AdvancedExploratoryDataAnalysisB5:
                 img_path = os.path.join(self.output_folder, f"{table_name}_{col}_control_charts.png")
                 plt.savefig(img_path, dpi=100, bbox_inches='tight')
                 plt.close(fig)
+                image_paths.append(img_path)
                 
                 results[col] = {
-                    'image_path': img_path,
                     'cusum_out_of_control': np.sum(cusum > cusum_ucl),
                     'ewma_out_of_control': np.sum((ewma > ewma_ucl) | (ewma < ewma_lcl))
                 }
             else:
                 print(f"Skipping control charts for {col} due to timeout.")
         
-        self.interpret_results("Control Charts Analysis (CUSUM, EWMA)", results, table_name)
+        self.interpret_results("Control Charts Analysis (CUSUM, EWMA)", {
+            'image_paths': image_paths,
+            'results': results
+        }, table_name)
 
     def kde_anomaly_detection_analysis(self, df, table_name):
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - KDE Anomaly Detection Analysis"))
+        image_paths = []
         
         numeric_cols = df.select_dtypes(include=[np.number]).columns
         results = {}
@@ -514,19 +641,23 @@ class AdvancedExploratoryDataAnalysisB5:
                 img_path = os.path.join(self.output_folder, f"{table_name}_{col}_kde_anomalies.png")
                 plt.savefig(img_path, dpi=100, bbox_inches='tight')
                 plt.close(fig)
+                image_paths.append(img_path)
                 
                 results[col] = {
-                    'image_path': img_path,
                     'anomalies_count': len(anomalies),
                     'anomalies_percentage': (len(anomalies) / len(data)) * 100
                 }
             else:
                 print(f"Skipping KDE anomaly detection plot for {col} due to timeout.")
         
-        self.interpret_results("KDE Anomaly Detection Analysis", results, table_name)
+        self.interpret_results("KDE Anomaly Detection Analysis", {
+            'image_paths': image_paths,
+            'results': results
+        }, table_name)
 
     def hotellings_t_squared_analysis(self, df, table_name):
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Hotelling's T-squared Analysis"))
+        image_paths = []
         
         numeric_cols = df.select_dtypes(include=[np.number]).columns
         if len(numeric_cols) < 2:
@@ -577,19 +708,23 @@ class AdvancedExploratoryDataAnalysisB5:
             img_path = os.path.join(self.output_folder, f"{table_name}_hotellings_t_squared.png")
             plt.savefig(img_path, dpi=100, bbox_inches='tight')
             plt.close(fig)
+            image_paths.append(img_path)
             
             results = {
-                'image_path': img_path,
                 'outliers_count': len(outliers),
                 'outliers_percentage': (len(outliers) / n) * 100
             }
             
-            self.interpret_results("Hotelling's T-squared Analysis", results, table_name)
+            self.interpret_results("Hotelling's T-squared Analysis", {
+                'image_paths': image_paths,
+                'results': results
+            }, table_name)
         else:
             print("Skipping Hotelling's T-squared plot due to timeout.")
 
     def breakdown_point_analysis(self, df, table_name):
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Breakdown Point Analysis"))
+        image_paths = []
         
         numeric_cols = df.select_dtypes(include=[np.number]).columns
         results = {}
@@ -611,11 +746,39 @@ class AdvancedExploratoryDataAnalysisB5:
                 'bp_median': bp_median,
                 'trimmed_means': dict(zip(trim_levels, trimmed_means))
             }
+
+            def plot_breakdown_point():
+                fig, (ax1, ax2) = plt.subplots(1, 2, figsize=self.calculate_figure_size())
+                ax1.bar(['Mean', 'Median'], [bp_mean, bp_median])
+                ax1.set_title(f'Breakdown Point - {col}')
+                ax1.set_ylabel('Breakdown Point')
+                
+                ax2.plot(trim_levels, trimmed_means, marker='o')
+                ax2.set_title(f'Trimmed Means - {col}')
+                ax2.set_xlabel('Trimming Level')
+                ax2.set_ylabel('Trimmed Mean')
+                
+                plt.tight_layout()
+                return fig, (ax1, ax2)
+
+            result = self.generate_plot(plot_breakdown_point)
+            if result is not None:
+                fig, _ = result
+                img_path = os.path.join(self.output_folder, f"{table_name}_{col}_breakdown_point.png")
+                plt.savefig(img_path, dpi=100, bbox_inches='tight')
+                plt.close(fig)
+                image_paths.append(img_path)
+            else:
+                print(f"Skipping Breakdown Point plot for {col} due to timeout.")
         
-        self.interpret_results("Breakdown Point Analysis", results, table_name)
+        self.interpret_results("Breakdown Point Analysis", {
+            'image_paths': image_paths,
+            'results': results
+        }, table_name)
 
     def chi_square_test_analysis(self, df, table_name):
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Chi-Square Test Analysis"))
+        image_paths = []
         
         categorical_cols = df.select_dtypes(include=['object', 'category']).columns
         results = {}
@@ -632,11 +795,40 @@ class AdvancedExploratoryDataAnalysisB5:
                 'p_value': p_value,
                 'degrees_of_freedom': len(observed) - 1
             }
+
+            def plot_chi_square():
+                fig, ax = plt.subplots(figsize=self.calculate_figure_size())
+                x = np.arange(len(observed))
+                width = 0.35
+                ax.bar(x - width/2, observed, width, label='Observed')
+                ax.bar(x + width/2, expected, width, label='Expected')
+                ax.set_xlabel('Categories')
+                ax.set_ylabel('Frequency')
+                ax.set_title(f'Chi-Square Test - {col}')
+                ax.set_xticks(x)
+                ax.set_xticklabels(observed.index, rotation=45, ha='right')
+                ax.legend()
+                plt.tight_layout()
+                return fig, ax
+
+            result = self.generate_plot(plot_chi_square)
+            if result is not None:
+                fig, _ = result
+                img_path = os.path.join(self.output_folder, f"{table_name}_{col}_chi_square.png")
+                plt.savefig(img_path, dpi=100, bbox_inches='tight')
+                plt.close(fig)
+                image_paths.append(img_path)
+            else:
+                print(f"Skipping Chi-Square Test plot for {col} due to timeout.")
         
-        self.interpret_results("Chi-Square Test Analysis", results, table_name)
+        self.interpret_results("Chi-Square Test Analysis", {
+            'image_paths': image_paths,
+            'results': results
+        }, table_name)
 
     def simple_thresholding_analysis(self, df, table_name):
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Simple Thresholding Analysis"))
+        image_paths = []
         
         numeric_cols = df.select_dtypes(include=[np.number]).columns
         results = {}
@@ -659,11 +851,34 @@ class AdvancedExploratoryDataAnalysisB5:
                 'outliers_count': len(outliers),
                 'outliers_percentage': (len(outliers) / len(data)) * 100
             }
+
+            def plot_simple_thresholding():
+                fig, ax = plt.subplots(figsize=self.calculate_figure_size())
+                ax.boxplot(data)
+                ax.scatter(np.ones(len(outliers)), outliers, color='red', label='Outliers')
+                ax.set_title(f'Simple Thresholding - {col}')
+                ax.set_ylabel('Value')
+                ax.legend()
+                return fig, ax
+
+            result = self.generate_plot(plot_simple_thresholding)
+            if result is not None:
+                fig, _ = result
+                img_path = os.path.join(self.output_folder, f"{table_name}_{col}_simple_thresholding.png")
+                plt.savefig(img_path, dpi=100, bbox_inches='tight')
+                plt.close(fig)
+                image_paths.append(img_path)
+            else:
+                print(f"Skipping Simple Thresholding plot for {col} due to timeout.")
         
-        self.interpret_results("Simple Thresholding Analysis", results, table_name)
+        self.interpret_results("Simple Thresholding Analysis", {
+            'image_paths': image_paths,
+            'results': results
+        }, table_name)
 
     def lilliefors_test_analysis(self, df, table_name):
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Lilliefors Test Analysis"))
+        image_paths = []
         
         numeric_cols = df.select_dtypes(include=[np.number]).columns
         results = {}
@@ -677,11 +892,31 @@ class AdvancedExploratoryDataAnalysisB5:
                 'test_statistic': statistic,
                 'p_value': p_value
             }
+
+            def plot_lilliefors():
+                fig, ax = plt.subplots(figsize=self.calculate_figure_size())
+                stats.probplot(data, dist="norm", plot=ax)
+                ax.set_title(f'Lilliefors Test Q-Q Plot - {col}')
+                return fig, ax
+
+            result = self.generate_plot(plot_lilliefors)
+            if result is not None:
+                fig, _ = result
+                img_path = os.path.join(self.output_folder, f"{table_name}_{col}_lilliefors.png")
+                plt.savefig(img_path, dpi=100, bbox_inches='tight')
+                plt.close(fig)
+                image_paths.append(img_path)
+            else:
+                print(f"Skipping Lilliefors Test plot for {col} due to timeout.")
         
-        self.interpret_results("Lilliefors Test Analysis", results, table_name)
+        self.interpret_results("Lilliefors Test Analysis", {
+            'image_paths': image_paths,
+            'results': results
+        }, table_name)
 
     def jarque_bera_test_analysis(self, df, table_name):
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Jarque-Bera Test Analysis"))
+        image_paths = []
         
         numeric_cols = df.select_dtypes(include=[np.number]).columns
         results = {}
@@ -697,55 +932,108 @@ class AdvancedExploratoryDataAnalysisB5:
                 'skewness': skew,
                 'kurtosis': kurtosis
             }
+
+            def plot_jarque_bera():
+                fig, (ax1, ax2) = plt.subplots(1, 2, figsize=self.calculate_figure_size())
+                sns.histplot(data, kde=True, ax=ax1)
+                ax1.set_title(f'Distribution - {col}')
+                
+                stats.probplot(data, dist="norm", plot=ax2)
+                ax2.set_title(f'Q-Q Plot - {col}')
+                
+                plt.tight_layout()
+                return fig, (ax1, ax2)
+
+            result = self.generate_plot(plot_jarque_bera)
+            if result is not None:
+                fig, _ = result
+                img_path = os.path.join(self.output_folder, f"{table_name}_{col}_jarque_bera.png")
+                plt.savefig(img_path, dpi=100, bbox_inches='tight')
+                plt.close(fig)
+                image_paths.append(img_path)
+            else:
+                print(f"Skipping Jarque-Bera Test plot for {col} due to timeout.")
         
-        self.interpret_results("Jarque-Bera Test Analysis", results, table_name)
+        self.interpret_results("Jarque-Bera Test Analysis", {
+            'image_paths': image_paths,
+            'results': results
+        }, table_name)
 
     def interpret_results(self, analysis_type, results, table_name):
+        if isinstance(results, dict) and "Numeric Statistics" in results:
+            numeric_stats = results["Numeric Statistics"]
+            categorical_stats = results["Categorical Statistics"]
+        
+            numeric_table = "| Statistic | " + " | ".join(numeric_stats.keys()) + " |\n"
+            numeric_table += "| --- | " + " | ".join(["---" for _ in numeric_stats.keys()]) + " |\n"
+            for stat in numeric_stats[list(numeric_stats.keys())[0]].keys():
+                numeric_table += f"| {stat} | " + " | ".join([f"{numeric_stats[col][stat]:.2f}" for col in numeric_stats.keys()]) + " |\n"
+            
+            categorical_summary = "\n".join([f"{col}:\n" + "\n".join([f"  - {value}: {count}" for value, count in stats.items()]) for col, stats in categorical_stats.items()])
+            
+            results_str = f"Numeric Statistics:\n{numeric_table}\n\nCategorical Statistics:\n{categorical_summary}"
+        elif isinstance(results, pd.DataFrame):
+            results_str = f"DataFrame with shape {results.shape}:\n{results.to_string()}"
+        elif isinstance(results, dict):
+            results_str = "\n".join([f"{k}: {v}" for k, v in results.items() if k != 'image_paths'])
+        else:
+            results_str = str(results)
+
         prompt = f"""
+        You are an expert data analyst providing insights on exploratory data analysis results. Your task is to interpret the following analysis results and provide a detailed, data-driven interpretation.
+
         Analysis type: {analysis_type}
         Table name: {table_name}
-        Results: {results}
+        Results:
+        {results_str}
 
-        Please provide a detailed interpretation of these results, highlighting any noteworthy patterns, anomalies, or insights. Focus on the most important aspects that would be valuable for data analysis.
+        Please provide a thorough interpretation of these results, highlighting noteworthy patterns, anomalies, or insights. Focus on the most important aspects that would be valuable for data analysis. Always provide specific numbers and percentages when discussing findings.
+
+        If some data appears to be missing or incomplete, work with the available information without mentioning the limitations. Your goal is to extract as much insight as possible from the given data.
 
         Structure your response in the following format:
 
         1. Analysis:
-        [Provide a detailed description of the analysis performed]
+        [Provide a detailed description of the analysis performed, including specific metrics and their values]
 
-        2. Findings:
-        [List the main findings, both positive and negative]
+        2. Key Findings:
+        [List the most important discoveries, always including relevant numbers and percentages]
 
         3. Implications:
-        [Discuss the implications of these findings for the dataset and potential further analyses]
+        [Discuss the potential impact of these findings on business decisions or further analyses]
 
         4. Recommendations:
-        [Provide recommendations based on the findings]
+        [Suggest next steps or areas for deeper investigation based on these results]
+
+        Ensure your interpretation is concise yet comprehensive, focusing on actionable insights derived from the data.
 
         Interpretation:
         """
-        interpretation = self.worker_erag_api.chat([{"role": "system", "content": "You are a data analyst providing insights on advanced exploratory data analysis results. Respond in the requested format."}, 
+        interpretation = self.worker_erag_api.chat([{"role": "system", "content": "You are an expert data analyst providing insights on exploratory data analysis results. Respond in the requested format."}, 
                                                     {"role": "user", "content": prompt}])
         
+        # Updated supervisor prompt
         check_prompt = f"""
-        Original data and analysis type:
+        As a senior data analyst, review and enhance the following interpretation of exploratory data analysis results. The original data and analysis type are:
+
         {prompt}
 
         Previous interpretation:
         {interpretation}
 
-        Please review and improve the above interpretation. Ensure it accurately reflects the original data and analysis type. Enhance the text by:
-        1. Verifying the accuracy of the interpretation against the original data.
-        2. Ensuring the structure (Analysis, Findings, Implications, Recommendations) is maintained.
-        3. Making the interpretation more narrative and detailed by adding context and explanations.
-        4. Addressing any important aspects of the data that weren't covered.
+        Improve this interpretation by:
+        1. Ensuring all statements are backed by specific data points, numbers, or percentages from the original results.
+        2. Removing any vague statements and replacing them with precise, data-driven observations.
+        3. Adding any critical insights that may have been overlooked, always referencing specific data.
+        4. Strengthening the implications and recommendations sections with concrete, actionable suggestions based on the data.
 
-        Provide your response in the same format, maintaining the original structure. 
-        Do not add comments, questions, or explanations about the changes - simply provide the improved version.
+        Provide your enhanced interpretation in the same format (Analysis, Key Findings, Implications, Recommendations). Do not list your changes or repeat the original interpretation. Simply provide the improved version, focusing on clarity, specificity, and actionable insights.
+
+        Enhanced Interpretation:
         """
 
         enhanced_interpretation = self.supervisor_erag_api.chat([
-            {"role": "system", "content": "You are a data analyst improving interpretations of advanced exploratory data analysis results. Provide direct enhancements without adding meta-comments or detailing the changes done."},
+            {"role": "system", "content": "You are a senior data analyst improving interpretations of exploratory data analysis results. Provide direct enhancements without meta-comments."},
             {"role": "user", "content": check_prompt}
         ])
 
@@ -754,37 +1042,42 @@ class AdvancedExploratoryDataAnalysisB5:
         
         self.text_output += f"\n{enhanced_interpretation.strip()}\n\n"
         
+         # Handle images
         image_data = []
-        if isinstance(results, dict):
-            for key, value in results.items():
-                if isinstance(value, dict) and 'image_path' in value:
-                    image_data.append((f"{analysis_type} - {key}", value['image_path']))
-        elif isinstance(results, str) and results.endswith(('.png', '.jpg', '.jpeg', '.gif')):
-            image_data.append((analysis_type, results))
+        if isinstance(results, dict) and 'image_paths' in results:
+            for img in results['image_paths']:
+                if isinstance(img, tuple) and len(img) == 2:
+                    image_data.append(img)
+                elif isinstance(img, str):
+                    image_data.append((analysis_type, img))
         
         self.pdf_content.append((analysis_type, image_data, enhanced_interpretation.strip()))
         
+        # Extract important findings
         lines = enhanced_interpretation.strip().split('\n')
         for i, line in enumerate(lines):
-            if line.startswith("2. Findings:"):
+            if line.startswith("2. Key Findings:"):
                 for finding in lines[i+1:]:
                     if finding.strip() and not finding.startswith(("3.", "4.")):
                         self.findings.append(f"{analysis_type}: {finding.strip()}")
                     elif finding.startswith(("3.", "4.")):
                         break
 
+        # Update self.image_data
         self.image_data.extend(image_data)
 
+    
     def generate_executive_summary(self):
         if not self.findings:
             self.executive_summary = "No significant findings were identified during the analysis. This could be due to a lack of data, uniform data distribution, or absence of notable patterns or anomalies in the dataset."
             return
 
+        # Count the number of successful techniques
         successful_techniques = sum(1 for item in self.pdf_content if len(item[1]) > 0 or not item[2].startswith("An error occurred"))
         failed_techniques = self.total_techniques - successful_techniques
 
         summary_prompt = f"""
-        Based on the following findings from the Advanced Exploratory Data Analysis (Batch 5):
+        Based on the following findings from the Exploratory Data Analysis:
         
         {self.findings}
         
@@ -793,7 +1086,7 @@ class AdvancedExploratoryDataAnalysisB5:
         - {failed_techniques} techniques encountered errors and were skipped.
         
         Please provide an executive summary of the analysis. The summary should:
-        1. Briefly introduce the purpose of the advanced analysis (Batch 5).
+        1. Briefly introduce the purpose of the analysis.
         2. Mention the number of successful and failed techniques.
         3. Highlight the most significant insights and patterns discovered.
         4. Mention any potential issues or areas that require further investigation.
@@ -806,11 +1099,12 @@ class AdvancedExploratoryDataAnalysisB5:
         
         try:
             interpretation = self.worker_erag_api.chat([
-                {"role": "system", "content": "You are a data analyst providing an executive summary of an advanced exploratory data analysis (Batch 5). Respond in plain text format."},
+                {"role": "system", "content": "You are a data analyst providing an executive summary of an exploratory data analysis. Respond in plain text format."},
                 {"role": "user", "content": summary_prompt}
             ])
             
             if interpretation is not None:
+                # Updated second LLM call to focus on direct improvements
                 check_prompt = f"""
                 Please review and improve the following executive summary:
 
@@ -827,7 +1121,7 @@ class AdvancedExploratoryDataAnalysisB5:
                 """
 
                 enhanced_summary = self.supervisor_erag_api.chat([
-                    {"role": "system", "content": "You are a data analyst improving an executive summary of an advanced exploratory data analysis (Batch 5). Provide direct enhancements without adding meta-comments."},
+                    {"role": "system", "content": "You are a data analyst improving an executive summary of an exploratory data analysis. Provide direct enhancements without adding meta-comments."},
                     {"role": "user", "content": check_prompt}
                 ])
 
@@ -846,14 +1140,33 @@ class AdvancedExploratoryDataAnalysisB5:
         with open(output_file, "w", encoding='utf-8') as f:
             f.write(self.text_output)
 
+    
+
+    
     def generate_pdf_report(self):
         report_title = f"Advanced Exploratory Data Analysis (Batch 5) Report for {self.table_name}"
+        
+        # Ensure all image data is in the correct format
+        formatted_image_data = []
+        for item in self.pdf_content:
+            analysis_type, images, interpretation = item
+            if isinstance(images, list):
+                for image in images:
+                    if isinstance(image, tuple) and len(image) == 2:
+                        formatted_image_data.append(image)
+                    elif isinstance(image, str):
+                        # If it's just a string (path), use the analysis type as the title
+                        formatted_image_data.append((analysis_type, image))
+            elif isinstance(images, str):
+                # If it's just a string (path), use the analysis type as the title
+                formatted_image_data.append((analysis_type, images))
+        
         pdf_file = self.pdf_generator.create_enhanced_pdf_report(
             self.executive_summary,
             self.findings,
             self.pdf_content,
-            self.image_data,
-            filename=f"axda_b5_{self.table_name}_report",
+            formatted_image_data,  # Use the formatted image data
+            filename=f"axda_b1_{self.table_name}_report",
             report_title=report_title
         )
         if pdf_file:
@@ -862,44 +1175,3 @@ class AdvancedExploratoryDataAnalysisB5:
         else:
             print(error("Failed to generate PDF report"))
             return None
-
-    def run(self):
-        print(info(f"Starting Advanced Exploratory Data Analysis (Batch 5) on {self.db_path}"))
-        
-        # Get all tables
-        all_tables = self.get_tables()
-        
-        if not all_tables:
-            print(error("No tables found in the database. Exiting."))
-            return
-        
-        # Present table choices to the user
-        print(info("Available tables:"))
-        for i, table in enumerate(all_tables, 1):
-            print(f"{i}. {table}")
-        
-        # Ask user to choose a table
-        while True:
-            try:
-                choice = int(input("Enter the number of the table you want to analyze: "))
-                if 1 <= choice <= len(all_tables):
-                    selected_table = all_tables[choice - 1]
-                    break
-                else:
-                    print(error("Invalid choice. Please enter a number from the list."))
-            except ValueError:
-                print(error("Invalid input. Please enter a number."))
-        
-        print(info(f"You've selected to analyze the '{selected_table}' table."))
-        
-        # Analyze the selected table
-        self.analyze_table(selected_table)
-            
-        print(info("Generating Executive Summary..."))
-        self.generate_executive_summary()
-        
-        self.save_text_output()
-        pdf_path = self.generate_pdf_report()
-        print(success(f"Advanced Exploratory Data Analysis (Batch 5) completed. Results saved in {self.output_folder}"))
-        return pdf_path
-      

@@ -97,6 +97,22 @@ class AdvancedExploratoryDataAnalysisB4:
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
             return [table[0] for table in cursor.fetchall()]
 
+    def run(self):
+        print(info(f"Starting Advanced Exploratory Data Analysis (Batch4) on {self.db_path}"))
+        
+        tables = self.get_tables()
+        for table in tables:
+            self.analyze_table(table)
+        
+        print(info("Generating Executive Summary..."))
+        self.generate_executive_summary()
+        
+        self.save_text_output()
+        self.generate_pdf_report()
+        print(success(f"Advanced Exploratory Data Analysis (Batch4) completed. Results saved in {self.output_folder}"))
+
+
+
     def analyze_table(self, table_name):
         self.table_name = table_name
         self.output_folder = os.path.join(settings.output_folder, f"axda_b4_{self.table_name}")
@@ -139,6 +155,7 @@ class AdvancedExploratoryDataAnalysisB4:
 
     def matrix_profile(self, df, table_name):
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Matrix Profile"))
+        image_paths = []
         
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
         if len(numerical_columns) > 0:
@@ -165,14 +182,17 @@ class AdvancedExploratoryDataAnalysisB4:
                 img_path = os.path.join(self.output_folder, f"{table_name}_matrix_profile.png")
                 plt.savefig(img_path, dpi=100, bbox_inches='tight')
                 plt.close(fig)
-                self.interpret_results("Matrix Profile", img_path, table_name)
+                image_paths.append(img_path)
+                
             else:
                 print("Skipping Matrix Profile plot due to error in plot generation.")
         else:
             print("No numerical columns found for Matrix Profile analysis.")
+        self.interpret_results("Matrix Profile", {'image_paths': image_paths}, table_name)
 
     def ensemble_anomaly_detection(self, df, table_name):
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Ensemble Anomaly Detection"))
+        image_paths = []
         
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
         if len(numerical_columns) >= 2:
@@ -205,14 +225,17 @@ class AdvancedExploratoryDataAnalysisB4:
                 img_path = os.path.join(self.output_folder, f"{table_name}_ensemble_anomaly_detection.png")
                 plt.savefig(img_path, dpi=100, bbox_inches='tight')
                 plt.close(fig)
-                self.interpret_results("Ensemble Anomaly Detection", img_path, table_name)
+                image_paths.append(img_path)
+                
             else:
                 print("Skipping Ensemble Anomaly Detection plot due to error in plot generation.")
         else:
             print("Not enough numerical columns for Ensemble Anomaly Detection analysis.")
+        self.interpret_results("Ensemble Anomaly Detection", {'image_paths': image_paths}, table_name)
 
     def gaussian_mixture_models(self, df, table_name):
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Gaussian Mixture Models (GMM)"))
+        image_paths = []
         
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
         if len(numerical_columns) >= 2:
@@ -241,14 +264,17 @@ class AdvancedExploratoryDataAnalysisB4:
                 img_path = os.path.join(self.output_folder, f"{table_name}_gmm.png")
                 plt.savefig(img_path, dpi=100, bbox_inches='tight')
                 plt.close(fig)
-                self.interpret_results("Gaussian Mixture Models (GMM)", img_path, table_name)
+                image_paths.append(img_path)
+                
             else:
                 print("Skipping Gaussian Mixture Models plot due to error in plot generation.")
         else:
             print("Not enough numerical columns for Gaussian Mixture Models analysis.")
+        self.interpret_results("Gaussian Mixture Models (GMM)", {'image_paths': image_paths}, table_name)
 
     def expectation_maximization(self, df, table_name):
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Expectation-Maximization Algorithm"))
+        image_paths = []
         
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
         if len(numerical_columns) >= 2:
@@ -277,14 +303,17 @@ class AdvancedExploratoryDataAnalysisB4:
                 img_path = os.path.join(self.output_folder, f"{table_name}_em.png")
                 plt.savefig(img_path, dpi=100, bbox_inches='tight')
                 plt.close(fig)
-                self.interpret_results("Expectation-Maximization Algorithm", img_path, table_name)
+                image_paths.append(img_path)
+                
             else:
                 print("Skipping Expectation-Maximization plot due to error in plot generation.")
         else:
             print("Not enough numerical columns for Expectation-Maximization analysis.")
+        self.interpret_results("Expectation-Maximization Algorithm", {'image_paths': image_paths}, table_name)
 
     def statistical_process_control(self, df, table_name):
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Statistical Process Control (SPC) Charts"))
+        image_paths = []
         
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
         if len(numerical_columns) > 0:
@@ -313,14 +342,17 @@ class AdvancedExploratoryDataAnalysisB4:
                 img_path = os.path.join(self.output_folder, f"{table_name}_spc.png")
                 plt.savefig(img_path, dpi=100, bbox_inches='tight')
                 plt.close(fig)
-                self.interpret_results("Statistical Process Control (SPC) Charts", img_path, table_name)
+                image_paths.append(img_path)
+                
             else:
                 print("Skipping Statistical Process Control plot due to error in plot generation.")
         else:
             print("No numerical columns found for Statistical Process Control analysis.")
+        self.interpret_results("Statistical Process Control (SPC) Charts", {'image_paths': image_paths}, table_name)
 
     def z_score_analysis(self, df, table_name):
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Z-Score and Modified Z-Score"))
+        image_paths = []
         
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
         if len(numerical_columns) > 0:
@@ -353,14 +385,17 @@ class AdvancedExploratoryDataAnalysisB4:
                 img_path = os.path.join(self.output_folder, f"{table_name}_z_score.png")
                 plt.savefig(img_path, dpi=100, bbox_inches='tight')
                 plt.close(fig)
-                self.interpret_results("Z-Score and Modified Z-Score", img_path, table_name)
+                image_paths.append(img_path)
+                
             else:
                 print("Skipping Z-Score plot due to error in plot generation.")
         else:
             print("No numerical columns found for Z-Score analysis.")
+        self.interpret_results("Z-Score and Modified Z-Score", {'image_paths': image_paths}, table_name)
 
     def mahalanobis_distance(self, df, table_name):
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Mahalanobis Distance"))
+        image_paths = []
         
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
         if len(numerical_columns) >= 2:
@@ -403,14 +438,17 @@ class AdvancedExploratoryDataAnalysisB4:
                 img_path = os.path.join(self.output_folder, f"{table_name}_mahalanobis.png")
                 plt.savefig(img_path, dpi=100, bbox_inches='tight')
                 plt.close(fig)
-                self.interpret_results("Mahalanobis Distance", img_path, table_name)
+                image_paths.append(img_path)
+                
             else:
                 print("Skipping Mahalanobis Distance plot due to error in plot generation.")
         else:
             print("Not enough numerical columns for Mahalanobis Distance analysis.")
+        self.interpret_results("Mahalanobis Distance", {'image_paths': image_paths}, table_name)
 
     def box_cox_transformation(self, df, table_name):
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Box-Cox Transformation"))
+        image_paths = []
         
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
         if len(numerical_columns) > 0:
@@ -444,14 +482,17 @@ class AdvancedExploratoryDataAnalysisB4:
                 img_path = os.path.join(self.output_folder, f"{table_name}_box_cox.png")
                 plt.savefig(img_path, dpi=100, bbox_inches='tight')
                 plt.close(fig)
-                self.interpret_results("Box-Cox Transformation", img_path, table_name)
+                image_paths.append(img_path)
+                
             else:
                 print("Skipping Box-Cox Transformation plot due to error in plot generation.")
         else:
             print("No numerical columns found for Box-Cox Transformation analysis.")
+        self.interpret_results("Box-Cox Transformation", {'image_paths': image_paths}, table_name)
 
     def grubbs_test(self, df, table_name):
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Grubbs' Test"))
+        image_paths = []
         
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
         if len(numerical_columns) > 0:
@@ -486,14 +527,17 @@ class AdvancedExploratoryDataAnalysisB4:
                 img_path = os.path.join(self.output_folder, f"{table_name}_grubbs.png")
                 plt.savefig(img_path, dpi=100, bbox_inches='tight')
                 plt.close(fig)
-                self.interpret_results("Grubbs' Test", img_path, table_name)
+                image_paths.append(img_path)
+                
             else:
                 print("Skipping Grubbs' Test plot due to error in plot generation.")
         else:
             print("No numerical columns found for Grubbs' Test analysis.")
+        self.interpret_results("Grubbs' Test", {'image_paths': image_paths}, table_name)
 
     def chauvenet_criterion(self, df, table_name):
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Chauvenet's Criterion"))
+        image_paths = []
         
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
         if len(numerical_columns) > 0:
@@ -526,14 +570,17 @@ class AdvancedExploratoryDataAnalysisB4:
                 img_path = os.path.join(self.output_folder, f"{table_name}_chauvenet.png")
                 plt.savefig(img_path, dpi=100, bbox_inches='tight')
                 plt.close(fig)
-                self.interpret_results("Chauvenet's Criterion", img_path, table_name)
+                image_paths.append(img_path)
+                
             else:
                 print("Skipping Chauvenet's Criterion plot due to error in plot generation.")
         else:
             print("No numerical columns found for Chauvenet's Criterion analysis.")
+        self.interpret_results("Chauvenet's Criterion", {'image_paths': image_paths}, table_name)
 
     def benfords_law_analysis(self, df, table_name):
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Benford's Law Analysis"))
+        image_paths = []
         
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
         if len(numerical_columns) > 0:
@@ -564,14 +611,17 @@ class AdvancedExploratoryDataAnalysisB4:
                 img_path = os.path.join(self.output_folder, f"{table_name}_benfords_law.png")
                 plt.savefig(img_path, dpi=100, bbox_inches='tight')
                 plt.close(fig)
-                self.interpret_results("Benford's Law Analysis", img_path, table_name)
+                image_paths.append(img_path)
+                
             else:
                 print("Skipping Benford's Law Analysis plot due to error in plot generation.")
         else:
             print("No numerical columns found for Benford's Law Analysis.")
+        self.interpret_results("Benford's Law Analysis", {'image_paths': image_paths}, table_name)
 
     def forensic_accounting(self, df, table_name):
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Forensic Accounting Techniques"))
+        image_paths = []
         
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
         if len(numerical_columns) >= 2:
@@ -636,14 +686,17 @@ class AdvancedExploratoryDataAnalysisB4:
                 img_path = os.path.join(self.output_folder, f"{table_name}_forensic_accounting.png")
                 plt.savefig(img_path, dpi=100, bbox_inches='tight')
                 plt.close(fig)
-                self.interpret_results("Forensic Accounting Techniques", img_path, table_name)
+                image_paths.append(img_path)
+                
             else:
                 print("Skipping Forensic Accounting plot due to error in plot generation.")
         else:
             print("Not enough numerical columns for Forensic Accounting analysis.")
+        self.interpret_results("Forensic Accounting Techniques", {'image_paths': image_paths}, table_name)
 
     def network_analysis_fraud_detection(self, df, table_name):
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Network Analysis for Fraud Detection"))
+        image_paths = []
         
         # For this example, we'll assume we have columns for 'source', 'target', and 'amount'
         if all(col in df.columns for col in ['source', 'target', 'amount']):
@@ -673,7 +726,8 @@ class AdvancedExploratoryDataAnalysisB4:
                 img_path = os.path.join(self.output_folder, f"{table_name}_network_analysis.png")
                 plt.savefig(img_path, dpi=100, bbox_inches='tight')
                 plt.close(fig)
-                self.interpret_results("Network Analysis for Fraud Detection", img_path, table_name)
+                image_paths.append(img_path)
+                self.interpret_results("Network Analysis for Fraud Detection", {'image_paths': image_paths}, table_name)
             else:
                 print("Required columns (source, target, amount) not found. Performing alternative analysis.")
                 numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
@@ -696,14 +750,17 @@ class AdvancedExploratoryDataAnalysisB4:
                         img_path = os.path.join(self.output_folder, f"{table_name}_alternative_network_analysis.png")
                         plt.savefig(img_path, dpi=100, bbox_inches='tight')
                         plt.close(fig)
-                        self.interpret_results("Alternative Network Analysis", img_path, table_name)
+                        image_paths.append(img_path)
+                        
                     else:
                         print("Skipping alternative analysis plot due to error in plot generation.")
                 else:
                     print("Not enough numerical columns for alternative analysis.")
+                self.interpret_results("Alternative Network Analysis", {'image_paths': image_paths}, table_name)
 
     def sequence_alignment(self, df, table_name):
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Sequence Alignment and Matching"))
+        image_paths = []
         
         text_columns = df.select_dtypes(include=['object']).columns
         if len(text_columns) > 0:
@@ -764,14 +821,17 @@ class AdvancedExploratoryDataAnalysisB4:
                 img_path = os.path.join(self.output_folder, f"{table_name}_sequence_alignment.png")
                 plt.savefig(img_path, dpi=100, bbox_inches='tight')
                 plt.close(fig)
-                self.interpret_results("Sequence Alignment and Matching", img_path, table_name)
+                image_paths.append(img_path)
+                
             else:
                 print("Skipping Sequence Alignment plot due to error in plot generation.")
         else:
             print("No text columns found for Sequence Alignment analysis.")
+        self.interpret_results("Sequence Alignment and Matching", {'image_paths': image_paths}, table_name)
 
     def conformal_anomaly_detection(self, df, table_name):
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Conformal Anomaly Detection"))
+        image_paths = []
         
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
         if len(numerical_columns) >= 2:
@@ -820,86 +880,92 @@ class AdvancedExploratoryDataAnalysisB4:
                 img_path = os.path.join(self.output_folder, f"{table_name}_conformal_anomaly_detection.png")
                 plt.savefig(img_path, dpi=100, bbox_inches='tight')
                 plt.close(fig)
-                self.interpret_results("Conformal Anomaly Detection", img_path, table_name)
+                image_paths.append(img_path)
+                
             else:
                 print("Skipping Conformal Anomaly Detection plot due to error in plot generation.")
         else:
             print("Not enough numerical columns for Conformal Anomaly Detection analysis.")
+        self.interpret_results("Conformal Anomaly Detection", {'image_paths': image_paths}, table_name)
 
 
-    def generate_pdf_report(self):
-        report_title = f"Advanced Exploratory Data Analysis (Batch 4) Report for {self.table_name}"
-        pdf_file = self.pdf_generator.create_enhanced_pdf_report(
-            self.executive_summary,
-            self.findings,
-            self.pdf_content,
-            self.image_data,
-            filename=f"axda_b4_{self.table_name}_report",
-            report_title=report_title
-        )
-        if pdf_file:
-            print(success(f"PDF report generated successfully: {pdf_file}"))
-        else:
-            print(error("Failed to generate PDF report"))
-        return pdf_file
+
 
     def interpret_results(self, analysis_type, results, table_name):
-        if isinstance(results, dict):
-            results_str = "\n".join([f"{k}: {v}" for k, v in results.items()])
-        elif isinstance(results, list):
-            results_str = "\n".join([str(item) for item in results])
+        if isinstance(results, dict) and "Numeric Statistics" in results:
+            numeric_stats = results["Numeric Statistics"]
+            categorical_stats = results["Categorical Statistics"]
+        
+            numeric_table = "| Statistic | " + " | ".join(numeric_stats.keys()) + " |\n"
+            numeric_table += "| --- | " + " | ".join(["---" for _ in numeric_stats.keys()]) + " |\n"
+            for stat in numeric_stats[list(numeric_stats.keys())[0]].keys():
+                numeric_table += f"| {stat} | " + " | ".join([f"{numeric_stats[col][stat]:.2f}" for col in numeric_stats.keys()]) + " |\n"
+            
+            categorical_summary = "\n".join([f"{col}:\n" + "\n".join([f"  - {value}: {count}" for value, count in stats.items()]) for col, stats in categorical_stats.items()])
+            
+            results_str = f"Numeric Statistics:\n{numeric_table}\n\nCategorical Statistics:\n{categorical_summary}"
+        elif isinstance(results, pd.DataFrame):
+            results_str = f"DataFrame with shape {results.shape}:\n{results.to_string()}"
+        elif isinstance(results, dict):
+            results_str = "\n".join([f"{k}: {v}" for k, v in results.items() if k != 'image_paths'])
         else:
             results_str = str(results)
 
         prompt = f"""
+        You are an expert data analyst providing insights on exploratory data analysis results. Your task is to interpret the following analysis results and provide a detailed, data-driven interpretation.
+
         Analysis type: {analysis_type}
         Table name: {table_name}
         Results:
         {results_str}
 
-        Please provide a detailed interpretation of these results, highlighting any noteworthy patterns, anomalies, or insights. Focus on the most important aspects that would be valuable for data analysis.
+        Please provide a thorough interpretation of these results, highlighting noteworthy patterns, anomalies, or insights. Focus on the most important aspects that would be valuable for data analysis. Always provide specific numbers and percentages when discussing findings.
+
+        If some data appears to be missing or incomplete, work with the available information without mentioning the limitations. Your goal is to extract as much insight as possible from the given data.
 
         Structure your response in the following format:
 
         1. Analysis:
-        [Provide a detailed description of the analysis performed]
+        [Provide a detailed description of the analysis performed, including specific metrics and their values]
 
-        2. Positive Findings:
-        [List any positive findings, or state "No significant positive findings" if none]
+        2. Key Findings:
+        [List the most important discoveries, always including relevant numbers and percentages]
 
-        3. Negative Findings:
-        [List any negative findings, or state "No significant negative findings" if none]
+        3. Implications:
+        [Discuss the potential impact of these findings on business decisions or further analyses]
 
-        4. Conclusion:
-        [Summarize the key takeaways and implications of this analysis]
+        4. Recommendations:
+        [Suggest next steps or areas for deeper investigation based on these results]
 
-        If there are no significant findings, state "No significant findings" in the appropriate sections and briefly explain why.
+        Ensure your interpretation is concise yet comprehensive, focusing on actionable insights derived from the data.
 
         Interpretation:
         """
-        interpretation = self.worker_erag_api.chat([{"role": "system", "content": "You are a data analyst providing insights on advanced exploratory data analysis results. Respond in the requested format."}, 
+        interpretation = self.worker_erag_api.chat([{"role": "system", "content": "You are an expert data analyst providing insights on exploratory data analysis results. Respond in the requested format."}, 
                                                     {"role": "user", "content": prompt}])
         
-        # Second LLM call to review and enhance the interpretation
+        # Updated supervisor prompt
         check_prompt = f"""
-        Original data and analysis type:
+        As a senior data analyst, review and enhance the following interpretation of exploratory data analysis results. The original data and analysis type are:
+
         {prompt}
 
         Previous interpretation:
         {interpretation}
 
-        Please review and improve the above interpretation. Ensure it accurately reflects the original data and analysis type. Enhance the text by:
-        1. Verifying the accuracy of the interpretation against the original data.
-        2. Ensuring the structure (Analysis, Positive Findings, Negative Findings, Conclusion) is maintained.
-        3. Making the interpretation more narrative and detailed by adding context and explanations.
-        4. Addressing any important aspects of the data that weren't covered.
+        Improve this interpretation by:
+        1. Ensuring all statements are backed by specific data points, numbers, or percentages from the original results.
+        2. Removing any vague statements and replacing them with precise, data-driven observations.
+        3. Adding any critical insights that may have been overlooked, always referencing specific data.
+        4. Strengthening the implications and recommendations sections with concrete, actionable suggestions based on the data.
 
-        Provide your response in the same format, maintaining the original structure. 
-        Do not add comments, questions, or explanations about the changes - simply provide the improved version.
+        Provide your enhanced interpretation in the same format (Analysis, Key Findings, Implications, Recommendations). Do not list your changes or repeat the original interpretation. Simply provide the improved version, focusing on clarity, specificity, and actionable insights.
+
+        Enhanced Interpretation:
         """
 
         enhanced_interpretation = self.supervisor_erag_api.chat([
-            {"role": "system", "content": "You are a data analyst improving interpretations of advanced exploratory data analysis results. Provide direct enhancements without adding meta-comments or detailing the changes done."},
+            {"role": "system", "content": "You are a senior data analyst improving interpretations of exploratory data analysis results. Provide direct enhancements without meta-comments."},
             {"role": "user", "content": check_prompt}
         ])
 
@@ -908,26 +974,31 @@ class AdvancedExploratoryDataAnalysisB4:
         
         self.text_output += f"\n{enhanced_interpretation.strip()}\n\n"
         
-        # Handle images
+         # Handle images
         image_data = []
-        if isinstance(results, str) and results.endswith(('.png', '.jpg', '.jpeg', '.gif')):
-            image_data.append((f"{analysis_type}", results))
+        if isinstance(results, dict) and 'image_paths' in results:
+            for img in results['image_paths']:
+                if isinstance(img, tuple) and len(img) == 2:
+                    image_data.append(img)
+                elif isinstance(img, str):
+                    image_data.append((analysis_type, img))
         
         self.pdf_content.append((analysis_type, image_data, enhanced_interpretation.strip()))
         
         # Extract important findings
         lines = enhanced_interpretation.strip().split('\n')
         for i, line in enumerate(lines):
-            if line.startswith("2. Positive Findings:") or line.startswith("3. Negative Findings:"):
+            if line.startswith("2. Key Findings:"):
                 for finding in lines[i+1:]:
-                    if finding.strip() and not finding.startswith(("2.", "3.", "4.")):
+                    if finding.strip() and not finding.startswith(("3.", "4.")):
                         self.findings.append(f"{analysis_type}: {finding.strip()}")
-                    elif finding.startswith(("2.", "3.", "4.")):
+                    elif finding.startswith(("3.", "4.")):
                         break
 
         # Update self.image_data
         self.image_data.extend(image_data)
 
+    
     def generate_executive_summary(self):
         if not self.findings:
             self.executive_summary = "No significant findings were identified during the analysis. This could be due to a lack of data, uniform data distribution, or absence of notable patterns or anomalies in the dataset."
@@ -938,7 +1009,7 @@ class AdvancedExploratoryDataAnalysisB4:
         failed_techniques = self.total_techniques - successful_techniques
 
         summary_prompt = f"""
-        Based on the following findings from the Advanced Exploratory Data Analysis (Batch 4):
+        Based on the following findings from the Exploratory Data Analysis:
         
         {self.findings}
         
@@ -947,7 +1018,7 @@ class AdvancedExploratoryDataAnalysisB4:
         - {failed_techniques} techniques encountered errors and were skipped.
         
         Please provide an executive summary of the analysis. The summary should:
-        1. Briefly introduce the purpose of the advanced analysis.
+        1. Briefly introduce the purpose of the analysis.
         2. Mention the number of successful and failed techniques.
         3. Highlight the most significant insights and patterns discovered.
         4. Mention any potential issues or areas that require further investigation.
@@ -960,7 +1031,7 @@ class AdvancedExploratoryDataAnalysisB4:
         
         try:
             interpretation = self.worker_erag_api.chat([
-                {"role": "system", "content": "You are a data analyst providing an executive summary of an advanced exploratory data analysis. Respond in plain text format."},
+                {"role": "system", "content": "You are a data analyst providing an executive summary of an exploratory data analysis. Respond in plain text format."},
                 {"role": "user", "content": summary_prompt}
             ])
             
@@ -982,7 +1053,7 @@ class AdvancedExploratoryDataAnalysisB4:
                 """
 
                 enhanced_summary = self.supervisor_erag_api.chat([
-                    {"role": "system", "content": "You are a data analyst improving an executive summary of an advanced exploratory data analysis. Provide direct enhancements without adding meta-comments."},
+                    {"role": "system", "content": "You are a data analyst improving an executive summary of an exploratory data analysis. Provide direct enhancements without adding meta-comments."},
                     {"role": "user", "content": check_prompt}
                 ])
 
@@ -1000,3 +1071,36 @@ class AdvancedExploratoryDataAnalysisB4:
         output_file = os.path.join(self.output_folder, "axda_b4_results.txt")
         with open(output_file, "w", encoding='utf-8') as f:
             f.write(self.text_output)
+
+    def generate_pdf_report(self):
+        report_title = f"Advanced Exploratory Data Analysis (Batch 4) Report for {self.table_name}"
+        
+        # Ensure all image data is in the correct format
+        formatted_image_data = []
+        for item in self.pdf_content:
+            analysis_type, images, interpretation = item
+            if isinstance(images, list):
+                for image in images:
+                    if isinstance(image, tuple) and len(image) == 2:
+                        formatted_image_data.append(image)
+                    elif isinstance(image, str):
+                        # If it's just a string (path), use the analysis type as the title
+                        formatted_image_data.append((analysis_type, image))
+            elif isinstance(images, str):
+                # If it's just a string (path), use the analysis type as the title
+                formatted_image_data.append((analysis_type, images))
+        
+        pdf_file = self.pdf_generator.create_enhanced_pdf_report(
+            self.executive_summary,
+            self.findings,
+            self.pdf_content,
+            formatted_image_data,  # Use the formatted image data
+            filename=f"axda_b1_{self.table_name}_report",
+            report_title=report_title
+        )
+        if pdf_file:
+            print(success(f"PDF report generated successfully: {pdf_file}"))
+            return pdf_file
+        else:
+            print(error("Failed to generate PDF report"))
+            return None
