@@ -21,7 +21,7 @@ from statsmodels.graphics.tsaplots import plot_acf
 from statsmodels.tsa.stattools import acf
 
 import networkx as nx
-from Bio import pairwise2
+from Bio import Align
 
 from src.api_model import EragAPI
 from src.settings import settings
@@ -766,18 +766,21 @@ class AdvancedExploratoryDataAnalysisB4:
         if len(text_columns) > 0:
             def plot_sequence_alignment():
                 try:
-                    from Bio import pairwise2
-                    from Bio.Align import substitution_matrices
+                    from Bio import Align
                     
                     # Select the first text column
                     sequences = df[text_columns[0]].dropna().head(10).tolist()  # Limit to 10 sequences for simplicity
+                    
+                    # Create PairwiseAligner object
+                    aligner = Align.PairwiseAligner()
+                    aligner.mode = 'global'
                     
                     # Perform pairwise alignments
                     alignments = []
                     for i in range(len(sequences)):
                         for j in range(i+1, len(sequences)):
-                            alignment = pairwise2.align.globalxx(sequences[i], sequences[j])
-                            alignments.append((i, j, alignment[0].score))  # Store indices and alignment score
+                            alignment = aligner.align(sequences[i], sequences[j])
+                            alignments.append((i, j, alignment.score))  # Store indices and alignment score
                     
                     # Create a similarity matrix
                     similarity_matrix = np.zeros((len(sequences), len(sequences)))
