@@ -1166,7 +1166,7 @@ class AdvancedExploratoryDataAnalysisB5:
             self.findings,
             self.pdf_content,
             formatted_image_data,  # Use the formatted image data
-            filename=f"axda_b1_{self.table_name}_report",
+            filename=f"axda_b5_{self.table_name}_report",
             report_title=report_title
         )
         if pdf_file:
