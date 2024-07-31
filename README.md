@@ -138,6 +138,93 @@ Customize ERAG's behavior through the Settings tab in the GUI or by modifying `s
 - **Self Knol Creation**: Utilizes a multi-model approach to create, refine, and evaluate comprehensive knowledge entries on specific subjects.
 - **Iterative Knowledge Improvement**: Implements an iterative process with AI-driven feedback and improvement cycles to enhance the quality and depth of knowledge entries.
 
+# Comprehensive List of Data Analytics Techniques
+
+1. Basic Statistics
+2. Data Types and Missing Values Analysis
+3. Numerical Features Distribution
+4. Correlation Analysis
+5. Categorical Features Analysis
+6. Outlier Detection
+7. Data Quality Report
+8. Hypothesis Testing Suggestions
+9. Value Counts Analysis
+10. Grouped Summary Statistics
+11. Frequency Distribution Analysis
+12. KDE Plot Analysis
+13. Violin Plot Analysis
+14. Pair Plot Analysis
+15. Box Plot Analysis
+16. Scatter Plot Analysis
+17. Time Series Analysis
+18. Feature Importance Analysis
+19. Principal Component Analysis (PCA)
+20. Cluster Analysis
+21. Correlation Network Analysis
+22. Q-Q Plot Analysis
+23. Parallel Coordinates Plot
+24. Andrews Curves
+25. Radar Charts
+26. Sankey Diagrams
+27. Bubble Charts
+28. Geographical Plots
+29. Word Clouds
+30. Hierarchical Clustering Dendrogram
+31. Empirical Cumulative Distribution Function (ECDF) Plots
+32. Ridgeline Plots
+33. Hexbin Plots
+34. Mosaic Plots
+35. Lag Plots
+36. Shapley Value Analysis
+37. Partial Dependence Plots
+38. Factor Analysis
+39. Multidimensional Scaling (MDS)
+40. t-Distributed Stochastic Neighbor Embedding (t-SNE)
+41. Conditional Plots
+42. Individual Conditional Expectation (ICE) Plots
+43. Time Series Decomposition
+44. Autocorrelation Plots
+45. Bayesian Networks
+46. Isolation Forest
+47. One-Class SVM
+48. Local Outlier Factor (LOF)
+49. Robust Principal Component Analysis (RPCA)
+50. Bayesian Change Point Detection
+51. Hidden Markov Models (HMMs)
+52. Dynamic Time Warping (DTW)
+53. Matrix Profile
+54. Ensemble Anomaly Detection
+55. Gaussian Mixture Models (GMM)
+56. Expectation-Maximization Algorithm
+57. Statistical Process Control (SPC) Charts
+58. Z-Score and Modified Z-Score Analysis
+59. Mahalanobis Distance
+60. Box-Cox Transformation
+61. Grubbs' Test
+62. Chauvenet's Criterion
+63. Benford's Law Analysis
+64. Forensic Accounting Techniques
+65. Network Analysis for Fraud Detection
+66. Sequence Alignment and Matching
+67. Conformal Anomaly Detection
+68. Cook's Distance Analysis
+69. STL Decomposition Analysis
+70. Hampel Filter Analysis
+71. GESD Test Analysis
+72. Dixon's Q Test Analysis
+73. Peirce's Criterion Analysis
+74. Thompson Tau Test Analysis
+75. Control Charts Analysis (CUSUM, EWMA)
+76. KDE Anomaly Detection Analysis
+77. Hotelling's T-squared Analysis
+78. Breakdown Point Analysis
+79. Chi-Square Test Analysis
+80. Simple Thresholding Analysis
+81. Lilliefors Test Analysis
+82. Jarque-Bera Test Analysis
+83. Adaptive Multi-dimensional Pattern Recognition (AMPR)
+84. Enhanced Time Series Forecasting (ETSF)
+
 ## Troubleshooting
 
 - Ensure all dependencies are correctly installed.
