@@ -41,3 +41,5 @@ vertexai
 sympy
 blis
 psutil
+fuzzywuzzy==0.18.0
+python-Levenshtein==0.12.2  # Optional, but improves fuzzywuzzy performance
