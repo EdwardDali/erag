@@ -36,3 +36,8 @@ dtaidistance
 stumpy
 biopython
 nonconformist
+google-generativeai
+vertexai
+sympy
+blis
+psutil

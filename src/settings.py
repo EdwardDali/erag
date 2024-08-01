@@ -48,7 +48,8 @@ class Settings:
         self.update_threshold = 10
         self.ollama_model = "qwen2:1.5b-instruct-q8_0"
         self.llama_model = "llama-default"
-        self.groq_model = "llama3-groq-8b-8192-tool-use-preview"  # Add default Groq model
+        self.groq_model = "llama3-groq-8b-8192-tool-use-preview"
+        self.gemini_model = "gemini-pro"  # Add default Gemini model
         self.temperature = 0.1
         self.model_name = "all-MiniLM-L6-v2"
         self.sentence_transformer_model = "all-MiniLM-L6-v2"
@@ -161,6 +162,8 @@ class Settings:
             return self.llama_model
         elif api_type == "groq":
             return self.groq_model
+        elif api_type == "gemini":  # Add this condition
+            return self.gemini_model
         else:
             raise ValueError(f"Unknown API type: {api_type}")
 

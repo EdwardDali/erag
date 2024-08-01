@@ -98,6 +98,7 @@ class ERAGGUI:
         load_dotenv()
         self.groq_api_key = os.getenv("GROQ_API_KEY", "")
         self.github_token = os.getenv("GITHUB_TOKEN", "")
+        self.gemini_api_key = os.getenv("GEMINI_API_KEY", "")
         self.file_processor = FileProcessor()
         self.supervisor_model_var = tk.StringVar(master)
         self.manager_model_var = tk.StringVar(master)
@@ -233,28 +234,28 @@ class ERAGGUI:
         model_frame = tk.LabelFrame(self.main_tab, text="Model Selection")
         model_frame.pack(fill="x", padx=10, pady=5)
 
-        # API Type selection
+        #  API Type selection
         tk.Label(model_frame, text="API Type:").grid(row=0, column=0, padx=5, pady=5, sticky="e")
-        api_options = ["ollama", "llama", "groq"]
+        api_options = ["ollama", "llama", "groq", "gemini"]
         api_menu = ttk.Combobox(model_frame, textvariable=self.api_type_var, values=api_options, state="readonly", width=15)
         api_menu.grid(row=0, column=1, padx=5, pady=5)
         api_menu.bind("<<ComboboxSelected>>", self.update_model_list)
 
         # Worker Model selection
         tk.Label(model_frame, text="Worker Model:").grid(row=0, column=2, padx=5, pady=5, sticky="e")
-        self.model_menu = ttk.Combobox(model_frame, textvariable=self.model_var, state="readonly", width=15)
+        self.model_menu = ttk.Combobox(model_frame, textvariable=self.model_var, state="readonly", width=30)
         self.model_menu.grid(row=0, column=3, padx=5, pady=5)
         self.model_menu.bind("<<ComboboxSelected>>", self.update_model_setting)
 
         # Supervisor Model selection
         tk.Label(model_frame, text="Supervisor Model:").grid(row=0, column=4, padx=5, pady=5, sticky="e")
-        self.supervisor_model_menu = ttk.Combobox(model_frame, textvariable=self.supervisor_model_var, state="readonly", width=15)
+        self.supervisor_model_menu = ttk.Combobox(model_frame, textvariable=self.supervisor_model_var, state="readonly", width=30)
         self.supervisor_model_menu.grid(row=0, column=5, padx=5, pady=5)
 
         # Update the Manager Model selection to use the default from settings
         tk.Label(model_frame, text="Manager Model:").grid(row=0, column=6, padx=5, pady=5, sticky="e")
         self.manager_model_var = tk.StringVar(self.master, value=settings.default_manager_model if settings.default_manager_model else 'None')
-        self.manager_model_menu = ttk.Combobox(model_frame, textvariable=self.manager_model_var, state="readonly", width=15)
+        self.manager_model_menu = ttk.Combobox(model_frame, textvariable=self.manager_model_var, state="readonly", width=30)
         self.manager_model_menu.grid(row=0, column=7, padx=5, pady=5)
 
 
@@ -290,6 +291,14 @@ class ERAGGUI:
                     self.model_var.set(new_default)
                     settings.update_setting("groq_model", new_default)
                     print(warning(f"Default Groq model not available. Updated to: {new_default}"))
+            elif api_type == "gemini":
+                if settings.gemini_model in models:
+                    self.model_var.set(settings.gemini_model)
+                else:
+                    new_default = models[0]
+                    self.model_var.set(new_default)
+                    settings.update_setting("gemini_model", new_default)
+                    print(warning(f"Default Gemini model not available. Updated to: {new_default}"))
             else:
                 self.model_var.set(models[0])
 
@@ -541,6 +550,7 @@ class ERAGGUI:
             ("Default Ollama Model", "ollama_model"),
             ("Default Llama Model", "llama_model"),
             ("Default Groq Model", "groq_model"),
+            ("Default Gemini Model", "gemini_model"),
             ("Default Manager Model", "default_manager_model"),
             ("Temperature", "temperature"),
             ("Max History Length", "max_history_length"),
@@ -552,6 +562,12 @@ class ERAGGUI:
         ttk.Label(api_frame, text="Groq API Key:").grid(row=len(api_frame.grid_slaves()), column=0, sticky="e", padx=5, pady=2)
         self.groq_api_key_var = tk.StringVar(value=self.groq_api_key)
         ttk.Entry(api_frame, textvariable=self.groq_api_key_var, show="*").grid(row=len(api_frame.grid_slaves())-1, column=1, sticky="w", padx=5, pady=2)
+
+        # Gemini API Key field
+        ttk.Label(api_frame, text="Gemini API Key:").grid(row=len(api_frame.grid_slaves()), column=0, sticky="e", padx=5, pady=2)
+        self.gemini_api_key_var = tk.StringVar(value=self.gemini_api_key)
+        ttk.Entry(api_frame, textvariable=self.gemini_api_key_var, show="*").grid(row=len(api_frame.grid_slaves())-1, column=1, sticky="w", padx=5, pady=2)
+
 
         # GitHub Token field
         ttk.Label(github_frame, text="GitHub Token:").grid(row=0, column=0, sticky="e", padx=5, pady=2)
@@ -609,13 +625,7 @@ class ERAGGUI:
         ttk.Button(button_frame, text="Apply Settings", command=self.apply_settings).pack(side="left", padx=5)
         ttk.Button(button_frame, text="Reset to Defaults", command=self.reset_settings).pack(side="left", padx=5)
 
-       # Add new setting for default Manager Model
-        ttk.Label(api_frame, text="Default Manager Model:").grid(row=len(api_frame.grid_slaves()), column=0, sticky="e", padx=5, pady=2)
-        default_manager_models = ['None'] + get_available_models(self.api_type_var.get(), self.server_manager)  # Use the imported function
-        self.default_manager_model_var = tk.StringVar(value=settings.default_manager_model if settings.default_manager_model else 'None')
-        ttk.Combobox(api_frame, textvariable=self.default_manager_model_var, values=default_manager_models, state="readonly").grid(row=len(api_frame.grid_slaves())-1, column=1, sticky="w", padx=5, pady=2)
-
-
+       
     def create_labelframe(self, parent, text, row):
         frame = ttk.LabelFrame(parent, text=text)
         frame.grid(row=row, column=0, padx=5, pady=5, sticky="nsew")
@@ -656,10 +666,17 @@ class ERAGGUI:
                 elif isinstance(getattr(settings, key), str) and value.startswith(('output', 'Output')):
                     # Convert relative path back to absolute path
                     value = os.path.join(self.project_root, value)
+                
+                # Special handling for default_manager_model
+                if key == "default_manager_model":
+                    value = None if value.lower() == 'none' else value
+                
                 settings.update_setting(key, value)
+
         
         # Update Groq API Key and GitHub Token in .env file
         self.update_env_file("GROQ_API_KEY", self.groq_api_key_var.get())
+        self.update_env_file("GEMINI_API_KEY", self.gemini_api_key_var.get())
         self.update_env_file("GITHUB_TOKEN", self.github_token_var.get())
 
         # Apply dataset generation settings
@@ -673,11 +690,7 @@ class ERAGGUI:
         # Update the model list in the main GUI to reflect any changes
         self.update_model_list()
         
-        # Apply the default Manager Model setting
-        default_manager_model = self.default_manager_model_var.get()
-        settings.update_setting('default_manager_model', None if default_manager_model == 'None' else default_manager_model)
-
-
+       
     def update_env_file(self, key: str, value: str) -> None:
         """
         Update or add a key-value pair in the .env file and current environment.
@@ -1856,6 +1869,9 @@ class ERAGGUI:
             api_type = self.api_type_var.get()
             model = self.model_var.get()
             
+            # Check API keys before proceeding
+            self.check_api_keys()
+            
             # Ensure the EragAPI instance is up-to-date
             self.erag_api = create_erag_api(api_type, model)
             
@@ -1868,6 +1884,10 @@ class ERAGGUI:
                 # Ensure the server is running with the selected model
                 if not self.server_manager.start_server():
                     raise Exception("Failed to start the llama.cpp server.")
+            elif api_type == "groq" and not self.groq_api_key:
+                raise Exception("Groq API Key is not set. Please set it in the settings.")
+            elif api_type == "gemini" and not self.gemini_api_key:
+                raise Exception("Gemini API Key is not set. Please set it in the settings.")
             
             # Create and run the RAG system
             from src.talk2doc import RAGSystem
@@ -1883,16 +1903,21 @@ class ERAGGUI:
             print(error(error_message))
             messagebox.showerror("Error", error_message)
 
-    def check_groq_api_key(self):
-        if not self.groq_api_key:
-            # Prompt the user to enter the Groq API key
+    def check_api_keys(self):
+        if self.api_type_var.get() == "groq" and not self.groq_api_key:
             self.groq_api_key = simpledialog.askstring("Groq API Key", "Please enter your Groq API Key:", show='*')
             if self.groq_api_key:
-                # Save the API key to the .env file
                 self.update_env_file("GROQ_API_KEY", self.groq_api_key)
                 messagebox.showinfo("Success", "Groq API Key has been saved.")
             else:
                 messagebox.showwarning("Warning", "Groq API Key is required to use the Groq API.")
+        elif self.api_type_var.get() == "gemini" and not self.gemini_api_key:
+            self.gemini_api_key = simpledialog.askstring("Gemini API Key", "Please enter your Gemini API Key:", show='*')
+            if self.gemini_api_key:
+                self.update_env_file("GEMINI_API_KEY", self.gemini_api_key)
+                messagebox.showinfo("Success", "Gemini API Key has been saved.")
+            else:
+                messagebox.showwarning("Warning", "Gemini API Key is required to use the Gemini API.")
 
 
 def main():
