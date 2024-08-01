@@ -78,9 +78,11 @@ ERAG is composed of several interconnected components:
    python -m nltk.downloader punkt
    ```
 
-4. Install Ollama (optional, for using Ollama API):
+4. Install Ollama (optional, for using Ollama API) and install ollama models:
    - Linux/macOS: `curl https://ollama.ai/install.sh | sh`
    - Windows: Visit https://ollama.ai/download and follow installation instructions
+  
+   - ollama run gemma2:2b
 
 5. Set up environment variables:
    - Create a `.env` file in the project root
@@ -88,6 +90,7 @@ ERAG is composed of several interconnected components:
      ```
      GROQ_API_KEY=your_groq_api_key
      GITHUB_TOKEN=your_github_token
+     GEMINI_API_KEY=your_gemini_api_key
      ```
 
 ## Usage
