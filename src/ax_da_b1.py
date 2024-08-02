@@ -20,6 +20,7 @@ matplotlib.use('Agg')  # Use non-interactive backend
 import threading
 import time
 from functools import wraps
+from src.helper_da import get_technique_info
 
 class TimeoutException(Exception):
     pass
@@ -612,10 +613,12 @@ class AdvancedExploratoryDataAnalysisB1:  # Updated class name
         self.interpret_results("Q-Q Plot Analysis", {'image_paths': image_paths}, table_name)
 
     def interpret_results(self, analysis_type, results, table_name):
+        technique_info = get_technique_info(analysis_type)
+
         if isinstance(results, dict) and "Numeric Statistics" in results:
             numeric_stats = results["Numeric Statistics"]
             categorical_stats = results["Categorical Statistics"]
-        
+            
             numeric_table = "| Statistic | " + " | ".join(numeric_stats.keys()) + " |\n"
             numeric_table += "| --- | " + " | ".join(["---" for _ in numeric_stats.keys()]) + " |\n"
             for stat in numeric_stats[list(numeric_stats.keys())[0]].keys():
@@ -631,61 +634,75 @@ class AdvancedExploratoryDataAnalysisB1:  # Updated class name
         else:
             results_str = str(results)
 
+        # Add information about number of visualizations
+        num_visualizations = len(results.get('image_paths', []))
+        results_str += f"\n\nNumber of visualizations created: {num_visualizations}"
+
+
         prompt = f"""
-        You are an expert data analyst providing insights on exploratory data analysis results. Your task is to interpret the following analysis results and provide a detailed, data-driven interpretation.
+        You are an expert data analyst providing insights on exploratory data analysis results. Your task is to interpret the following analysis results and provide a detailed, data-driven interpretation. focusing on discovering patterns and hidden insights. Avoid jargon.
 
         Analysis type: {analysis_type}
         Table name: {table_name}
+
+        Technique Context:
+        {technique_info['context']}
+
         Results:
         {results_str}
 
-        Please provide a thorough interpretation of these results, highlighting noteworthy patterns, anomalies, or insights. Focus on the most important aspects that would be valuable for data analysis. Always provide specific numbers and percentages when discussing findings.
+        Interpretation Guidelines:
+        {technique_info['guidelines']}
 
-        If some data appears to be missing or incomplete, work with the available information without mentioning the limitations. Your goal is to extract as much insight as possible from the given data.
+        Please provide a thorough interpretation of these results, highlighting noteworthy patterns, anomalies, or insights. Focus on aspects that would be valuable for business decisions and operational improvements. Always provide specific numbers and percentages.
 
         Structure your response in the following format:
 
-        1. Analysis:
-        [Provide a detailed description of the analysis performed, including specific metrics and their values]
+        1. Analysis performed and Key Insights:
+        [Briefly describe the analysis performed. List at least 2-3 important insights discovered, with relevant numbers and percentages. Provide detailed explanations for each insight.]
 
-        2. Key Findings:
-        [List the most important discoveries, always including relevant numbers and percentages]
+        2. Patterns and Trends:
+        [Describe at least 2-3 significant patterns or trends observed in the data. Explain their potential significance.]
 
-        3. Implications:
-        [Discuss the potential impact of these findings on business decisions or further analyses]
+        3. Potential Issues:
+        [Highlight any anomalies, unusual trends, or areas of concern. Mention at least 2-3 potential problems, red flags, audit findings, fraud cases always including relevant numbers and percentages.]
 
-        4. Recommendations:
-        [Suggest next steps or areas for deeper investigation based on these results]
+        4. Business Impact:
+        [Discuss how these findings might impact business operations or strategic decisions. Consider both short-term and long-term implications.]
 
-        Ensure your interpretation is concise yet comprehensive, focusing on actionable insights derived from the data.
+        5. Suggested Actions:
+        [Provide at least 2-3 specific, actionable steps for auditors, management or analysts. Explain the rationale behind each suggestion and its expected outcome. Do not focus on suggesting more data analysis techniques but on operational controls.]
+
+        Ensure your interpretation is comprehensive and focused on actionable insights. While you can be detailed, strive for clarity in your explanations. Use technical terms when necessary, but provide brief explanations for complex concepts.
 
         Interpretation:
         """
-        interpretation = self.worker_erag_api.chat([{"role": "system", "content": "You are an expert data analyst providing insights on exploratory data analysis results. Respond in the requested format."}, 
+
+        interpretation = self.worker_erag_api.chat([{"role": "system", "content": "You are an expert data analyst providing insights for business leaders and analysts. Respond in the requested format."}, 
                                                     {"role": "user", "content": prompt}])
         
-        # Updated supervisor prompt
         check_prompt = f"""
-        As a senior data analyst, review and enhance the following interpretation of exploratory data analysis results. The original data and analysis type are:
+        As a senior business analyst enhance the following interpretation of data analysis results. The original data and analysis type are:
 
         {prompt}
 
         Previous interpretation:
         {interpretation}
 
-        Improve this interpretation by:
-        1. Ensuring all statements are backed by specific data points, numbers, or percentages from the original results.
-        2. Removing any vague statements and replacing them with precise, data-driven observations.
-        3. Adding any critical insights that may have been overlooked, always referencing specific data.
-        4. Strengthening the implications and recommendations sections with concrete, actionable suggestions based on the data.
+        Improve this interpretation by adding or modifying the interpretation but without adding questions or review statements:
+        1. Ensuring all statements are backed by specific data points from the original results.
+        2. Expanding on any points that could benefit from more detailed explanation.
+        3. Verifying that the interpretation covers all significant aspects of the data, adding any important points that may have been missed.
+        4. Strengthening the connections between insights, patterns, and suggested actions.
+        5. Ensuring the language is accessible to business leaders while still conveying complex ideas accurately.
 
-        Provide your enhanced interpretation in the same format (Analysis, Key Findings, Implications, Recommendations). Do not list your changes or repeat the original interpretation. Simply provide the improved version, focusing on clarity, specificity, and actionable insights.
+        Maintain the same format but aim for a comprehensive yet clear analysis in each section. Focus on providing actionable insights that are well-explained and justified by the data.
 
         Enhanced Interpretation:
         """
 
         enhanced_interpretation = self.supervisor_erag_api.chat([
-            {"role": "system", "content": "You are a senior data analyst improving interpretations of exploratory data analysis results. Provide direct enhancements without meta-comments."},
+            {"role": "system", "content": "You are a senior business analyst improving interpretations of data analysis results. Provide direct enhancements without meta-comments."},
             {"role": "user", "content": check_prompt}
         ])
 
@@ -694,7 +711,7 @@ class AdvancedExploratoryDataAnalysisB1:  # Updated class name
         
         self.text_output += f"\n{enhanced_interpretation.strip()}\n\n"
         
-         # Handle images
+        # Handle images for the PDF report (not for LLM interpretation)
         image_data = []
         if isinstance(results, dict) and 'image_paths' in results:
             for img in results['image_paths']:
@@ -708,28 +725,26 @@ class AdvancedExploratoryDataAnalysisB1:  # Updated class name
         # Extract important findings
         lines = enhanced_interpretation.strip().split('\n')
         for i, line in enumerate(lines):
-            if line.startswith("2. Key Findings:"):
+            if line.startswith("1. Key Patterns and Insights:"):
                 for finding in lines[i+1:]:
-                    if finding.strip() and not finding.startswith(("3.", "4.")):
+                    if finding.strip() and not finding.startswith(("2.", "3.", "4.")):
                         self.findings.append(f"{analysis_type}: {finding.strip()}")
-                    elif finding.startswith(("3.", "4.")):
+                    elif finding.startswith(("2.", "3.", "4.")):
                         break
 
-        # Update self.image_data
+        # Update self.image_data for the PDF report
         self.image_data.extend(image_data)
 
-    
     def generate_executive_summary(self):
         if not self.findings:
             self.executive_summary = "No significant findings were identified during the analysis. This could be due to a lack of data, uniform data distribution, or absence of notable patterns or anomalies in the dataset."
             return
 
-        # Count the number of successful techniques
         successful_techniques = sum(1 for item in self.pdf_content if len(item[1]) > 0 or not item[2].startswith("An error occurred"))
         failed_techniques = self.total_techniques - successful_techniques
 
         summary_prompt = f"""
-        Based on the following findings from the Exploratory Data Analysis:
+        Based on the following findings from the Data Analysis:
         
         {self.findings}
         
@@ -737,43 +752,43 @@ class AdvancedExploratoryDataAnalysisB1:  # Updated class name
         - {successful_techniques} out of {self.total_techniques} analysis techniques were successfully completed.
         - {failed_techniques} techniques encountered errors and were skipped.
         
-        Please provide an executive summary of the analysis. The summary should:
-        1. Briefly introduce the purpose of the analysis.
-        2. Mention the number of successful and failed techniques.
-        3. Highlight the most significant insights and patterns discovered.
-        4. Mention any potential issues or areas that require further investigation.
-        5. Discuss any limitations of the analysis due to failed techniques.
-        6. Conclude with recommendations for next steps or areas to focus on.
+        Please provide an executive summary of the analysis tailored for auditors and business managers. The summary should:
+        1. Briefly introduce the purpose of the analysis in the context of auditing or business improvement.
+        2. Highlight the most significant patterns, trends, and potential issues discovered.
+        3. Identify key areas of concern or opportunity that require immediate attention.
+        4. Discuss the potential impact of these findings on business operations, compliance, or strategic decisions.
+        5. Provide high-level, actionable recommendations for next steps or areas for deeper investigation.
+        6. Briefly mention any limitations of the analysis that might affect decision-making.
 
-        Structure the summary in multiple paragraphs for readability.
+        Focus on insights that are most relevant for audit findings or business decisions. Avoid technical jargon and prioritize clear, actionable information. Structure the summary in multiple paragraphs for readability.
+
         Please provide your response in plain text format, without any special formatting or markup.
         """
         
         try:
             interpretation = self.worker_erag_api.chat([
-                {"role": "system", "content": "You are a data analyst providing an executive summary of an exploratory data analysis. Respond in plain text format."},
+                {"role": "system", "content": "You are a data analyst providing an executive summary of a data analysis for auditors and business managers. Respond in plain text format."},
                 {"role": "user", "content": summary_prompt}
             ])
             
             if interpretation is not None:
-                # Updated second LLM call to focus on direct improvements
                 check_prompt = f"""
                 Please review and improve the following executive summary:
 
                 {interpretation}
 
                 Enhance the summary by:
-                1. Making it more comprehensive and narrative by adding context and explanations.
-                2. Addressing any important aspects of the analysis that weren't covered.
-                3. Ensuring it includes a clear introduction, highlights of significant insights, mention of potential issues, and recommendations for next steps.
-                4. Discussing the implications of any failed techniques on the overall analysis.
+                1. Ensuring it clearly communicates the most critical findings and their implications for auditing or business management.
+                2. Strengthening the actionable recommendations, making them more specific and tied to the key findings.
+                3. Improving the overall narrative flow, ensuring it tells a coherent story about the state of the business or areas requiring audit attention.
+                4. Balancing the discussion of risks and opportunities identified in the analysis.
 
                 Provide your response in plain text format, without any special formatting or markup.
-                Do not add comments, questions, or explanations about the changes - simply provide the improved version.
+                Do not add comments about the changes - simply provide the improved version.
                 """
 
                 enhanced_summary = self.supervisor_erag_api.chat([
-                    {"role": "system", "content": "You are a data analyst improving an executive summary of an exploratory data analysis. Provide direct enhancements without adding meta-comments."},
+                    {"role": "system", "content": "You are a senior auditor or business analyst improving an executive summary of a data analysis. Provide direct enhancements without adding meta-comments."},
                     {"role": "user", "content": check_prompt}
                 ])
 

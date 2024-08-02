@@ -7,6 +7,8 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 from reportlab.lib.units import inch
 from reportlab.lib.enums import TA_JUSTIFY, TA_CENTER
+from reportlab.platypus.paragraph import ParaLines
+import re
 
 # Define RGB values for custom colors
 DARK_BLUE_RGB = (34/255, 34/255, 59/255)
@@ -153,5 +155,30 @@ class PDFReportGenerator:
         elements = []
         for paragraph in text.split('\n'):
             if paragraph.strip():
-                elements.append(Paragraph(paragraph, self.styles['Normal']))
+                try:
+                    # Try to create a Paragraph object
+                    para = Paragraph(paragraph, self.styles['Normal'])
+                    # Test if the paragraph can be split into lines without error
+                    _ = para.split(self.styles['Normal'].fontSize, self.styles['Normal'].leading)
+                    elements.append(para)
+                except Exception as e:
+                    # If there's an error, clean the text and try again
+                    cleaned_text = self._clean_text(paragraph)
+                    try:
+                        para = Paragraph(cleaned_text, self.styles['Normal'])
+                        _ = para.split(self.styles['Normal'].fontSize, self.styles['Normal'].leading)
+                        elements.append(para)
+                    except:
+                        # If it still fails, add the text as a simple string
+                        print(f"Warning: Could not parse paragraph: {cleaned_text[:50]}...")
+                        elements.append(cleaned_text)
         return elements
+
+    def _clean_text(self, text):
+        # Remove any HTML-like tags
+        text = re.sub('<[^<]+?>', '', text)
+        # Replace special characters with their HTML entities
+        text = text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+        # Remove any non-printable characters
+        text = ''.join(char for char in text if ord(char) > 31 or ord(char) == 9)
+        return text
