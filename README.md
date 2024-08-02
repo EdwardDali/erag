@@ -227,6 +227,21 @@ Customize ERAG's behavior through the Settings tab in the GUI or by modifying `s
 82. Jarque-Bera Test Analysis
 83. Adaptive Multi-dimensional Pattern Recognition (AMPR)
 84. Enhanced Time Series Forecasting (ETSF)
+85. Trend Analysis
+86. Variance Analysis
+87. Regression Analysis (simple and multiple)
+88. Stratification Analysis
+89. Gap Analysis
+90. Duplicate Detection
+91. Process Mining
+92. Data Validation Techniques
+93. Risk Scoring Models
+94. Fuzzy Matching
+95. Continuous Auditing Techniques
+96. Sensitivity Analysis
+97. Scenario Analysis
+98. Monte Carlo Simulation
+99. Key Performance Indicator (KPI) Analysis
 
 ## Troubleshooting
 
