@@ -146,16 +146,33 @@ class AdvancedExploratoryDataAnalysisB1:  # Updated class name
                 self.technique_counter += 1
 
     def value_counts_analysis(self, df, table_name):
-        
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Value Counts Analysis"))
         
         categorical_columns = df.select_dtypes(include=['object']).columns
         results = {}
+        image_paths = []
         
         for col in categorical_columns:
             value_counts = df[col].value_counts()
             results[col] = value_counts.to_dict()
+            
+            # Create pie chart
+            def plot_pie_chart():
+                fig, ax = plt.subplots(figsize=self.calculate_figure_size())
+                value_counts.plot(kind='pie', autopct='%1.1f%%', ax=ax)
+                ax.set_title(f'Distribution of {col}')
+                ax.set_ylabel('')  # Remove y-label
+                return fig, ax
+
+            result = self.generate_plot(plot_pie_chart)
+            if result is not None:
+                fig, ax = result
+                img_path = os.path.join(self.output_folder, f"{table_name}_{col}_pie_chart.png")
+                plt.savefig(img_path, dpi=100, bbox_inches='tight')
+                plt.close(fig)
+                image_paths.append((f"{col} Distribution", img_path))
         
+        results['image_paths'] = image_paths
         self.interpret_results("Value Counts Analysis", results, table_name)
 
     def grouped_summary_statistics(self, df, table_name):
@@ -402,7 +419,6 @@ class AdvancedExploratoryDataAnalysisB1:  # Updated class name
         self.interpret_results("Outlier Detection", results, table_name)
 
     def feature_importance_analysis(self, df, table_name):
-        
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Feature Importance Analysis"))
         image_paths = []
         
@@ -421,24 +437,37 @@ class AdvancedExploratoryDataAnalysisB1:  # Updated class name
             }).sort_values('importance', ascending=False)
             
             def plot_feature_importance():
-                fig, ax = plt.subplots(figsize=self.calculate_figure_size())
-                sns.barplot(x='importance', y='feature', data=feature_importance, ax=ax)
-                ax.set_title('Feature Importance')
-                ax.set_xlabel('Importance')
-                ax.set_ylabel('Feature')
-                return fig, ax
+                fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(self.calculate_figure_size()[0]*2, self.calculate_figure_size()[1]))
+                
+                # Bar plot
+                sns.barplot(x='importance', y='feature', data=feature_importance, ax=ax1)
+                ax1.set_title('Feature Importance (Bar Plot)')
+                ax1.set_xlabel('Importance')
+                ax1.set_ylabel('Feature')
+                
+                # Pie chart
+                ax2.pie(feature_importance['importance'], labels=feature_importance['feature'], autopct='%1.1f%%')
+                ax2.set_title('Feature Importance (Pie Chart)')
+                
+                plt.tight_layout()
+                return fig, (ax1, ax2)
 
             result = self.generate_plot(plot_feature_importance)
             if result is not None:
-                fig, ax = result
+                fig, _ = result
                 img_path = os.path.join(self.output_folder, f"{table_name}_feature_importance.png")
                 plt.savefig(img_path, dpi=100, bbox_inches='tight')
                 plt.close(fig)
-                self.interpret_results("Feature Importance Analysis", {'image_paths': image_paths}, table_name)
-            else:
-                print("Skipping feature importance plot due to timeout.")
+                image_paths.append(("Feature Importance", img_path))
+            
+            results = {
+                'feature_importance': feature_importance.to_dict(),
+                'image_paths': image_paths
+            }
+            self.interpret_results("Feature Importance Analysis", results, table_name)
         else:
             print("Not enough numerical columns for feature importance analysis.")
+            self.interpret_results("Feature Importance Analysis", "N/A - Not enough numerical columns", table_name)
 
     def pca_analysis(self, df, table_name):
         

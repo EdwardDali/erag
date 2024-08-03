@@ -387,58 +387,62 @@ class AdvancedExploratoryDataAnalysisB2:
             print("No latitude and longitude columns found for geographical plot.")
 
     def word_clouds(self, df, table_name):
-        
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Word Clouds"))
         image_paths = []
 
         text_columns = df.select_dtypes(include=['object']).columns
         if len(text_columns) > 0:
-            def plot_word_cloud():
+            def plot_word_cloud_and_pie():
                 text = " ".join(df[text_columns[0]].dropna())
                 wordcloud = WordCloud(width=800, height=400, background_color='white').generate(text)
                 
-                fig, ax = plt.subplots(figsize=self.calculate_figure_size())
-                ax.imshow(wordcloud, interpolation='bilinear')
-                ax.axis('off')
-                ax.set_title('Word Cloud')
-                return fig, ax
+                fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(self.calculate_figure_size()[0]*2, self.calculate_figure_size()[1]))
+                
+                # Word Cloud
+                ax1.imshow(wordcloud, interpolation='bilinear')
+                ax1.axis('off')
+                ax1.set_title('Word Cloud')
+                
+                # Pie Chart of top 10 words
+                word_freq = wordcloud.words_
+                top_words = dict(sorted(word_freq.items(), key=lambda x: x[1], reverse=True)[:10])
+                ax2.pie(top_words.values(), labels=top_words.keys(), autopct='%1.1f%%')
+                ax2.set_title('Top 10 Most Frequent Words')
+                
+                plt.tight_layout()
+                return fig, (ax1, ax2)
 
-            result = self.generate_plot(plot_word_cloud)
+            result = self.generate_plot(plot_word_cloud_and_pie)
             if result is not None:
                 fig, _ = result
-                img_path = os.path.join(self.output_folder, f"{table_name}_word_cloud.png")
+                img_path = os.path.join(self.output_folder, f"{table_name}_word_cloud_and_pie.png")
                 plt.savefig(img_path, dpi=100, bbox_inches='tight')
                 plt.close(fig)
                 image_paths.append(img_path)
-                
             else:
-                print("Skipping word cloud plot due to timeout.")
+                print("Skipping word cloud and pie chart plot due to timeout.")
         else:
-            print("No text columns found for word cloud.")
-        self.interpret_results("Word Clouds", {'image_paths': image_paths}, table_name)
+            print("No text columns found for word cloud and pie chart.")
+        self.interpret_results("Word Clouds and Frequency Pie Chart", {'image_paths': image_paths}, table_name)
 
     def hierarchical_clustering_dendrogram(self, df, table_name):
-        
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Hierarchical Clustering Dendrogram"))
         image_paths = []
 
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
         if len(numerical_columns) > 1:
-            def plot_dendrogram():
-                # Select numerical columns and handle NaN values
+            def plot_dendrogram_and_pie():
                 X = df[numerical_columns]
-                
-                # Use SimpleImputer to replace NaN values with the mean of the column
                 imputer = SimpleImputer(strategy='mean')
                 X_imputed = imputer.fit_transform(X)
-                
                 X_scaled = StandardScaler().fit_transform(X_imputed)
                 
-                model = AgglomerativeClustering(distance_threshold=0, n_clusters=None)
+                model = AgglomerativeClustering(n_clusters=5)  # Set a fixed number of clusters
                 model = model.fit(X_scaled)
                 
-                fig, ax = plt.subplots(figsize=self.calculate_figure_size())
+                fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(self.calculate_figure_size()[0]*2, self.calculate_figure_size()[1]))
                 
+                # Dendrogram
                 def plot_dendrogram_recursive(model, ax):
                     counts = np.zeros(model.children_.shape[0])
                     n_samples = len(model.labels_)
@@ -457,25 +461,32 @@ class AdvancedExploratoryDataAnalysisB2:
                     ax.set_ylabel('Distance')
                     dendrogram(linkage_matrix, ax=ax, truncate_mode='level', p=3)
                 
-                plot_dendrogram_recursive(model, ax)
-                ax.set_title('Hierarchical Clustering Dendrogram')
-                ax.set_xlabel('Number of points in node (or index of point if no parenthesis)')
-                ax.set_ylabel('Distance')
-                return fig, ax
+                plot_dendrogram_recursive(model, ax1)
+                ax1.set_title('Hierarchical Clustering Dendrogram')
+                ax1.set_xlabel('Number of points in node')
+                ax1.set_ylabel('Distance')
+                
+                # Pie chart of cluster distribution
+                cluster_counts = pd.Series(model.labels_).value_counts()
+                ax2.pie(cluster_counts.values, labels=cluster_counts.index, autopct='%1.1f%%')
+                ax2.set_title('Cluster Distribution')
+                
+                plt.tight_layout()
+                return fig, (ax1, ax2)
 
-            result = self.generate_plot(plot_dendrogram)
+            result = self.generate_plot(plot_dendrogram_and_pie)
             if result is not None:
                 fig, _ = result
-                img_path = os.path.join(self.output_folder, f"{table_name}_dendrogram.png")
+                img_path = os.path.join(self.output_folder, f"{table_name}_dendrogram_and_pie.png")
                 plt.savefig(img_path, dpi=100, bbox_inches='tight')
                 plt.close(fig)
                 image_paths.append(img_path)
-                
             else:
-                print("Skipping hierarchical clustering dendrogram plot due to timeout.")
+                print("Skipping hierarchical clustering dendrogram and pie chart plot due to timeout.")
         else:
-            print("Not enough numerical columns for hierarchical clustering dendrogram.")
-        self.interpret_results("Hierarchical Clustering Dendrogram", {'image_paths': image_paths}, table_name)
+            print("Not enough numerical columns for hierarchical clustering dendrogram and pie chart.")
+        self.interpret_results("Hierarchical Clustering Dendrogram and Cluster Distribution", {'image_paths': image_paths}, table_name)
+
 
     def ecdf_plots(self, df, table_name):
         
@@ -656,51 +667,51 @@ class AdvancedExploratoryDataAnalysisB2:
 
 
     def shapley_value_analysis(self, df, table_name):
-        
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Shapley Value Analysis"))
         image_paths = []
 
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
         if len(numerical_columns) > 1:
-            def plot_shapley():
-                try:
-                    X = df[numerical_columns]
-                    
-                    # Use SimpleImputer to replace NaN values with the mean of each column
-                    imputer = SimpleImputer(strategy='mean')
-                    X_imputed = pd.DataFrame(imputer.fit_transform(X), columns=X.columns)
-                    
-                    # Assuming the last column is the target variable
-                    y = X_imputed.iloc[:, -1]
-                    X = X_imputed.iloc[:, :-1]
+            def plot_shapley_and_pie():
+                X = df[numerical_columns]
+                imputer = SimpleImputer(strategy='mean')
+                X_imputed = pd.DataFrame(imputer.fit_transform(X), columns=X.columns)
+                
+                y = X_imputed.iloc[:, -1]
+                X = X_imputed.iloc[:, :-1]
 
-                    model = RandomForestRegressor(n_estimators=100, random_state=42)
-                    model.fit(X, y)
+                model = RandomForestRegressor(n_estimators=100, random_state=42)
+                model.fit(X, y)
 
-                    explainer = shap.TreeExplainer(model)
-                    shap_values = explainer.shap_values(X)
+                explainer = shap.TreeExplainer(model)
+                shap_values = explainer.shap_values(X)
 
-                    fig, ax = plt.subplots(figsize=self.calculate_figure_size())
-                    shap.summary_plot(shap_values, X, plot_type="bar", show=False)
-                    ax.set_title('Shapley Value Analysis')
-                    return fig, ax
-                except Exception as e:
-                    print(f"Error in creating Shapley value plot: {str(e)}")
-                    return None
+                fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(self.calculate_figure_size()[0]*2, self.calculate_figure_size()[1]))
+                
+                # Shapley summary plot
+                shap.summary_plot(shap_values, X, plot_type="bar", show=False, ax=ax1)
+                ax1.set_title('Shapley Value Analysis')
+                
+                # Pie chart of feature importance
+                feature_importance = np.abs(shap_values).mean(0)
+                ax2.pie(feature_importance, labels=X.columns, autopct='%1.1f%%')
+                ax2.set_title('Feature Importance (Shapley Values)')
+                
+                plt.tight_layout()
+                return fig, (ax1, ax2)
 
-            result = self.generate_plot(plot_shapley)
+            result = self.generate_plot(plot_shapley_and_pie)
             if result is not None:
                 fig, _ = result
-                img_path = os.path.join(self.output_folder, f"{table_name}_shapley_value_analysis.png")
+                img_path = os.path.join(self.output_folder, f"{table_name}_shapley_and_pie.png")
                 plt.savefig(img_path, dpi=100, bbox_inches='tight')
                 plt.close(fig)
                 image_paths.append(img_path)
-                
             else:
-                print("Skipping Shapley value analysis plot due to timeout or error.")
+                print("Skipping Shapley value analysis and pie chart plot due to timeout or error.")
         else:
-            print("Not enough numerical columns for Shapley value analysis.")
-        self.interpret_results("Shapley Value Analysis", {'image_paths': image_paths}, table_name)
+            print("Not enough numerical columns for Shapley value analysis and pie chart.")
+        self.interpret_results("Shapley Value Analysis and Feature Importance Pie Chart", {'image_paths': image_paths}, table_name)
 
     def partial_dependence_plots(self, df, table_name):
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Partial Dependence Plots"))

@@ -593,15 +593,22 @@ class AdvancedExploratoryDataAnalysisB4:
                 
                 expected_freq = pd.Series([np.log10(1 + 1/d) for d in range(1, 10)], index=range(1, 10))
                 
-                fig, ax = plt.subplots(figsize=self.calculate_figure_size())
-                observed_freq.plot(kind='bar', ax=ax, alpha=0.5, label='Observed')
-                expected_freq.plot(kind='line', ax=ax, color='r', label='Expected (Benford\'s Law)')
-                ax.set_title(f"Benford's Law Analysis for {numerical_columns[0]}")
-                ax.set_xlabel("First Digit")
-                ax.set_ylabel("Frequency")
-                ax.legend()
+                fig, (ax1, ax2) = plt.subplots(1, 2, figsize=self.calculate_figure_size())
+                
+                # Bar plot
+                observed_freq.plot(kind='bar', ax=ax1, alpha=0.5, label='Observed')
+                expected_freq.plot(kind='line', ax=ax1, color='r', label='Expected (Benford\'s Law)')
+                ax1.set_title(f"Benford's Law Analysis for {numerical_columns[0]}")
+                ax1.set_xlabel("First Digit")
+                ax1.set_ylabel("Frequency")
+                ax1.legend()
+                
+                # Pie chart
+                ax2.pie(observed_freq, labels=observed_freq.index, autopct='%1.1f%%', startangle=90)
+                ax2.set_title("Distribution of First Digits")
+                
                 plt.tight_layout()
-                return fig, ax
+                return fig, (ax1, ax2)
 
             result = self.generate_plot(plot_benfords_law)
             if result is not None:
@@ -615,17 +622,39 @@ class AdvancedExploratoryDataAnalysisB4:
                 print("Skipping Benford's Law Analysis plot due to error in plot generation.")
         else:
             print("No numerical columns found for Benford's Law Analysis.")
-        self.interpret_results("Benford's Law Analysis", {'image_paths': image_paths}, table_name)
+        
+        # Perform chi-square test
+        if len(numerical_columns) > 0:
+            data = df[numerical_columns[0]].dropna()
+            first_digits = data.apply(get_first_digit)
+            observed_freq = first_digits.value_counts().sort_index()
+            expected_freq = pd.Series([np.log10(1 + 1/d) for d in range(1, 10)], index=range(1, 10))
+            expected_freq = expected_freq * len(first_digits)
+            
+            chi2, p_value = stats.chisquare(observed_freq, expected_freq)
+            
+            chi_square_result = {
+                "chi2_statistic": chi2,
+                "p_value": p_value,
+                "degrees_of_freedom": len(observed_freq) - 1
+            }
+        else:
+            chi_square_result = None
+        
+        results = {
+            "image_paths": image_paths,
+            "chi_square_test": chi_square_result
+        }
+        
+        self.interpret_results("Benford's Law Analysis", results, table_name)
 
     def forensic_accounting(self, df, table_name):
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Forensic Accounting Techniques"))
         image_paths = []
-        
+    
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
         if len(numerical_columns) >= 2:
             def plot_forensic_accounting():
-                # For this example, we'll use a scatter plot of two numerical columns
-                # and highlight potential anomalies using Mahalanobis distance
                 X = df[numerical_columns].dropna()
                 
                 # Remove constant columns
@@ -647,20 +676,27 @@ class AdvancedExploratoryDataAnalysisB4:
                     # Define threshold for anomalies (e.g., top 5% of Mahalanobis distances)
                     threshold = np.percentile(mahalanobis, 95)
                     
-                    fig, ax = plt.subplots(figsize=self.calculate_figure_size())
-                    scatter = ax.scatter(X.iloc[:, 0], X.iloc[:, 1], c=mahalanobis, cmap='viridis')
-                    ax.set_xlabel(X.columns[0])
-                    ax.set_ylabel(X.columns[1])
-                    ax.set_title("Forensic Accounting: Potential Anomalies")
-                    plt.colorbar(scatter, label='Mahalanobis Distance')
+                    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=self.calculate_figure_size())
+                    scatter = ax1.scatter(X.iloc[:, 0], X.iloc[:, 1], c=mahalanobis, cmap='viridis')
+                    ax1.set_xlabel(X.columns[0])
+                    ax1.set_ylabel(X.columns[1])
+                    ax1.set_title("Forensic Accounting: Potential Anomalies")
+                    plt.colorbar(scatter, ax=ax1, label='Mahalanobis Distance')
                     
                     # Highlight potential anomalies
                     anomalies = X[mahalanobis > threshold]
-                    ax.scatter(anomalies.iloc[:, 0], anomalies.iloc[:, 1], color='red', s=100, facecolors='none', edgecolors='r', label='Potential Anomalies')
+                    ax1.scatter(anomalies.iloc[:, 0], anomalies.iloc[:, 1], color='red', s=100, facecolors='none', edgecolors='r', label='Potential Anomalies')
                     
-                    ax.legend()
+                    ax1.legend()
+                    
+                    # Pie chart
+                    anomaly_count = len(anomalies)
+                    normal_count = len(X) - anomaly_count
+                    ax2.pie([normal_count, anomaly_count], labels=['Normal', 'Anomalies'], autopct='%1.1f%%', startangle=90)
+                    ax2.set_title("Distribution of Anomalies")
+                    
                     plt.tight_layout()
-                    return fig, ax
+                    return fig, (ax1, ax2)
                 except np.linalg.LinAlgError:
                     print("Singular matrix encountered. Performing alternative analysis.")
                     
@@ -668,15 +704,22 @@ class AdvancedExploratoryDataAnalysisB4:
                     z_scores = np.abs(stats.zscore(X))
                     outliers = (z_scores > 3).any(axis=1)
                     
-                    fig, ax = plt.subplots(figsize=self.calculate_figure_size())
-                    ax.scatter(X.iloc[:, 0], X.iloc[:, 1], c='blue', label='Normal')
-                    ax.scatter(X[outliers].iloc[:, 0], X[outliers].iloc[:, 1], c='red', label='Potential Anomalies')
-                    ax.set_xlabel(X.columns[0])
-                    ax.set_ylabel(X.columns[1])
-                    ax.set_title("Forensic Accounting: Potential Anomalies (Z-score method)")
-                    ax.legend()
+                    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=self.calculate_figure_size())
+                    ax1.scatter(X.iloc[:, 0], X.iloc[:, 1], c='blue', label='Normal')
+                    ax1.scatter(X[outliers].iloc[:, 0], X[outliers].iloc[:, 1], c='red', label='Potential Anomalies')
+                    ax1.set_xlabel(X.columns[0])
+                    ax1.set_ylabel(X.columns[1])
+                    ax1.set_title("Forensic Accounting: Potential Anomalies (Z-score method)")
+                    ax1.legend()
+                    
+                    # Pie chart for alternative analysis
+                    anomaly_count = outliers.sum()
+                    normal_count = len(X) - anomaly_count
+                    ax2.pie([normal_count, anomaly_count], labels=['Normal', 'Anomalies'], autopct='%1.1f%%', startangle=90)
+                    ax2.set_title("Distribution of Anomalies (Z-score method)")
+                    
                     plt.tight_layout()
-                    return fig, ax
+                    return fig, (ax1, ax2)
 
             result = self.generate_plot(plot_forensic_accounting)
             if result is not None:
@@ -690,6 +733,7 @@ class AdvancedExploratoryDataAnalysisB4:
                 print("Skipping Forensic Accounting plot due to error in plot generation.")
         else:
             print("Not enough numerical columns for Forensic Accounting analysis.")
+        
         self.interpret_results("Forensic Accounting Techniques", {'image_paths': image_paths}, table_name)
 
     def network_analysis_fraud_detection(self, df, table_name):
@@ -708,15 +752,21 @@ class AdvancedExploratoryDataAnalysisB4:
                 threshold = np.percentile(list(degree_centrality.values()), 95)
                 suspicious_nodes = [node for node, centrality in degree_centrality.items() if centrality > threshold]
                 
-                fig, ax = plt.subplots(figsize=self.calculate_figure_size())
+                fig, (ax1, ax2) = plt.subplots(1, 2, figsize=self.calculate_figure_size())
                 pos = nx.spring_layout(G)
-                nx.draw(G, pos, with_labels=True, node_color='lightblue', node_size=500, font_size=8, ax=ax)
-                nx.draw_networkx_nodes(G, pos, nodelist=suspicious_nodes, node_color='red', node_size=700)
+                nx.draw(G, pos, with_labels=True, node_color='lightblue', node_size=500, font_size=8, ax=ax1)
+                nx.draw_networkx_nodes(G, pos, nodelist=suspicious_nodes, node_color='red', node_size=700, ax=ax1)
                 
-                ax.set_title("Network Analysis for Fraud Detection")
-                plt.figtext(0.5, 0.01, "Red nodes are potentially suspicious based on high degree centrality", ha="center")
+                ax1.set_title("Network Analysis for Fraud Detection")
+                
+                # Pie chart
+                suspicious_count = len(suspicious_nodes)
+                normal_count = len(G.nodes()) - suspicious_count
+                ax2.pie([normal_count, suspicious_count], labels=['Normal', 'Suspicious'], autopct='%1.1f%%', startangle=90)
+                ax2.set_title("Distribution of Suspicious Nodes")
+                
                 plt.tight_layout()
-                return fig, ax
+                return fig, (ax1, ax2)
 
             result = self.generate_plot(plot_network_analysis)
             if result is not None:
@@ -727,34 +777,43 @@ class AdvancedExploratoryDataAnalysisB4:
                 image_paths.append(img_path)
                 self.interpret_results("Network Analysis for Fraud Detection", {'image_paths': image_paths}, table_name)
             else:
-                print("Required columns (source, target, amount) not found. Performing alternative analysis.")
-                numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
-                if len(numerical_columns) >= 2:
-                    def plot_alternative_analysis():
-                        X = df[numerical_columns].dropna()
-                        
-                        # Perform a simple correlation analysis
-                        corr = X.corr()
-                        
-                        fig, ax = plt.subplots(figsize=self.calculate_figure_size())
-                        sns.heatmap(corr, annot=True, cmap='coolwarm', ax=ax)
-                        ax.set_title("Correlation Heatmap (Alternative to Network Analysis)")
-                        plt.tight_layout()
-                        return fig, ax
+                print("Skipping Network Analysis plot due to error in plot generation.")
+        else:
+            print("Required columns (source, target, amount) not found. Performing alternative analysis.")
+            numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
+            if len(numerical_columns) >= 2:
+                def plot_alternative_analysis():
+                    X = df[numerical_columns].dropna()
+                    
+                    # Perform a simple correlation analysis
+                    corr = X.corr()
+                    
+                    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=self.calculate_figure_size())
+                    sns.heatmap(corr, annot=True, cmap='coolwarm', ax=ax1)
+                    ax1.set_title("Correlation Heatmap")
+                    
+                    # Pie chart for correlation distribution
+                    high_corr = (np.abs(corr) > 0.7).sum().sum() / 2  # Divide by 2 to avoid counting twice
+                    low_corr = (corr.size - corr.shape[0]) / 2 - high_corr  # Subtract diagonal and high correlations
+                    ax2.pie([high_corr, low_corr], labels=['High Correlation', 'Low Correlation'], autopct='%1.1f%%', startangle=90)
+                    ax2.set_title("Distribution of Correlations")
+                    
+                    plt.tight_layout()
+                    return fig, (ax1, ax2)
 
-                    result = self.generate_plot(plot_alternative_analysis)
-                    if result is not None:
-                        fig, _ = result
-                        img_path = os.path.join(self.output_folder, f"{table_name}_alternative_network_analysis.png")
-                        plt.savefig(img_path, dpi=100, bbox_inches='tight')
-                        plt.close(fig)
-                        image_paths.append(img_path)
-                        
-                    else:
-                        print("Skipping alternative analysis plot due to error in plot generation.")
+                result = self.generate_plot(plot_alternative_analysis)
+                if result is not None:
+                    fig, _ = result
+                    img_path = os.path.join(self.output_folder, f"{table_name}_alternative_network_analysis.png")
+                    plt.savefig(img_path, dpi=100, bbox_inches='tight')
+                    plt.close(fig)
+                    image_paths.append(img_path)
+                    
                 else:
-                    print("Not enough numerical columns for alternative analysis.")
-                self.interpret_results("Alternative Network Analysis", {'image_paths': image_paths}, table_name)
+                    print("Skipping alternative analysis plot due to error in plot generation.")
+            else:
+                print("Not enough numerical columns for alternative analysis.")
+            self.interpret_results("Alternative Network Analysis", {'image_paths': image_paths}, table_name)
 
     def sequence_alignment(self, df, table_name):
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Sequence Alignment and Matching"))

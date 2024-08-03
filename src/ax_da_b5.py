@@ -158,37 +158,79 @@ class AdvancedExploratoryDataAnalysisB5:
         X = df[numeric_cols].drop(numeric_cols[-1], axis=1)
         y = df[numeric_cols[-1]]
         
-        model = LinearRegression().fit(X, y)
-        
-        influence = OLSInfluence(model)
-        cooks_d = influence.cooks_distance[0]
-        
-        def plot_cooks_distance():
-            fig, ax = plt.subplots(figsize=self.calculate_figure_size())
-            ax.stem(range(len(cooks_d)), cooks_d, markerfmt=",")
-            ax.set_title("Cook's Distance")
-            ax.set_xlabel("Observation")
-            ax.set_ylabel("Cook's Distance")
-            return fig, ax
+        try:
+            # Fit the model
+            model = LinearRegression()
+            model.fit(X, y)
+            
+            # Calculate Cook's Distance
+            n = len(X)
+            p = len(X.columns)
+            
+            # Calculate MSE
+            y_pred = model.predict(X)
+            mse = np.mean((y - y_pred) ** 2)
+            
+            # Calculate leverage
+            hat_matrix_diag = X.dot(np.linalg.inv(X.T.dot(X))).dot(X.T).diagonal()
+            
+            # Calculate Cook's Distance
+            residuals = y - y_pred
+            cooks_d = (residuals ** 2 / (p * mse)) * (hat_matrix_diag / (1 - hat_matrix_diag) ** 2)
+            
+            def plot_cooks_distance():
+                fig, (ax1, ax2) = plt.subplots(2, 1, figsize=self.calculate_figure_size())
+                
+                # Stem plot
+                ax1.stem(range(len(cooks_d)), cooks_d, markerfmt=",")
+                ax1.set_title("Cook's Distance")
+                ax1.set_xlabel("Observation")
+                ax1.set_ylabel("Cook's Distance")
+                
+                # Add a threshold line
+                threshold = 4 / (n - p)
+                ax1.axhline(y=threshold, color='r', linestyle='--', label=f'Threshold ({threshold:.4f})')
+                ax1.legend()
+                
+                # Pie chart for influential vs non-influential points
+                influential_points = np.sum(cooks_d > threshold)
+                non_influential_points = n - influential_points
+                ax2.pie([influential_points, non_influential_points], 
+                        labels=['Influential', 'Non-influential'], 
+                        autopct='%1.1f%%', 
+                        startangle=90)
+                ax2.set_title('Proportion of Influential Points')
+                
+                plt.tight_layout()
+                return fig, (ax1, ax2)
 
-        result = self.generate_plot(plot_cooks_distance)
-        if result is not None:
-            fig, ax = result
-            img_path = os.path.join(self.output_folder, f"{table_name}_cooks_distance.png")
-            plt.savefig(img_path, dpi=100, bbox_inches='tight')
-            plt.close(fig)
-            image_paths.append(img_path)
-            
-            threshold = 4 / len(df)
-            influential_points = np.where(cooks_d > threshold)[0]
-            
-            self.interpret_results("Cook's Distance Analysis", {
-                'image_paths': image_paths,
-                'influential_points': influential_points.tolist(),
-                'threshold': threshold
-            }, table_name)
-        else:
-            print("Skipping Cook's Distance plot due to timeout.")
+            result = self.generate_plot(plot_cooks_distance)
+            if result is not None:
+                fig, _ = result
+                img_path = os.path.join(self.output_folder, f"{table_name}_cooks_distance.png")
+                plt.savefig(img_path, dpi=100, bbox_inches='tight')
+                plt.close(fig)
+                image_paths.append(img_path)
+                
+                threshold = 4 / (n - p)
+                influential_points = np.where(cooks_d > threshold)[0]
+                
+                self.interpret_results("Cook's Distance Analysis", {
+                    'image_paths': image_paths,
+                    'influential_points': influential_points.tolist(),
+                    'threshold': threshold,
+                    'max_cooks_distance': np.max(cooks_d),
+                    'mean_cooks_distance': np.mean(cooks_d),
+                    'num_influential_points': len(influential_points),
+                    'percent_influential': (len(influential_points) / n) * 100
+                }, table_name)
+            else:
+                print("Skipping Cook's Distance plot due to timeout.")
+        
+        except Exception as e:
+            error_message = f"An error occurred during Cook's Distance analysis: {str(e)}"
+            print(error(error_message))
+            self.interpret_results("Cook's Distance Analysis", {'error': error_message}, table_name)
 
     def stl_decomposition_analysis(self, df, table_name):
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - STL Decomposition Analysis"))
@@ -563,7 +605,7 @@ class AdvancedExploratoryDataAnalysisB5:
             ewma, ewma_ucl, ewma_lcl = ewma_chart(data)
             
             def plot_control_charts():
-                fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(self.calculate_figure_size()[0], self.calculate_figure_size()[1]*2))
+                fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=self.calculate_figure_size())
                 
                 # CUSUM chart
                 ax1.plot(cusum, label='CUSUM')
@@ -582,8 +624,20 @@ class AdvancedExploratoryDataAnalysisB5:
                 ax2.set_ylabel('EWMA')
                 ax2.legend()
                 
+                # Pie chart for out-of-control points
+                cusum_out = np.sum(cusum > cusum_ucl)
+                ewma_out = np.sum((ewma > ewma_ucl) | (ewma < ewma_lcl))
+                total_points = len(data)
+                in_control = total_points - cusum_out - ewma_out
+                
+                ax3.pie([in_control, cusum_out, ewma_out], 
+                        labels=['In Control', 'CUSUM Out', 'EWMA Out'],
+                        autopct='%1.1f%%',
+                        startangle=90)
+                ax3.set_title('Distribution of Control Points')
+                
                 plt.tight_layout()
-                return fig, (ax1, ax2)
+                return fig, (ax1, ax2, ax3)
             
             result = self.generate_plot(plot_control_charts)
             if result is not None:
@@ -623,15 +677,25 @@ class AdvancedExploratoryDataAnalysisB5:
             anomalies = data[kde(data) < threshold]
             
             def plot_kde_anomalies():
-                fig, ax = plt.subplots(figsize=self.calculate_figure_size())
-                ax.plot(x_range, density, label='KDE')
-                ax.axhline(y=threshold, color='r', linestyle='--', label='Anomaly Threshold')
-                ax.scatter(anomalies, kde(anomalies), color='r', label='Anomalies')
-                ax.set_title(f'KDE Anomaly Detection for {col}')
-                ax.set_xlabel('Value')
-                ax.set_ylabel('Density')
-                ax.legend()
-                return fig, ax
+                fig, (ax1, ax2) = plt.subplots(1, 2, figsize=self.calculate_figure_size())
+                ax1.plot(x_range, density, label='KDE')
+                ax1.axhline(y=threshold, color='r', linestyle='--', label='Anomaly Threshold')
+                ax1.scatter(anomalies, kde(anomalies), color='r', label='Anomalies')
+                ax1.set_title(f'KDE Anomaly Detection for {col}')
+                ax1.set_xlabel('Value')
+                ax1.set_ylabel('Density')
+                ax1.legend()
+
+                # Pie chart
+                normal_count = len(data) - len(anomalies)
+                ax2.pie([normal_count, len(anomalies)], 
+                        labels=['Normal', 'Anomalies'],
+                        autopct='%1.1f%%',
+                        startangle=90)
+                ax2.set_title('Distribution of Anomalies')
+
+                plt.tight_layout()
+                return fig, (ax1, ax2)
 
             result = self.generate_plot(plot_kde_anomalies)
             if result is not None:
@@ -691,14 +755,24 @@ class AdvancedExploratoryDataAnalysisB5:
         outliers = X[t_sq > t_sq_crit]
         
         def plot_t_squared():
-            fig, ax = plt.subplots(figsize=self.calculate_figure_size())
-            ax.plot(t_sq, label="T-squared")
-            ax.axhline(y=t_sq_crit, color='r', linestyle='--', label='Critical Value')
-            ax.set_title("Hotelling's T-squared Control Chart")
-            ax.set_xlabel('Observation')
-            ax.set_ylabel('T-squared')
-            ax.legend()
-            return fig, ax
+            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=self.calculate_figure_size())
+            ax1.plot(t_sq, label="T-squared")
+            ax1.axhline(y=t_sq_crit, color='r', linestyle='--', label='Critical Value')
+            ax1.set_title("Hotelling's T-squared Control Chart")
+            ax1.set_xlabel('Observation')
+            ax1.set_ylabel('T-squared')
+            ax1.legend()
+
+            # Pie chart
+            normal_count = n - len(outliers)
+            ax2.pie([normal_count, len(outliers)], 
+                    labels=['Normal', 'Outliers'],
+                    autopct='%1.1f%%',
+                    startangle=90)
+            ax2.set_title('Distribution of Outliers')
+
+            plt.tight_layout()
+            return fig, (ax1, ax2)
 
         result = self.generate_plot(plot_t_squared)
         if result is not None:

@@ -4,6 +4,10 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 from scipy.stats import norm, anderson, pearsonr, probplot, iqr, zscore
+from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
+from sklearn.cluster import KMeans
+from sklearn.ensemble import RandomForestRegressor
 import os
 from src.api_model import EragAPI
 from src.settings import settings
@@ -15,7 +19,6 @@ import threading
 import time
 from functools import wraps
 from src.helper_da import get_technique_info
-import inspect
 
 class TimeoutException(Exception):
     pass
@@ -25,8 +28,8 @@ class ExploratoryDataAnalysis:
         self.worker_erag_api = worker_erag_api
         self.supervisor_erag_api = supervisor_erag_api
         self.db_path = db_path
-        self.technique_counter = 0
-        self.total_techniques = 12  # Updated to reflect new techniques
+        self.technique_counter = 1
+        self.total_techniques = 10  # Updated to reflect merged methods
         self.table_name = None
         self.output_folder = None
         self.text_output = ""
@@ -39,7 +42,6 @@ class ExploratoryDataAnalysis:
         self.timeout_seconds = 10
         self.image_data = []
         self.pdf_generator = None
-        self.selected_table = None 
 
     def calculate_figure_size(self, aspect_ratio=16/9):
         max_width = int(np.sqrt(self.max_pixels * aspect_ratio))
@@ -86,6 +88,12 @@ class ExploratoryDataAnalysis:
         self.generate_pdf_report()
         print(success(f"Exploratory Data Analysis completed. Results saved in {self.output_folder}"))
 
+    def get_tables(self):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+            return [table[0] for table in cursor.fetchall()]
+
     def analyze_table(self, table_name):
         self.table_name = table_name
         self.output_folder = os.path.join(settings.output_folder, f"xda_{self.table_name}")
@@ -99,18 +107,16 @@ class ExploratoryDataAnalysis:
             df = pd.read_sql_query(f"SELECT * FROM {table_name}", conn)
 
         analysis_methods = [
-            self.data_summary,
-            self.detailed_statistics_summary,
-            self.null_missing_unique_analysis,
-            self.column_importance_analysis,
-            self.basic_statistics,
-            self.data_types_and_missing_values,
-            self.numerical_features_distribution,
+            self.overall_table_analysis,
+            self.statistical_analysis,
             self.correlation_analysis,
             self.categorical_features_analysis,
+            self.distribution_analysis,
             self.outlier_detection,
-            self.data_quality_report,
-            self.hypothesis_testing_suggestions
+            self.time_series_analysis,
+            self.feature_importance_analysis,
+            self.dimensionality_reduction_analysis,
+            self.cluster_analysis
         ]
 
         for method in analysis_methods:
@@ -120,173 +126,168 @@ class ExploratoryDataAnalysis:
                 error_message = f"An error occurred during {method.__name__}: {str(e)}"
                 print(error(error_message))
                 self.text_output += f"\n{error_message}\n"
-                # Optionally, add this error to the PDF report
                 self.pdf_content.append((method.__name__, [], error_message))
-            finally:
-                # Ensure we always increment the technique counter, even if the method fails
-                self.technique_counter += 0.5
 
-
-    def get_tables(self):
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
-            return [table[0] for table in cursor.fetchall()]
-
-
- 
-
-    def basic_statistics(self, df, table_name):
-        self.technique_counter += 0.5
-        print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Basic Statistics"))
+    def overall_table_analysis(self, df, table_name):
+        print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Overall Table Analysis"))
         
-        numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
-        image_paths = []
-        results = {}
+        results = {
+            "Total Rows": len(df),
+            "Total Columns": len(df.columns),
+            "Column Types": df.dtypes.value_counts().to_dict(),
+            "Memory Usage": df.memory_usage(deep=True).sum() / 1024**2,  # in MB
+            "Column Names": df.columns.tolist(),
+            "Missing Values": df.isnull().sum().to_dict(),
+            "Missing Percentages": (df.isnull().sum() / len(df) * 100).to_dict(),
+            "Unique Values": df.nunique().to_dict()
+        }
         
-        for col in numerical_columns:
-            data = df[col].dropna()
+        def plot_overall_description():
+            fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(self.calculate_figure_size()[0]*2, self.calculate_figure_size()[1]*2))
             
-            # Calculate statistics
-            mean = np.mean(data)
-            std_dev = np.std(data, ddof=1)
-            median = np.median(data)
+            # Column types pie chart
+            column_types = df.dtypes.value_counts()
+            ax1.pie(column_types.values, labels=column_types.index, autopct='%1.1f%%', startangle=90)
+            ax1.set_title('Distribution of Column Types')
             
-            results[col] = {
-                'mean': mean,
-                'std_dev': std_dev,
-                'median': median
-            }
+            # Data completeness
+            completeness = 1 - (df.isnull().sum() / len(df))
+            completeness = completeness.sort_values(ascending=False)
+            ax2.bar(completeness.index, completeness.values)
+            ax2.set_title('Data Completeness by Column')
+            ax2.set_xlabel('Columns')
+            ax2.set_ylabel('Completeness (%)')
+            ax2.set_ylim(0, 1)
+            ax2.set_xticklabels(ax2.get_xticklabels(), rotation=90, ha='right')
             
-            # Histogram with normal curve
-            def plot_histogram():
-                fig, ax = plt.subplots(figsize=self.calculate_figure_size())
-                sns.histplot(data, kde=False, bins=30, ax=ax, color='skyblue', edgecolor='black')
-                xmin, xmax = ax.get_xlim()
-                x = np.linspace(xmin, xmax, 100)
-                p = norm.pdf(x, mean, std_dev)
-                ax.plot(x, p * len(data) * (xmax - xmin) / 30, 'r--', linewidth=2)
-                ax.set_title(f'{col}: Histogram with Normal Curve')
-                ax.set_xlabel('Data')
-                ax.set_ylabel('Frequency')
-                return fig, ax
+            # Unique values
+            unique_counts = df.nunique().sort_values(ascending=False)
+            ax3.bar(unique_counts.index, unique_counts.values)
+            ax3.set_title('Unique Values by Column')
+            ax3.set_xlabel('Columns')
+            ax3.set_ylabel('Unique Value Count')
+            ax3.set_xticklabels(ax3.get_xticklabels(), rotation=90, ha='right')
+            
+            # Data type distribution pie chart
+            data_type_counts = df.dtypes.map(lambda x: x.name).value_counts()
+            ax4.pie(data_type_counts.values, labels=data_type_counts.index, autopct='%1.1f%%', startangle=90)
+            ax4.set_title('Distribution of Data Types')
+            
+            plt.tight_layout()
+            return fig, (ax1, ax2, ax3, ax4)
 
-            result = self.generate_plot(plot_histogram)
-            if result is not None:
-                fig, ax = result
-                img_path = os.path.join(self.output_folder, f"{table_name}_{col}_histogram.png")
-                plt.savefig(img_path, dpi=100, bbox_inches='tight')
-                plt.close(fig)
-                image_paths.append((f"{col} Histogram", img_path))
-
-            # Boxplot
-            def plot_boxplot():
-                fig, ax = plt.subplots(figsize=self.calculate_figure_size())
-                sns.boxplot(x=data, ax=ax)
-                ax.set_title(f'{col}: Boxplot')
-                ax.set_xlabel('Data')
-                return fig, ax
-
-            result = self.generate_plot(plot_boxplot)
-            if result is not None:
-                fig, ax = result
-                img_path = os.path.join(self.output_folder, f"{table_name}_{col}_boxplot.png")
-                plt.savefig(img_path, dpi=100, bbox_inches='tight')
-                plt.close(fig)
-                image_paths.append((f"{col} Boxplot", img_path))
-
-        results['image_paths'] = image_paths
-        self.interpret_results("Basic Statistics", results, table_name)
-
-    def data_types_and_missing_values(self, df, table_name):
-        self.technique_counter += 0.5
-        print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Data Types and Missing Values"))
-        data_types = df.dtypes.to_frame(name='Data Type')
-        missing_values = df.isnull().sum().to_frame(name='Missing Values')
-        missing_percentage = (df.isnull().sum() / len(df) * 100).to_frame(name='Missing Percentage')
-        results = pd.concat([data_types, missing_values, missing_percentage], axis=1)
-        self.interpret_results(f"{self.technique_counter}. Data Types and Missing Values", results, table_name)
-
-    def numerical_features_distribution(self, df, table_name):
-        self.technique_counter += 0.5
-        print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Numerical Features Distribution"))
+        result = self.generate_plot(plot_overall_description)
+        if result is not None:
+            fig, _ = result
+            img_path = os.path.join(self.output_folder, f"{table_name}_overall_analysis.png")
+            plt.savefig(img_path, dpi=100, bbox_inches='tight')
+            plt.close(fig)
+            results['image_paths'] = [("Overall Table Analysis", img_path)]
         
-        numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
-        image_paths = []
-        results = {}
-        
-        if len(numerical_columns) > 0:
-            for col in numerical_columns:
-                data = df[col].dropna()
-                
-                # Histogram with KDE
-                def plot_histogram_kde():
-                    fig, ax = plt.subplots(figsize=self.calculate_figure_size())
-                    sns.histplot(data, kde=True, ax=ax, color='skyblue', edgecolor='black')
-                    ax.set_title(f'Distribution of {col}')
-                    ax.set_xlabel(col)
-                    ax.set_ylabel('Frequency')
-                    return fig, ax
+        self.interpret_results("Overall Table Analysis", results, table_name)
+        self.technique_counter += 1
 
-                result = self.generate_plot(plot_histogram_kde)
-                if result is not None:
-                    fig, ax = result
-                    img_path = os.path.join(self.output_folder, f"{table_name}_{col}_distribution.png")
-                    plt.savefig(img_path, dpi=100, bbox_inches='tight')
-                    plt.close(fig)
-                    image_paths.append((f"{col} Distribution", img_path))
-                
-                # Q-Q plot
-                def plot_qq():
-                    fig, ax = plt.subplots(figsize=self.calculate_figure_size())
-                    probplot(data, dist="norm", plot=ax)
-                    ax.set_title(f'Q-Q Plot of {col}')
-                    return fig, ax
-
-                result = self.generate_plot(plot_qq)
-                if result is not None:
-                    fig, ax = result
-                    img_path = os.path.join(self.output_folder, f"{table_name}_{col}_qq_plot.png")
-                    plt.savefig(img_path, dpi=100, bbox_inches='tight')
-                    plt.close(fig)
-                    image_paths.append((f"{col} Q-Q Plot", img_path))
+        def statistical_analysis(self, df, table_name):
+            print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Statistical Analysis"))
             
-            results['image_paths'] = image_paths
-            self.interpret_results("Numerical Features Distribution", results, table_name)
-        else:
-            self.interpret_results("Numerical Features Distribution", "N/A - No numerical features found", table_name)
+            numeric_columns = df.select_dtypes(include=['float64', 'int64']).columns
+            results = df[numeric_columns].describe().to_dict()
+            
+            for col in numeric_columns:
+                results[col]['skewness'] = df[col].skew()
+                results[col]['kurtosis'] = df[col].kurtosis()
+            
+            self.interpret_results("Statistical Analysis", results, table_name)
+            self.technique_counter += 1
+
+    def statistical_analysis(self, df, table_name):
+        print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Statistical Analysis"))
+        
+        numeric_columns = df.select_dtypes(include=['float64', 'int64']).columns
+        results = df[numeric_columns].describe().to_dict()
+        
+        for col in numeric_columns:
+            results[col]['skewness'] = df[col].skew()
+            results[col]['kurtosis'] = df[col].kurtosis()
+        
+        self.interpret_results("Statistical Analysis", results, table_name)
+        self.technique_counter += 1
 
     def correlation_analysis(self, df, table_name):
-        self.technique_counter += 0.5
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Correlation Analysis"))
         
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
         results = {}
+        image_paths = []
         
         if len(numerical_columns) > 1:
             correlation_matrix = df[numerical_columns].corr()
-            results['correlation_matrix'] = correlation_matrix.to_dict()
             
-            def plot_correlation_heatmap():
+            # Function to create correlation heatmap
+            def plot_correlation_heatmap(corr_matrix, title):
                 fig, ax = plt.subplots(figsize=self.calculate_figure_size())
-                sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', vmin=-1, vmax=1, center=0, ax=ax)
-                ax.set_title('Correlation Matrix Heatmap')
+                sns.heatmap(corr_matrix, annot=True, cmap='coolwarm', vmin=-1, vmax=1, center=0, ax=ax)
+                ax.set_title(title)
                 return fig, ax
-
-            result = self.generate_plot(plot_correlation_heatmap)
+            
+            # Create full correlation matrix
+            result = self.generate_plot(plot_correlation_heatmap, correlation_matrix, 'Full Correlation Matrix')
             if result is not None:
                 fig, ax = result
-                img_path = os.path.join(self.output_folder, f"{table_name}_correlation_matrix.png")
+                img_path = os.path.join(self.output_folder, f"{table_name}_full_correlation_matrix.png")
                 plt.savefig(img_path, dpi=100, bbox_inches='tight')
                 plt.close(fig)
-                results['image_paths'] = [("Correlation Matrix Heatmap", img_path)]
+                image_paths.append(("Full Correlation Matrix", img_path))
             
-            self.interpret_results("Correlation Analysis", results, table_name)
+            # Create correlation matrix for highly correlated features
+            high_corr_threshold = 0.5
+            high_corr = (correlation_matrix.abs() > high_corr_threshold) & (correlation_matrix != 1.0)
+            high_corr_features = high_corr.any().index[high_corr.any()]
+            
+            if len(high_corr_features) > 1:
+                high_corr_matrix = correlation_matrix.loc[high_corr_features, high_corr_features]
+                result = self.generate_plot(plot_correlation_heatmap, high_corr_matrix, f'High Correlation Matrix (|r| > {high_corr_threshold})')
+                if result is not None:
+                    fig, ax = result
+                    img_path = os.path.join(self.output_folder, f"{table_name}_high_correlation_matrix.png")
+                    plt.savefig(img_path, dpi=100, bbox_inches='tight')
+                    plt.close(fig)
+                    image_paths.append((f"High Correlation Matrix (|r| > {high_corr_threshold})", img_path))
+            
+            # If there are many features, create subset correlation matrices
+            max_features_per_plot = 15
+            if len(numerical_columns) > max_features_per_plot:
+                for i in range(0, len(numerical_columns), max_features_per_plot):
+                    subset_columns = numerical_columns[i:i+max_features_per_plot]
+                    subset_corr = correlation_matrix.loc[subset_columns, subset_columns]
+                    result = self.generate_plot(plot_correlation_heatmap, subset_corr, f'Correlation Matrix (Subset {i//max_features_per_plot + 1})')
+                    if result is not None:
+                        fig, ax = result
+                        img_path = os.path.join(self.output_folder, f"{table_name}_correlation_matrix_subset_{i//max_features_per_plot + 1}.png")
+                        plt.savefig(img_path, dpi=100, bbox_inches='tight')
+                        plt.close(fig)
+                        image_paths.append((f"Correlation Matrix (Subset {i//max_features_per_plot + 1})", img_path))
+            
+            # Store correlation values
+            results['correlation_matrix'] = correlation_matrix.to_dict()
+            
+            # Find top positive and negative correlations
+            correlations = correlation_matrix.unstack()
+            correlations = correlations[correlations != 1.0]  # Remove self-correlations
+            top_positive = correlations.nlargest(5)
+            top_negative = correlations.nsmallest(5)
+            
+            results['top_positive_correlations'] = top_positive.to_dict()
+            results['top_negative_correlations'] = top_negative.to_dict()
+            
         else:
-            self.interpret_results("Correlation Analysis", "N/A - Not enough numerical features for correlation analysis", table_name)
+            results = "N/A - Not enough numerical features for correlation analysis"
+        
+        results['image_paths'] = image_paths
+        self.interpret_results("Correlation Analysis", results, table_name)
+        self.technique_counter += 1
 
     def categorical_features_analysis(self, df, table_name):
-        self.technique_counter += 0.5
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Categorical Features Analysis"))
         
         categorical_columns = df.select_dtypes(include=['object']).columns
@@ -295,158 +296,93 @@ class ExploratoryDataAnalysis:
         
         if len(categorical_columns) > 0:
             for col in categorical_columns:
-                results[col] = df[col].value_counts().to_dict()
+                value_counts = df[col].value_counts()
+                top_9 = value_counts.nlargest(9)
+                other = value_counts.iloc[9:].sum() if len(value_counts) > 9 else 0
+                
+                if other > 0:
+                    top_10 = top_9.append(pd.Series({'Other': other}))
+                else:
+                    top_10 = value_counts.nlargest(10)
+                
+                results[col] = top_10.to_dict()
                 
                 def plot_categorical_distribution():
-                    fig, ax = plt.subplots(figsize=self.calculate_figure_size())
-                    value_counts = df[col].value_counts().nlargest(10)  # Get top 10 categories
-                    sns.barplot(x=value_counts.index, y=value_counts.values, ax=ax, palette='Set3')
-                    ax.set_title(f'Top 10 Categories in {col}')
-                    ax.set_xlabel(col)
-                    ax.set_ylabel('Count')
-                    ax.tick_params(axis='x', rotation=45)
-                    for i, v in enumerate(value_counts.values):
-                        ax.text(i, v, str(v), ha='center', va='bottom')
+                    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(20, 10))
+                    
+                    # Bar plot
+                    sns.barplot(x=top_10.index, y=top_10.values, ax=ax1, palette='Set3')
+                    ax1.set_title(f'Top 10 Categories in {col}')
+                    ax1.set_xlabel(col)
+                    ax1.set_ylabel('Count')
+                    ax1.tick_params(axis='x', rotation=45)
+                    for i, v in enumerate(top_10.values):
+                        ax1.text(i, v, str(v), ha='center', va='bottom')
+                    
+                    # Pie chart
+                    ax2.pie(top_10.values, labels=top_10.index, autopct='%1.1f%%', startangle=90)
+                    ax2.set_title(f'Top 10 Categories Distribution in {col}')
+                    
                     plt.tight_layout()
-                    return fig, ax
+                    return fig, (ax1, ax2)
 
                 result = self.generate_plot(plot_categorical_distribution)
                 if result is not None:
-                    fig, ax = result
-                    img_path = os.path.join(self.output_folder, f"{table_name}_{col}_top10_categorical_distribution.png")
+                    fig, _ = result
+                    img_path = os.path.join(self.output_folder, f"{table_name}_{col}_categorical_distribution.png")
                     plt.savefig(img_path, dpi=100, bbox_inches='tight')
                     plt.close(fig)
-                    image_paths.append((f"{col} Top 10 Categories", img_path))
+                    image_paths.append((f"{col} Categorical Distribution", img_path))
             
             results['image_paths'] = image_paths
-            self.interpret_results("Categorical Features Analysis (Top 10 Categories)", results, table_name)
         else:
-            self.interpret_results("Categorical Features Analysis", "N/A - No categorical features found", table_name)
+            results = "N/A - No categorical features found"
+        
+        self.interpret_results("Categorical Features Analysis", results, table_name)
+        self.technique_counter += 1
 
-
-    def data_summary(self, df, table_name):
-        self.technique_counter += 0.5
-        print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Data Summary"))
-        
-        summary = {
-            "Number of rows": len(df),
-            "Number of columns": len(df.columns),
-            "Column names and data types": df.dtypes.to_dict(),
-            "Preview": df.head().to_string()
-        }
-        
-        # Create a bar plot of column types
-        def plot_column_types():
-            dtype_counts = df.dtypes.value_counts()
-            fig, ax = plt.subplots(figsize=self.calculate_figure_size())
-            dtype_counts.plot(kind='bar', ax=ax)
-            ax.set_title('Distribution of Column Types')
-            ax.set_xlabel('Data Type')
-            ax.set_ylabel('Count')
-            plt.xticks(rotation=45)
-            return fig, ax
-
-        result = self.generate_plot(plot_column_types)
-        if result is not None:
-            fig, ax = result
-            img_path = os.path.join(self.output_folder, f"{table_name}_column_types.png")
-            plt.savefig(img_path, dpi=100, bbox_inches='tight')
-            plt.close(fig)
-            summary['image_paths'] = [("Data Summary - Column Types", img_path)]
-        
-        self.interpret_results("Data Summary", summary, table_name)
-
-    def detailed_statistics_summary(self, df, table_name):
-        self.technique_counter += 0.5
-        print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Detailed Statistics Summary"))
-        
-        numeric_columns = df.select_dtypes(include=['float64', 'int64']).columns
-        categorical_columns = df.select_dtypes(include=['object']).columns
-        
-        numeric_stats = df[numeric_columns].agg(['mean', 'median', 'std', 'min', 'max'])
-        percentiles = df[numeric_columns].quantile([0.25, 0.5, 0.75])
-        percentiles.index = ['25th Percentile', '50th Percentile', '75th Percentile']
-        numeric_stats = pd.concat([numeric_stats, percentiles])
-        
-        categorical_stats = {col: df[col].value_counts().to_dict() for col in categorical_columns}
-        
-        stats_summary = {
-            "Numeric Statistics": numeric_stats.to_dict(),
-            "Categorical Statistics": categorical_stats
-        }
-        
-        # Create a box plot for numeric columns
-        def plot_numeric_boxplot():
-            fig, ax = plt.subplots(figsize=self.calculate_figure_size())
-            df[numeric_columns].boxplot(ax=ax)
-            ax.set_title('Box Plot of Numeric Columns')
-            ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha='right')
-            return fig, ax
-
-        result = self.generate_plot(plot_numeric_boxplot)
-        if result is not None:
-            fig, ax = result
-            img_path = os.path.join(self.output_folder, f"{table_name}_numeric_boxplot.png")
-            plt.savefig(img_path, dpi=100, bbox_inches='tight')
-            plt.close(fig)
-            stats_summary['image_paths'] = [("Detailed Statistics Summary - Numeric Box Plot", img_path)]
-        
-        self.interpret_results("Detailed Statistics Summary", stats_summary, table_name)
-
-    def null_missing_unique_analysis(self, df, table_name):
-        self.technique_counter += 0.5
-        print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Null, Missing, and Unique Value Analysis"))
-        
-        null_counts = df.isnull().sum()
-        null_percentages = (df.isnull().sum() / len(df)) * 100
-        unique_counts = df.nunique()
-        
-        analysis = {
-            "Null Counts": null_counts.to_dict(),
-            "Null Percentages": null_percentages.to_dict(),
-            "Unique Value Counts": unique_counts.to_dict()
-        }
-        
-        # Create a heatmap of missing values
-        def plot_missing_values_heatmap():
-            fig, ax = plt.subplots(figsize=self.calculate_figure_size())
-            sns.heatmap(df.isnull(), yticklabels=False, cbar=False, cmap='viridis', ax=ax)
-            ax.set_title('Missing Value Heatmap')
-            return fig, ax
-
-        result = self.generate_plot(plot_missing_values_heatmap)
-        if result is not None:
-            fig, ax = result
-            img_path = os.path.join(self.output_folder, f"{table_name}_missing_values_heatmap.png")
-            plt.savefig(img_path, dpi=100, bbox_inches='tight')
-            plt.close(fig)
-            analysis['image_paths'] = [("Null, Missing, and Unique Value Analysis - Missing Value Heatmap", img_path)]
-        
-        self.interpret_results("Null, Missing, and Unique Value Analysis", analysis, table_name)
-
-    def column_importance_analysis(self, df, table_name):
-        
-        print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Column Importance Analysis"))
-        
-        # This is a simplified version. In practice, you might want to use more sophisticated
-        # methods to determine column importance, such as correlation with a target variable
-        # or feature importance from a machine learning model.
-        
-        analysis = {col: {
-            "dtype": str(df[col].dtype),
-            "unique_count": df[col].nunique(),
-            "null_percentage": (df[col].isnull().sum() / len(df)) * 100
-        } for col in df.columns}
-        
-        self.interpret_results("Column Importance Analysis", analysis, table_name)
-
-    def outlier_detection(self, df, table_name):
-        self.technique_counter += 0.5
-        print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Outlier Detection"))
+    def distribution_analysis(self, df, table_name):
+        print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Distribution Analysis"))
         
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
         image_paths = []
         results = {}
+        
+        for col in numerical_columns:
+            def plot_distribution():
+                fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(20, 10))
+                
+                # Histogram with KDE
+                sns.histplot(df[col], kde=True, ax=ax1)
+                ax1.set_title(f'Distribution of {col}')
+                ax1.set_xlabel(col)
+                ax1.set_ylabel('Frequency')
+                
+                # Q-Q plot
+                probplot(df[col], dist="norm", plot=ax2)
+                ax2.set_title(f'Q-Q Plot of {col}')
+                
+                plt.tight_layout()
+                return fig, (ax1, ax2)
+
+            result = self.generate_plot(plot_distribution)
+            if result is not None:
+                fig, _ = result
+                img_path = os.path.join(self.output_folder, f"{table_name}_{col}_distribution.png")
+                plt.savefig(img_path, dpi=100, bbox_inches='tight')
+                plt.close(fig)
+                image_paths.append((f"{col} Distribution", img_path))
+        
+        results['image_paths'] = image_paths
+        self.interpret_results("Distribution Analysis", results, table_name)
+        self.technique_counter += 1
+
+    def outlier_detection(self, df, table_name):
+        print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Outlier Detection"))
+        
+        numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
+        results = {}
+        image_paths = []
         
         for col in numerical_columns:
             Q1 = df[col].quantile(0.25)
@@ -454,108 +390,239 @@ class ExploratoryDataAnalysis:
             IQR = Q3 - Q1
             lower_bound = Q1 - 1.5 * IQR
             upper_bound = Q3 + 1.5 * IQR
-            outliers = ((df[col] < lower_bound) | (df[col] > upper_bound)).sum()
+            outliers = df[(df[col] < lower_bound) | (df[col] > upper_bound)][col]
             results[col] = {
-                'outliers_count': outliers,
-                'lower_bound': lower_bound,
-                'upper_bound': upper_bound
+                'count': len(outliers),
+                'percentage': (len(outliers) / len(df)) * 100,
+                'range': (lower_bound, upper_bound)
             }
             
-            def plot_boxplot_with_outliers():
+            def plot_boxplot():
                 fig, ax = plt.subplots(figsize=self.calculate_figure_size())
                 sns.boxplot(x=df[col], ax=ax)
-                ax.set_title(f'Boxplot with Outliers for {col}')
+                ax.set_title(f'Box Plot of {col}')
                 ax.set_xlabel(col)
                 return fig, ax
 
-            result = self.generate_plot(plot_boxplot_with_outliers)
+            result = self.generate_plot(plot_boxplot)
             if result is not None:
                 fig, ax = result
-                img_path = os.path.join(self.output_folder, f"{table_name}_{col}_boxplot_outliers.png")
+                img_path = os.path.join(self.output_folder, f"{table_name}_{col}_boxplot.png")
                 plt.savefig(img_path, dpi=100, bbox_inches='tight')
                 plt.close(fig)
-                image_paths.append((f"{col} Boxplot with Outliers", img_path))
+                image_paths.append((f"{col} Box Plot", img_path))
         
         results['image_paths'] = image_paths
         self.interpret_results("Outlier Detection", results, table_name)
+        self.technique_counter += 1
 
-    def data_quality_report(self, df, table_name):
-        self.technique_counter += 0.5
-        print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Data Quality Report"))
+    def time_series_analysis(self, df, table_name):
+        print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Time Series Analysis"))
         
-        quality_report = {
-            "Missing Values": df.isnull().sum().to_dict(),
-            "Missing Percentages": (df.isnull().sum() / len(df) * 100).to_dict(),
-            "Duplicate Rows": df.duplicated().sum(),
-            "Data Types": df.dtypes.to_dict(),
-            "Unique Values": df.nunique().to_dict()
-        }
+        image_paths = []
+        results = {}
         
-        # Create a bar plot of missing value percentages
-        def plot_missing_percentages():
-            missing_percentages = (df.isnull().sum() / len(df) * 100).sort_values(ascending=False)
-            fig, ax = plt.subplots(figsize=self.calculate_figure_size())
-            missing_percentages.plot(kind='bar', ax=ax)
-            ax.set_title('Percentage of Missing Values by Column')
-            ax.set_xlabel('Columns')
-            ax.set_ylabel('Percentage Missing')
-            plt.xticks(rotation=45, ha='right')
-            plt.tight_layout()
-            return fig, ax
+        # Try to identify date columns
+        date_columns = df.select_dtypes(include=['datetime64']).columns.tolist()
+        
+        # If no datetime columns found, try to convert string columns to datetime
+        if not date_columns:
+            for col in df.select_dtypes(include=['object']):
+                try:
+                    df[col] = pd.to_datetime(df[col])
+                    date_columns.append(col)
+                except ValueError:
+                    continue
+        
+        numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
+        
+        if date_columns and len(numerical_columns) > 0:
+            date_col = date_columns[0]  # Use the first identified date column
+            df = df.sort_values(date_col)  # Sort by date
+            
+            for num_col in numerical_columns:
+                def plot_time_series():
+                    fig, ax = plt.subplots(figsize=self.calculate_figure_size())
+                    ax.plot(df[date_col], df[num_col])
+                    ax.set_title(f'Time Series Plot of {num_col}')
+                    ax.set_xlabel('Date')
+                    ax.set_ylabel(num_col)
+                    plt.xticks(rotation=45)
+                    fig.tight_layout()
+                    return fig, ax
 
-        result = self.generate_plot(plot_missing_percentages)
-        if result is not None:
-            fig, ax = result
-            img_path = os.path.join(self.output_folder, f"{table_name}_missing_percentages.png")
-            plt.savefig(img_path, dpi=100, bbox_inches='tight')
-            plt.close(fig)
-            quality_report['image_paths'] = [("Missing Values Percentage", img_path)]
+                result = self.generate_plot(plot_time_series)
+                if result is not None:
+                    fig, ax = result
+                    img_path = os.path.join(self.output_folder, f"{table_name}_{num_col}_time_series_plot.png")
+                    plt.savefig(img_path, dpi=100, bbox_inches='tight')
+                    plt.close(fig)
+                    image_paths.append((f"{num_col} Time Series", img_path))
+            
+            results['date_column_used'] = date_col
+            results['numerical_columns_analyzed'] = numerical_columns.tolist()
+            results['image_paths'] = image_paths
         else:
-            quality_report['image_paths'] = []
+            if not date_columns:
+                results['error'] = "No suitable date columns found for time series analysis."
+            elif len(numerical_columns) == 0:
+                results['error'] = "No numerical columns found for time series analysis."
+            else:
+                results['error'] = "Insufficient data for time series analysis."
         
-        self.interpret_results("Data Quality Report", quality_report, table_name)
+        self.interpret_results("Time Series Analysis", results, table_name)
+        self.technique_counter += 1
 
-    def hypothesis_testing_suggestions(self, df, table_name):
-        self.technique_counter += 0.5
-        print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Hypothesis Testing Suggestions"))
+    def feature_importance_analysis(self, df, table_name):
+        print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Feature Importance Analysis"))
         
-        numeric_columns = df.select_dtypes(include=['float64', 'int64']).columns
-        categorical_columns = df.select_dtypes(include=['object']).columns
+        numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
+        results = {}
         
-        suggestions = []
-        
-        if len(numeric_columns) >= 2:
-            suggestions.append({
-                "test": "Correlation test",
-                "variables": f"{numeric_columns[0]} and {numeric_columns[1]}",
-                "description": f"Test the correlation between {numeric_columns[0]} and {numeric_columns[1]} to determine if there's a significant relationship."
-            })
-        
-        if len(categorical_columns) >= 1 and len(numeric_columns) >= 1:
-            suggestions.append({
-                "test": "ANOVA",
-                "variables": f"{numeric_columns[0]} across categories of {categorical_columns[0]}",
-                "description": f"Compare the means of {numeric_columns[0]} across different categories of {categorical_columns[0]} to see if there are significant differences."
-            })
-        
-        if len(numeric_columns) >= 1:
-            suggestions.append({
-                "test": "One-sample t-test",
-                "variables": numeric_columns[0],
-                "description": f"Compare the mean of {numeric_columns[0]} to a hypothesized value to determine if it's significantly different."
-            })
-        
-        results = {
-            "suggestions": suggestions,
-            "image_paths": []  # No images for this analysis
-        }
-        
-        self.interpret_results("Hypothesis Testing Suggestions", results, table_name)
+        if len(numerical_columns) > 1:
+            X = df[numerical_columns].drop(numerical_columns[-1], axis=1)
+            y = df[numerical_columns[-1]]
+            
+            model = RandomForestRegressor(n_estimators=100, random_state=42)
+            model.fit(X, y)
+            
+            feature_importance = pd.DataFrame({
+                'feature': X.columns,
+                'importance': model.feature_importances_
+            }).sort_values('importance', ascending=False)
+            
+            results['feature_importance'] = feature_importance.to_dict()
+            
+            def plot_feature_importance():
+                fig, ax = plt.subplots(figsize=self.calculate_figure_size())
+                sns.barplot(x='importance', y='feature', data=feature_importance, ax=ax)
+                ax.set_title('Feature Importance')
+                ax.set_xlabel('Importance')
+                ax.set_ylabel('Feature')
+                return fig, ax
 
-  
+            result = self.generate_plot(plot_feature_importance)
+            if result is not None:
+                fig, ax = result
+                img_path = os.path.join(self.output_folder, f"{table_name}_feature_importance.png")
+                plt.savefig(img_path, dpi=100, bbox_inches='tight')
+                plt.close(fig)
+                results['image_paths'] = [("Feature Importance", img_path)]
+        else:
+            results = "N/A - Not enough numerical columns for feature importance analysis"
+        
+        self.interpret_results("Feature Importance Analysis", results, table_name)
+        self.technique_counter += 1
 
-    
-    
+    def dimensionality_reduction_analysis(self, df, table_name):
+        print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Dimensionality Reduction Analysis"))
+        
+        numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
+        results = {}
+        
+        if len(numerical_columns) > 2:
+            X_scaled = StandardScaler().fit_transform(df[numerical_columns])
+            
+            pca = PCA()
+            pca_result = pca.fit_transform(X_scaled)
+            
+            explained_variance_ratio = pca.explained_variance_ratio_
+            cumulative_variance_ratio = np.cumsum(explained_variance_ratio)
+            
+            results['explained_variance_ratio'] = explained_variance_ratio.tolist()
+            results['cumulative_variance_ratio'] = cumulative_variance_ratio.tolist()
+            
+            def plot_pca():
+                fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(self.calculate_figure_size()[0]*2, self.calculate_figure_size()[1]))
+                
+                # Scree plot
+                ax1.plot(range(1, len(explained_variance_ratio)+1), explained_variance_ratio, 'bo-')
+                ax1.set_xlabel('Principal Component')
+                ax1.set_ylabel('Explained Variance Ratio')
+                ax1.set_title('Scree Plot')
+                
+                # Cumulative explained variance plot
+                ax2.plot(range(1, len(cumulative_variance_ratio)+1), cumulative_variance_ratio, 'ro-')
+                ax2.set_xlabel('Number of Components')
+                ax2.set_ylabel('Cumulative Explained Variance Ratio')
+                ax2.set_title('Cumulative Explained Variance')
+                
+                plt.tight_layout()
+                return fig, (ax1, ax2)
+
+            result = self.generate_plot(plot_pca)
+            if result is not None:
+                fig, _ = result
+                img_path = os.path.join(self.output_folder, f"{table_name}_pca_analysis.png")
+                plt.savefig(img_path, dpi=100, bbox_inches='tight')
+                plt.close(fig)
+                results['image_paths'] = [("PCA Analysis", img_path)]
+        else:
+            results = "N/A - Not enough numerical columns for PCA analysis"
+        
+        self.interpret_results("Dimensionality Reduction Analysis", results, table_name)
+        self.technique_counter += 1
+
+    def cluster_analysis(self, df, table_name):
+        print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Cluster Analysis"))
+        
+        numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
+        results = {}
+        
+        if len(numerical_columns) > 1:
+            X_scaled = StandardScaler().fit_transform(df[numerical_columns])
+            
+            # Determine optimal number of clusters using elbow method
+            inertias = []
+            max_clusters = min(10, X_scaled.shape[0] - 1)
+            for k in range(1, max_clusters + 1):
+                kmeans = KMeans(n_clusters=k, random_state=42)
+                kmeans.fit(X_scaled)
+                inertias.append(kmeans.inertia_)
+            
+            # Find elbow point
+            elbow = next(i for i in range(1, len(inertias)) if inertias[i-1] - inertias[i] < (inertias[0] - inertias[-1]) / 10)
+            
+            results['optimal_clusters'] = elbow
+            results['inertias'] = inertias
+            
+            # Perform K-means clustering with optimal number of clusters
+            kmeans = KMeans(n_clusters=elbow, random_state=42)
+            cluster_labels = kmeans.fit_predict(X_scaled)
+            
+            def plot_clusters():
+                fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(self.calculate_figure_size()[0]*2, self.calculate_figure_size()[1]))
+                
+                # Elbow plot
+                ax1.plot(range(1, max_clusters + 1), inertias, 'bo-')
+                ax1.set_xlabel('Number of Clusters (k)')
+                ax1.set_ylabel('Inertia')
+                ax1.set_title('Elbow Method for Optimal k')
+                ax1.axvline(x=elbow, color='r', linestyle='--')
+                
+                # 2D projection of clusters
+                pca = PCA(n_components=2)
+                X_pca = pca.fit_transform(X_scaled)
+                ax2.scatter(X_pca[:, 0], X_pca[:, 1], c=cluster_labels, cmap='viridis')
+                ax2.set_xlabel('First Principal Component')
+                ax2.set_ylabel('Second Principal Component')
+                ax2.set_title(f'2D PCA Projection of {elbow} Clusters')
+                
+                plt.tight_layout()
+                return fig, (ax1, ax2)
+
+            result = self.generate_plot(plot_clusters)
+            if result is not None:
+                fig, _ = result
+                img_path = os.path.join(self.output_folder, f"{table_name}_cluster_analysis.png")
+                plt.savefig(img_path, dpi=100, bbox_inches='tight')
+                plt.close(fig)
+                results['image_paths'] = [("Cluster Analysis", img_path)]
+        else:
+            results = "N/A - Not enough numerical columns for cluster analysis"
+        
+        self.interpret_results("Cluster Analysis", results, table_name)
+        self.technique_counter += 1
 
     def interpret_results(self, analysis_type, results, table_name):
         technique_info = get_technique_info(analysis_type)
@@ -700,8 +767,6 @@ class ExploratoryDataAnalysis:
         # Update self.image_data for the PDF report
         self.image_data.extend(image_data)
 
-
-
     def save_text_output(self):
         output_file = os.path.join(self.output_folder, "xda_results.txt")
         with open(output_file, "w", encoding='utf-8') as f:
@@ -709,10 +774,26 @@ class ExploratoryDataAnalysis:
 
     def generate_pdf_report(self):
         report_title = f"Exploratory Data Analysis Report for {self.table_name}"
+        
+        # Ensure all image data is in the correct format
+        formatted_image_data = []
+        for item in self.pdf_content:
+            analysis_type, images, interpretation = item
+            if isinstance(images, list):
+                for image in images:
+                    if isinstance(image, tuple) and len(image) == 2:
+                        formatted_image_data.append(image)
+                    elif isinstance(image, str):
+                        # If it's just a string (path), use the analysis type as the title
+                        formatted_image_data.append((analysis_type, image))
+            elif isinstance(images, str):
+                # If it's just a string (path), use the analysis type as the title
+                formatted_image_data.append((analysis_type, images))
+        
         pdf_file = self.pdf_generator.create_enhanced_pdf_report(
             self.findings,
             self.pdf_content,
-            self.image_data,
+            formatted_image_data,  # Use the formatted image data
             filename=f"xda_{self.table_name}_report",
             report_title=report_title
         )

@@ -169,23 +169,32 @@ class AdvancedExploratoryDataAnalysisB3:
         numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns
         if len(numerical_columns) > 1:
             def plot_factor_analysis():
-                # Prepare the data
                 X = df[numerical_columns]
                 imputer = SimpleImputer(strategy='mean')
                 X_imputed = pd.DataFrame(imputer.fit_transform(X), columns=X.columns)
                 
-                # Perform Factor Analysis
                 fa = FactorAnalysis(n_components=min(5, len(numerical_columns)), random_state=42)
                 fa_result = fa.fit_transform(X_imputed)
                 
-                # Create the plot
-                fig, ax = plt.subplots(figsize=self.calculate_figure_size())
-                sns.heatmap(fa.components_, annot=True, cmap='coolwarm', ax=ax)
-                ax.set_xlabel('Original Features')
-                ax.set_ylabel('Factors')
-                ax.set_title('Factor Analysis Loadings')
+                fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(self.calculate_figure_size()[0]*2, self.calculate_figure_size()[1]))
+                
+                # Heatmap
+                sns.heatmap(fa.components_, annot=True, cmap='coolwarm', ax=ax1)
+                ax1.set_xlabel('Original Features')
+                ax1.set_ylabel('Factors')
+                ax1.set_title('Factor Analysis Loadings')
+                
+                # Pie chart of explained variance
+                explained_variance = np.sum(fa.explained_variance_ratio_)
+                unexplained_variance = 1 - explained_variance
+                ax2.pie([explained_variance, unexplained_variance], 
+                        labels=['Explained', 'Unexplained'], 
+                        autopct='%1.1f%%', 
+                        colors=['#66b3ff', '#ff9999'])
+                ax2.set_title('Explained vs Unexplained Variance')
+                
                 plt.tight_layout()
-                return fig, ax
+                return fig, (ax1, ax2)
 
             result = self.generate_plot(plot_factor_analysis)
             if result is not None:
@@ -194,7 +203,6 @@ class AdvancedExploratoryDataAnalysisB3:
                 plt.savefig(img_path, dpi=100, bbox_inches='tight')
                 plt.close(fig)
                 image_paths.append(img_path)
-                
             else:
                 print("Skipping Factor Analysis plot due to error in plot generation.")
         else:
@@ -695,7 +703,6 @@ class AdvancedExploratoryDataAnalysisB3:
 
 
     def bayesian_change_point_detection(self, df, table_name):
-        
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Bayesian Change Point Detection"))
         image_paths = []
         
@@ -710,20 +717,27 @@ class AdvancedExploratoryDataAnalysisB3:
                 df_sorted = df.sort_values(by=date_col)
                 ts = df_sorted[num_col].values
                 
-                # Simple change point detection using difference in means
                 diff = np.abs(np.diff(ts))
                 threshold = np.mean(diff) + 2 * np.std(diff)
                 change_points = np.where(diff > threshold)[0]
                 
-                fig, ax = plt.subplots(figsize=self.calculate_figure_size())
-                ax.plot(df_sorted[date_col], ts)
+                fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(self.calculate_figure_size()[0]*2, self.calculate_figure_size()[1]))
+                
+                # Time series plot with change points
+                ax1.plot(df_sorted[date_col], ts)
                 for cp in change_points:
-                    ax.axvline(df_sorted[date_col].iloc[cp], color='r', linestyle='--')
-                ax.set_title('Bayesian Change Point Detection')
-                ax.set_xlabel('Date')
-                ax.set_ylabel(num_col)
+                    ax1.axvline(df_sorted[date_col].iloc[cp], color='r', linestyle='--')
+                ax1.set_title('Bayesian Change Point Detection')
+                ax1.set_xlabel('Date')
+                ax1.set_ylabel(num_col)
+                
+                # Pie chart of segments
+                segment_sizes = np.diff(np.concatenate(([0], change_points, [len(ts)])))
+                ax2.pie(segment_sizes, autopct='%1.1f%%', startangle=90)
+                ax2.set_title('Distribution of Segments')
+                
                 plt.tight_layout()
-                return fig, ax
+                return fig, (ax1, ax2)
 
             result = self.generate_plot(plot_change_points)
             if result is not None:
@@ -732,7 +746,6 @@ class AdvancedExploratoryDataAnalysisB3:
                 plt.savefig(img_path, dpi=100, bbox_inches='tight')
                 plt.close(fig)
                 image_paths.append(img_path)
-                
             else:
                 print("Skipping Change Point Detection plot due to error in plot generation.")
         else:
@@ -748,14 +761,12 @@ class AdvancedExploratoryDataAnalysisB3:
             def plot_hmm():
                 X = df[numerical_columns].values
                 
-                # Fit HMM
                 model = hmm.GaussianHMM(n_components=3, covariance_type="full")
                 model.fit(X)
                 
-                # Predict hidden states
                 hidden_states = model.predict(X)
                 
-                fig, (ax1, ax2) = plt.subplots(1, 2, figsize=self.calculate_figure_size())
+                fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(self.calculate_figure_size()[0]*3, self.calculate_figure_size()[1]))
                 
                 # Plot states
                 for i in range(model.n_components):
@@ -772,8 +783,13 @@ class AdvancedExploratoryDataAnalysisB3:
                 ax2.set_xlabel('Time')
                 ax2.set_ylabel('Hidden State')
                 
+                # Pie chart of state distribution
+                state_counts = pd.Series(hidden_states).value_counts()
+                ax3.pie(state_counts.values, labels=state_counts.index, autopct='%1.1f%%')
+                ax3.set_title('Distribution of Hidden States')
+                
                 plt.tight_layout()
-                return fig, (ax1, ax2)
+                return fig, (ax1, ax2, ax3)
 
             result = self.generate_plot(plot_hmm)
             if result is not None:
@@ -782,22 +798,6 @@ class AdvancedExploratoryDataAnalysisB3:
                 plt.savefig(img_path, dpi=100, bbox_inches='tight')
                 plt.close(fig)
                 image_paths.append(img_path)
-                
-                # Add transition matrix heatmap
-                def plot_transition_matrix():
-                    fig, ax = plt.subplots(figsize=self.calculate_figure_size())
-                    sns.heatmap(model.transmat_, annot=True, cmap='YlGnBu', ax=ax)
-                    ax.set_title('HMM Transition Matrix')
-                    plt.tight_layout()
-                    return fig, ax
-
-                result_transition = self.generate_plot(plot_transition_matrix)
-                if result_transition is not None:
-                    fig_transition, _ = result_transition
-                    img_path_transition = os.path.join(self.output_folder, f"{table_name}_hmm_transition_matrix.png")
-                    plt.savefig(img_path_transition, dpi=100, bbox_inches='tight')
-                    plt.close(fig_transition)
-                    image_paths.append(img_path_transition)
             else:
                 print("Skipping Hidden Markov Model plot due to error in plot generation.")
         else:

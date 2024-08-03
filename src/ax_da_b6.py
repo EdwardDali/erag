@@ -391,14 +391,24 @@ class AdvancedExploratoryDataAnalysisB6:
         }
         
         def plot_duplicate_distribution():
-            fig, ax = plt.subplots(figsize=self.calculate_figure_size())
-            ax.bar(['Unique', 'Duplicate'], [len(df) - duplicate_count, duplicate_count])
-            ax.set_title('Distribution of Unique vs Duplicate Rows')
-            ax.set_ylabel('Count')
+            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=self.calculate_figure_size())
+            
+            # Bar plot
+            ax1.bar(['Unique', 'Duplicate'], [len(df) - duplicate_count, duplicate_count])
+            ax1.set_title('Distribution of Unique vs Duplicate Rows')
+            ax1.set_ylabel('Count')
             for i, v in enumerate([len(df) - duplicate_count, duplicate_count]):
-                ax.text(i, v, str(v), ha='center', va='bottom')
+                ax1.text(i, v, str(v), ha='center', va='bottom')
+            
+            # Pie chart
+            ax2.pie([len(df) - duplicate_count, duplicate_count], 
+                    labels=['Unique', 'Duplicate'], 
+                    autopct='%1.1f%%', 
+                    startangle=90)
+            ax2.set_title('Proportion of Unique vs Duplicate Rows')
+            
             plt.tight_layout()
-            return fig, ax
+            return fig, (ax1, ax2)
 
         result = self.generate_plot(plot_duplicate_distribution)
         if result is not None:
@@ -496,14 +506,29 @@ class AdvancedExploratoryDataAnalysisB6:
         normalized_df = pd.DataFrame(scaler.fit_transform(df[numeric_cols]), columns=numeric_cols)
         risk_scores = normalized_df.sum(axis=1)
         
+        # Define risk categories
+        low_risk = (risk_scores <= risk_scores.quantile(0.5)).sum()
+        medium_risk = ((risk_scores > risk_scores.quantile(0.5)) & (risk_scores <= risk_scores.quantile(0.9))).sum()
+        high_risk = (risk_scores > risk_scores.quantile(0.9)).sum()
+        
         def plot_risk_distribution():
-            fig, ax = plt.subplots(figsize=self.calculate_figure_size())
-            risk_scores.hist(ax=ax, bins=20)
-            ax.set_title('Distribution of Risk Scores')
-            ax.set_xlabel('Risk Score')
-            ax.set_ylabel('Frequency')
+            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=self.calculate_figure_size())
+            
+            # Histogram
+            risk_scores.hist(ax=ax1, bins=20)
+            ax1.set_title('Distribution of Risk Scores')
+            ax1.set_xlabel('Risk Score')
+            ax1.set_ylabel('Frequency')
+            
+            # Pie chart
+            ax2.pie([low_risk, medium_risk, high_risk], 
+                    labels=['Low Risk', 'Medium Risk', 'High Risk'], 
+                    autopct='%1.1f%%', 
+                    startangle=90)
+            ax2.set_title('Risk Categories Distribution')
+            
             plt.tight_layout()
-            return fig, ax
+            return fig, (ax1, ax2)
 
         result = self.generate_plot(plot_risk_distribution)
         if result is not None:
@@ -519,7 +544,9 @@ class AdvancedExploratoryDataAnalysisB6:
             'average_risk_score': risk_scores.mean(),
             'median_risk_score': risk_scores.median(),
             'high_risk_threshold': risk_scores.quantile(0.9),
-            'high_risk_count': (risk_scores > risk_scores.quantile(0.9)).sum()
+            'high_risk_count': high_risk,
+            'medium_risk_count': medium_risk,
+            'low_risk_count': low_risk
         }
         
         self.interpret_results("Risk Scoring Models", {
@@ -664,6 +691,7 @@ class AdvancedExploratoryDataAnalysisB6:
 
     def scenario_analysis(self, df, table_name):
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Scenario Analysis"))
+        image_paths = []
         
         numeric_cols = df.select_dtypes(include=[np.number]).columns
         
@@ -682,7 +710,39 @@ class AdvancedExploratoryDataAnalysisB6:
         for scenario, factor in scenarios.items():
             scenario_results[scenario] = (df[numeric_cols] * factor).mean().to_dict()
         
-        self.interpret_results("Scenario Analysis", {'scenario_results': scenario_results}, table_name)
+        def plot_scenario_comparison():
+            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=self.calculate_figure_size())
+            
+            # Bar plot
+            scenario_sums = [sum(vals.values()) for vals in scenario_results.values()]
+            ax1.bar(scenarios.keys(), scenario_sums)
+            ax1.set_title('Scenario Comparison')
+            ax1.set_ylabel('Sum of Averages')
+            
+            # Pie chart
+            ax2.pie(scenario_sums, 
+                    labels=scenarios.keys(), 
+                    autopct='%1.1f%%', 
+                    startangle=90)
+            ax2.set_title('Scenario Distribution')
+            
+            plt.tight_layout()
+            return fig, (ax1, ax2)
+
+        result = self.generate_plot(plot_scenario_comparison)
+        if result is not None:
+            fig, _ = result
+            img_path = os.path.join(self.output_folder, f"{table_name}_scenario_comparison.png")
+            plt.savefig(img_path, dpi=100, bbox_inches='tight')
+            plt.close(fig)
+            image_paths.append(img_path)
+        else:
+            print("Skipping Scenario Comparison plot due to timeout.")
+        
+        self.interpret_results("Scenario Analysis", {
+            'image_paths': image_paths,
+            'scenario_results': scenario_results
+        }, table_name)
 
     def monte_carlo_simulation(self, df, table_name):
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Monte Carlo Simulation"))
