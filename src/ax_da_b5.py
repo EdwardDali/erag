@@ -44,7 +44,6 @@ class AdvancedExploratoryDataAnalysisB5:
         self.findings = []
         self.llm_name = f"Worker: {self.worker_erag_api.model}, Supervisor: {self.supervisor_erag_api.model}"
         self.toc_entries = []
-        self.executive_summary = ""
         self.image_paths = []
         self.max_pixels = 400000
         self.timeout_seconds = 10
@@ -99,8 +98,6 @@ class AdvancedExploratoryDataAnalysisB5:
         for table in tables:
             self.analyze_table(table)
         
-        print(info("Generating Executive Summary..."))
-        self.generate_executive_summary()
         
         self.save_text_output()
         self.generate_pdf_report()
@@ -986,10 +983,7 @@ class AdvancedExploratoryDataAnalysisB5:
         num_visualizations = len(results.get('image_paths', []))
         results_str += f"\n\nNumber of visualizations created: {num_visualizations}"
 
-
-        prompt = f"""
-        You are an expert data analyst providing insights on exploratory data analysis results. Your task is to interpret the following analysis results and provide a detailed, data-driven interpretation. focusing on discovering patterns and hidden insights. Avoid jargon.
-
+        common_prompt = f"""
         Analysis type: {analysis_type}
         Table name: {table_name}
 
@@ -1001,6 +995,12 @@ class AdvancedExploratoryDataAnalysisB5:
 
         Interpretation Guidelines:
         {technique_info['guidelines']}
+        """
+
+        worker_prompt = f"""
+        You are an expert data analyst providing insights on exploratory data analysis results. Your task is to interpret the following analysis results and provide a detailed, data-driven interpretation, focusing on discovering patterns and hidden insights. Avoid jargon.
+
+        {common_prompt}
 
         Please provide a thorough interpretation of these results, highlighting noteworthy patterns, anomalies, or insights. Focus on aspects that would be valuable for business decisions and operational improvements. Always provide specific numbers and percentages.
 
@@ -1015,51 +1015,54 @@ class AdvancedExploratoryDataAnalysisB5:
         3. Potential Issues:
         [Highlight any anomalies, unusual trends, or areas of concern. Mention at least 2-3 potential problems, red flags, audit findings, fraud cases always including relevant numbers and percentages.]
 
-        4. Business Impact:
-        [Discuss how these findings might impact business operations or strategic decisions. Consider both short-term and long-term implications.]
-
-        5. Suggested Actions:
-        [Provide at least 2-3 specific, actionable steps for auditors, management or analysts. Explain the rationale behind each suggestion and its expected outcome. Do not focus on suggesting more data analysis techniques but on operational controls.]
-
         Ensure your interpretation is comprehensive and focused on actionable insights. While you can be detailed, strive for clarity in your explanations. Use technical terms when necessary, but provide brief explanations for complex concepts.
 
         Interpretation:
         """
 
-        interpretation = self.worker_erag_api.chat([{"role": "system", "content": "You are an expert data analyst providing insights for business leaders and analysts. Respond in the requested format."}, 
-                                                    {"role": "user", "content": prompt}])
-        
-        check_prompt = f"""
-        As a senior business analyst enhance the following interpretation of data analysis results. The original data and analysis type are:
+        worker_interpretation = self.worker_erag_api.chat([{"role": "system", "content": "You are an expert data analyst providing insights for business leaders and analysts. Respond in the requested format."}, 
+                                                    {"role": "user", "content": worker_prompt}])
 
-        {prompt}
+        supervisor_prompt = f"""
+        You are an expert data analyst providing insights on exploratory data analysis results. Your task is to interpret the following analysis results and provide a detailed, data-driven interpretation.
 
-        Previous interpretation:
-        {interpretation}
+        {common_prompt}
 
-        Improve this interpretation by adding or modifying the interpretation but without adding questions or review statements:
-        1. Ensuring all statements are backed by specific data points from the original results.
-        2. Expanding on any points that could benefit from more detailed explanation.
-        3. Verifying that the interpretation covers all significant aspects of the data, adding any important points that may have been missed.
-        4. Strengthening the connections between insights, patterns, and suggested actions.
-        5. Ensuring the language is accessible to business leaders while still conveying complex ideas accurately.
+        Please provide a thorough interpretation of these results, highlighting noteworthy patterns, anomalies, or insights. Focus on the most important aspects that would be valuable for business operations and decision-making. Always provide specific numbers and percentages when discussing findings.
+        If some data appears to be missing or incomplete, work with the available information without mentioning the limitations. Your goal is to extract as much insight as possible from the given data.
+        Structure your response in the following format:
+        1. Analysis:
+        [Provide a detailed description of the analysis performed, including specific metrics and their values]
+        2. Key Findings:
+        [List the most important discoveries, always including relevant numbers and percentages]
+        3. Implications:
+        [Discuss the potential impact of these findings on business operations and decision-making]
+        4. Operational Recommendations:
+        [Suggest concrete operational steps or changes based on these results. Focus on actionable recommendations that can improve business processes, efficiency, or outcomes. Avoid recommending further data analysis.]
+        Ensure your interpretation is concise yet comprehensive, focusing on actionable insights derived from the data that can be directly applied to business operations.
 
-        Maintain the same format but aim for a comprehensive yet clear analysis in each section. Focus on providing actionable insights that are well-explained and justified by the data.
-
-        Enhanced Interpretation:
+        Business Analysis:
         """
 
-        enhanced_interpretation = self.supervisor_erag_api.chat([
-            {"role": "system", "content": "You are a senior business analyst improving interpretations of data analysis results. Provide direct enhancements without meta-comments."},
-            {"role": "user", "content": check_prompt}
+        supervisor_analysis = self.supervisor_erag_api.chat([
+            {"role": "system", "content": "You are a senior business analyst providing insights based on data analysis results. Provide a concise yet comprehensive business analysis."},
+            {"role": "user", "content": supervisor_prompt}
         ])
 
-        print(success(f"AI Interpretation for {analysis_type}:"))
-        print(enhanced_interpretation.strip())
-        
-        self.text_output += f"\n{enhanced_interpretation.strip()}\n\n"
-        
-        # Handle images for the PDF report (not for LLM interpretation)
+        combined_interpretation = f"""
+        Data Analysis:
+        {worker_interpretation.strip()}
+
+        Business Analysis:
+        {supervisor_analysis.strip()}
+        """
+
+        print(success(f"Combined Interpretation for {analysis_type}:"))
+        print(combined_interpretation.strip())
+
+        self.text_output += f"\n{combined_interpretation.strip()}\n\n"
+
+        # Handle images for the PDF report
         image_data = []
         if isinstance(results, dict) and 'image_paths' in results:
             for img in results['image_paths']:
@@ -1067,88 +1070,37 @@ class AdvancedExploratoryDataAnalysisB5:
                     image_data.append(img)
                 elif isinstance(img, str):
                     image_data.append((analysis_type, img))
-        
-        self.pdf_content.append((analysis_type, image_data, enhanced_interpretation.strip()))
-        
+
+        # Prepare content for PDF report
+        pdf_content = f"""
+        # {analysis_type}
+
+        ## Data Analysis
+        {worker_interpretation.strip()}
+
+        <br><br>
+
+        ## Business Analysis
+        {supervisor_analysis.strip()}
+        """
+
+        self.pdf_content.append((analysis_type, image_data, pdf_content))
+
         # Extract important findings
-        lines = enhanced_interpretation.strip().split('\n')
+        self.findings.append(f"{analysis_type}:")
+        lines = combined_interpretation.strip().split('\n')
         for i, line in enumerate(lines):
-            if line.startswith("1. Key Patterns and Insights:"):
+            if line.startswith("1. Analysis performed and Key Insights:") or line.startswith("2. Key Findings:"):
                 for finding in lines[i+1:]:
                     if finding.strip() and not finding.startswith(("2.", "3.", "4.")):
-                        self.findings.append(f"{analysis_type}: {finding.strip()}")
+                        self.findings.append(finding.strip())
                     elif finding.startswith(("2.", "3.", "4.")):
                         break
 
         # Update self.image_data for the PDF report
         self.image_data.extend(image_data)
 
-    def generate_executive_summary(self):
-        if not self.findings:
-            self.executive_summary = "No significant findings were identified during the analysis. This could be due to a lack of data, uniform data distribution, or absence of notable patterns or anomalies in the dataset."
-            return
-
-        successful_techniques = sum(1 for item in self.pdf_content if len(item[1]) > 0 or not item[2].startswith("An error occurred"))
-        failed_techniques = self.total_techniques - successful_techniques
-
-        summary_prompt = f"""
-        Based on the following findings from the Data Analysis:
         
-        {self.findings}
-        
-        Additional context:
-        - {successful_techniques} out of {self.total_techniques} analysis techniques were successfully completed.
-        - {failed_techniques} techniques encountered errors and were skipped.
-        
-        Please provide an executive summary of the analysis tailored for auditors and business managers. The summary should:
-        1. Briefly introduce the purpose of the analysis in the context of auditing or business improvement.
-        2. Highlight the most significant patterns, trends, and potential issues discovered.
-        3. Identify key areas of concern or opportunity that require immediate attention.
-        4. Discuss the potential impact of these findings on business operations, compliance, or strategic decisions.
-        5. Provide high-level, actionable recommendations for next steps or areas for deeper investigation.
-        6. Briefly mention any limitations of the analysis that might affect decision-making.
-
-        Focus on insights that are most relevant for audit findings or business decisions. Avoid technical jargon and prioritize clear, actionable information. Structure the summary in multiple paragraphs for readability.
-
-        Please provide your response in plain text format, without any special formatting or markup.
-        """
-        
-        try:
-            interpretation = self.worker_erag_api.chat([
-                {"role": "system", "content": "You are a data analyst providing an executive summary of a data analysis for auditors and business managers. Respond in plain text format."},
-                {"role": "user", "content": summary_prompt}
-            ])
-            
-            if interpretation is not None:
-                check_prompt = f"""
-                Please review and improve the following executive summary:
-
-                {interpretation}
-
-                Enhance the summary by:
-                1. Ensuring it clearly communicates the most critical findings and their implications for auditing or business management.
-                2. Strengthening the actionable recommendations, making them more specific and tied to the key findings.
-                3. Improving the overall narrative flow, ensuring it tells a coherent story about the state of the business or areas requiring audit attention.
-                4. Balancing the discussion of risks and opportunities identified in the analysis.
-
-                Provide your response in plain text format, without any special formatting or markup.
-                Do not add comments about the changes - simply provide the improved version.
-                """
-
-                enhanced_summary = self.supervisor_erag_api.chat([
-                    {"role": "system", "content": "You are a senior auditor or business analyst improving an executive summary of a data analysis. Provide direct enhancements without adding meta-comments."},
-                    {"role": "user", "content": check_prompt}
-                ])
-
-                self.executive_summary = enhanced_summary.strip()
-            else:
-                self.executive_summary = "Error: Unable to generate executive summary."
-        except Exception as e:
-            print(error(f"An error occurred while generating the executive summary: {str(e)}"))
-            self.executive_summary = "Error: Unable to generate executive summary due to an exception."
-
-        print(success("Enhanced Executive Summary generated successfully."))
-        print(self.executive_summary)
     def save_text_output(self):
         output_file = os.path.join(self.output_folder, "axda_b5_results.txt")
         with open(output_file, "w", encoding='utf-8') as f:
@@ -1176,7 +1128,6 @@ class AdvancedExploratoryDataAnalysisB5:
                 formatted_image_data.append((analysis_type, images))
         
         pdf_file = self.pdf_generator.create_enhanced_pdf_report(
-            self.executive_summary,
             self.findings,
             self.pdf_content,
             formatted_image_data,  # Use the formatted image data

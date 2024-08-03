@@ -22,7 +22,7 @@ class PDFReportGenerator:
         self.report_title = None
         self.styles = self._create_styles()
 
-    def create_enhanced_pdf_report(self, executive_summary, findings, pdf_content, image_data, filename="report", report_title=None):
+    def create_enhanced_pdf_report(self, findings, pdf_content, image_data, filename="report", report_title=None):
         self.report_title = report_title or f"Analysis Report for {self.project_name}"
         pdf_file = os.path.join(self.output_folder, f"{filename}.pdf")
         doc = SimpleDocTemplate(pdf_file, pagesize=A4)
@@ -34,15 +34,9 @@ class PDFReportGenerator:
 
         # Table of Contents
         elements.append(Paragraph("Table of Contents", self.styles['Heading1']))
-        elements.append(Paragraph("Executive Summary", self.styles['Normal']))
         elements.append(Paragraph("Key Findings", self.styles['Normal']))
         for analysis_type, _, _ in pdf_content:
             elements.append(Paragraph(analysis_type, self.styles['Normal']))
-        elements.append(PageBreak())
-
-        # Executive Summary
-        elements.append(Paragraph("Executive Summary", self.styles['Heading1']))
-        elements.extend(self._text_to_reportlab(executive_summary))
         elements.append(PageBreak())
 
         # Key Findings
@@ -81,6 +75,8 @@ class PDFReportGenerator:
 
     def _create_styles(self):
         styles = getSampleStyleSheet()
+        
+        # Modify existing styles
         styles['Title'].fontSize = 24
         styles['Title'].alignment = TA_CENTER
         styles['Title'].textColor = colors.white
@@ -94,14 +90,45 @@ class PDFReportGenerator:
         styles['Heading1'].spaceAfter = 12
         styles['Heading1'].textColor = colors.Color(*MEDIUM_BLUE_RGB)
 
+        # Modify or add Heading2 style
+        if 'Heading2' in styles:
+            styles['Heading2'].fontSize = 16
+            styles['Heading2'].textColor = colors.Color(*DARK_BLUE_RGB)
+        else:
+            styles.add(ParagraphStyle(
+                name='Heading2',
+                parent=styles['Heading1'],
+                fontSize=16,
+                textColor=colors.Color(*DARK_BLUE_RGB)
+            ))
+
         styles['Normal'].fontSize = 10
         styles['Normal'].alignment = TA_JUSTIFY
         styles['Normal'].spaceAfter = 6
         styles['Normal'].textColor = colors.black
 
-        styles.add(ParagraphStyle(name='Caption', parent=styles['Normal'], fontSize=8, alignment=TA_CENTER, spaceAfter=6, textColor=colors.Color(*DARK_BLUE_RGB), fontName='Helvetica-Bold'))
+        # Add or modify Caption style
+        if 'Caption' in styles:
+            styles['Caption'].fontSize = 8
+            styles['Caption'].alignment = TA_CENTER
+            styles['Caption'].spaceAfter = 6
+            styles['Caption'].textColor = colors.Color(*DARK_BLUE_RGB)
+            styles['Caption'].fontName = 'Helvetica-Bold'
+        else:
+            styles.add(ParagraphStyle(
+                name='Caption',
+                parent=styles['Normal'],
+                fontSize=8,
+                alignment=TA_CENTER,
+                spaceAfter=6,
+                textColor=colors.Color(*DARK_BLUE_RGB),
+                fontName='Helvetica-Bold'
+            ))
 
         return styles
+
+
+
 
     def _create_cover_page(self, doc):
         def draw_background(canvas, doc):
@@ -156,11 +183,17 @@ class PDFReportGenerator:
         for paragraph in text.split('\n'):
             if paragraph.strip():
                 try:
-                    # Try to create a Paragraph object
-                    para = Paragraph(paragraph, self.styles['Normal'])
-                    # Test if the paragraph can be split into lines without error
-                    _ = para.split(self.styles['Normal'].fontSize, self.styles['Normal'].leading)
-                    elements.append(para)
+                    # Check for Markdown-style headers
+                    if paragraph.startswith('# '):
+                        elements.append(Paragraph(paragraph[2:], self.styles['Heading1']))
+                    elif paragraph.startswith('## '):
+                        elements.append(Paragraph(paragraph[3:], self.styles['Heading2']))
+                    else:
+                        # Try to create a Paragraph object
+                        para = Paragraph(paragraph, self.styles['Normal'])
+                        # Test if the paragraph can be split into lines without error
+                        _ = para.split(self.styles['Normal'].fontSize, self.styles['Normal'].leading)
+                        elements.append(para)
                 except Exception as e:
                     # If there's an error, clean the text and try again
                     cleaned_text = self._clean_text(paragraph)
