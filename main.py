@@ -46,6 +46,7 @@ from src.fn_processing import process_financial_data
 from src.f_da import FinancialExploratoryDataAnalysis
 from src.ax_da_b5 import AdvancedExploratoryDataAnalysisB5
 from src.ax_da_b6 import AdvancedExploratoryDataAnalysisB6
+from src.merge_sd import merge_structured_data
 
 
 # Load environment variables from .env file
@@ -203,6 +204,12 @@ class ERAGGUI:
                                command=lambda ft=file_type: upload_multiple_files(ft))
             button.pack(side="left", padx=5, pady=5)
             ToolTip(button, f"Upload and process multiple unstructured data {file_type} files")
+
+        # Add new button for merging structured data
+        merge_sd_button = tk.Button(upload_frame, text="Merge SD", 
+                                    command=self.merge_structured_data)
+        merge_sd_button.pack(side="left", padx=5, pady=5)
+        ToolTip(merge_sd_button, "Merge two structured data files (CSV or XLSX)")
 
         # Add new button for structured data
         structured_data_button = tk.Button(upload_frame, text="Upload Structured Data", 
@@ -1841,6 +1848,37 @@ class ERAGGUI:
             error_message = f"An error occurred during Financial Exploratory Data Analysis: {str(e)}"
             print(error(error_message))
             messagebox.showerror("Error", error_message)
+
+    def merge_structured_data(self):
+        try:
+            file1 = filedialog.askopenfilename(
+                title="Select First Structured Data File",
+                filetypes=[("CSV files", "*.csv"), ("Excel files", "*.xlsx"), ("All files", "*.*")]
+            )
+            if not file1:
+                return
+
+            file2 = filedialog.askopenfilename(
+                title="Select Second Structured Data File",
+                filetypes=[("CSV files", "*.csv"), ("Excel files", "*.xlsx"), ("All files", "*.*")]
+            )
+            if not file2:
+                return
+
+            # Ensure the output folder exists
+            output_folder = os.path.join(self.project_root, "output")
+            os.makedirs(output_folder, exist_ok=True)
+
+            print("\nFiles selected. Starting merge process...")
+            print("Please check the console for information and prompts.")
+            result = merge_structured_data(file1, file2, output_folder)
+            
+            if not result:
+                messagebox.showwarning("Warning", "Failed to merge structured data files. Check the console for details.")
+        except Exception as e:
+            messagebox.showerror("Error", f"An error occurred while merging the structured data files: {str(e)}")
+
+
             
 
     def create_server_tab(self):
