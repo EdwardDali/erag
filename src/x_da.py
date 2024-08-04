@@ -187,28 +187,55 @@ class ExploratoryDataAnalysis:
         self.interpret_results("Overall Table Analysis", results, table_name)
         self.technique_counter += 1
 
-        def statistical_analysis(self, df, table_name):
-            print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Statistical Analysis"))
-            
-            numeric_columns = df.select_dtypes(include=['float64', 'int64']).columns
-            results = df[numeric_columns].describe().to_dict()
-            
-            for col in numeric_columns:
-                results[col]['skewness'] = df[col].skew()
-                results[col]['kurtosis'] = df[col].kurtosis()
-            
-            self.interpret_results("Statistical Analysis", results, table_name)
-            self.technique_counter += 1
 
     def statistical_analysis(self, df, table_name):
         print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Statistical Analysis"))
-        
+
         numeric_columns = df.select_dtypes(include=['float64', 'int64']).columns
         results = df[numeric_columns].describe().to_dict()
-        
+
         for col in numeric_columns:
             results[col]['skewness'] = df[col].skew()
             results[col]['kurtosis'] = df[col].kurtosis()
+
+        # Generate plots for each column
+        image_paths = []
+        
+        for col in numeric_columns:
+            avg = df[col].mean()
+            median = df[col].median()
+            std_dev = df[col].std()
+            min_val = df[col].min()
+            max_val = df[col].max()
+            
+            
+            fig, ax = plt.subplots(figsize=self.calculate_figure_size())
+            
+            measures = ['Average', 'Median', 'Std Dev', 'Min', 'Max']
+            values = [avg, median, std_dev, min_val, max_val]
+            colors = ['b', 'g', 'r', 'c', 'orange']
+            
+            bars = ax.bar(measures, values, color=colors, alpha=0.7)
+            
+            # Annotate the bars with the respective values
+            for bar, value in zip(bars, values):
+                height = bar.get_height()
+                ax.annotate(f'{value:.2f}', xy=(bar.get_x() + bar.get_width() / 2, height),
+                            xytext=(0, 3),  # 3 points vertical offset
+                            textcoords="offset points",
+                            ha='center', va='bottom')
+            
+            ax.set_ylabel('Value')
+            ax.set_title(f'Statistical Measures for {col}')
+            
+            plt.xticks(rotation=45, ha='right')
+            plt.tight_layout()
+            img_path = os.path.join(self.output_folder, f"{table_name}_{col}_statistical_measures.png")
+            plt.savefig(img_path, dpi=100, bbox_inches='tight')
+            plt.close(fig)
+            
+            image_paths.append((f"Statistical Measures for {col}", img_path))
+        results['image_paths'] = [("Statistical Measures", img_path)]
         
         self.interpret_results("Statistical Analysis", results, table_name)
         self.technique_counter += 1
@@ -239,7 +266,7 @@ class ExploratoryDataAnalysis:
                 plt.close(fig)
                 image_paths.append(("Full Correlation Matrix", img_path))
             
-            # Create correlation matrix for highly correlated features
+            # Create correlation matrix for highly correlated features (threshold 0.5)
             high_corr_threshold = 0.5
             high_corr = (correlation_matrix.abs() > high_corr_threshold) & (correlation_matrix != 1.0)
             high_corr_features = high_corr.any().index[high_corr.any()]
@@ -249,13 +276,28 @@ class ExploratoryDataAnalysis:
                 result = self.generate_plot(plot_correlation_heatmap, high_corr_matrix, f'High Correlation Matrix (|r| > {high_corr_threshold})')
                 if result is not None:
                     fig, ax = result
-                    img_path = os.path.join(self.output_folder, f"{table_name}_high_correlation_matrix.png")
+                    img_path = os.path.join(self.output_folder, f"{table_name}_high_correlation_matrix_0.5.png")
                     plt.savefig(img_path, dpi=100, bbox_inches='tight')
                     plt.close(fig)
                     image_paths.append((f"High Correlation Matrix (|r| > {high_corr_threshold})", img_path))
             
+            # Create correlation matrix for very highly correlated features (threshold 0.75)
+            very_high_corr_threshold = 0.75
+            very_high_corr = (correlation_matrix.abs() > very_high_corr_threshold) & (correlation_matrix != 1.0)
+            very_high_corr_features = very_high_corr.any().index[very_high_corr.any()]
+            
+            if len(very_high_corr_features) > 1:
+                very_high_corr_matrix = correlation_matrix.loc[very_high_corr_features, very_high_corr_features]
+                result = self.generate_plot(plot_correlation_heatmap, very_high_corr_matrix, f'Very High Correlation Matrix (|r| > {very_high_corr_threshold})')
+                if result is not None:
+                    fig, ax = result
+                    img_path = os.path.join(self.output_folder, f"{table_name}_high_correlation_matrix_0.75.png")
+                    plt.savefig(img_path, dpi=100, bbox_inches='tight')
+                    plt.close(fig)
+                    image_paths.append((f"Very High Correlation Matrix (|r| > {very_high_corr_threshold})", img_path))
+            
             # If there are many features, create subset correlation matrices
-            max_features_per_plot = 15
+            max_features_per_plot = 10
             if len(numerical_columns) > max_features_per_plot:
                 for i in range(0, len(numerical_columns), max_features_per_plot):
                     subset_columns = numerical_columns[i:i+max_features_per_plot]
