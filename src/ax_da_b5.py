@@ -1031,6 +1031,18 @@ class AdvancedExploratoryDataAnalysisB5:
             'results': results
         }, table_name)
 
+    def save_results(self, analysis_type, results):
+        results_file = os.path.join(self.output_folder, f"{analysis_type.lower().replace(' ', '_')}_results.txt")
+        with open(results_file, "w", encoding='utf-8') as f:
+            f.write(f"Results for {analysis_type}:\n")
+            if isinstance(results, dict):
+                for key, value in results.items():
+                    if key != 'image_paths':
+                        f.write(f"{key}: {value}\n")
+            else:
+                f.write(str(results))
+        print(success(f"Results saved as txt file: {results_file}"))
+
     def interpret_results(self, analysis_type, results, table_name):
         technique_info = get_technique_info(analysis_type)
 
@@ -1056,6 +1068,9 @@ class AdvancedExploratoryDataAnalysisB5:
         # Add information about number of visualizations
         num_visualizations = len(results.get('image_paths', []))
         results_str += f"\n\nNumber of visualizations created: {num_visualizations}"
+
+        # Save the results
+        self.save_results(analysis_type, results)
 
         common_prompt = f"""
         Analysis type: {analysis_type}
@@ -1118,6 +1133,8 @@ class AdvancedExploratoryDataAnalysisB5:
         Business Analysis:
         """
 
+        
+
         supervisor_analysis = self.supervisor_erag_api.chat([
             {"role": "system", "content": "You are a senior business analyst providing insights based on data analysis results. Provide a concise yet comprehensive business analysis."},
             {"role": "user", "content": supervisor_prompt}
@@ -1130,6 +1147,9 @@ class AdvancedExploratoryDataAnalysisB5:
         Business Analysis:
         {supervisor_analysis.strip()}
         """
+
+        
+
 
         print(success(f"Combined Interpretation for {analysis_type}:"))
         print(combined_interpretation.strip())
@@ -1152,8 +1172,7 @@ class AdvancedExploratoryDataAnalysisB5:
         ## Data Analysis
         {worker_interpretation.strip()}
 
-        <br><br>
-
+        
         ## Business Analysis
         {supervisor_analysis.strip()}
         """
