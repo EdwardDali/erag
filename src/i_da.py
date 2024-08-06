@@ -48,6 +48,7 @@ class InnovativeDataAnalysis:
         self.timeout_seconds = 10
         self.image_data = []
         self.pdf_generator = None
+        self.settings = settings
         
 
     def calculate_figure_size(self, data=None, aspect_ratio=16/9):
@@ -372,6 +373,9 @@ class InnovativeDataAnalysis:
             self.interpret_results("ETSF Analysis", error_message, table_name)
 
     def save_results(self, analysis_type, results):
+        if not self.settings.save_results_to_txt:
+            return  # Skip saving if the option is disabled
+
         results_file = os.path.join(self.output_folder, f"{analysis_type.lower().replace(' ', '_')}_results.txt")
         with open(results_file, "w", encoding='utf-8') as f:
             f.write(f"Results for {analysis_type}:\n")

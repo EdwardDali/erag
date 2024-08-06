@@ -121,6 +121,10 @@ class Settings:
 
         self.structured_data_db = os.path.join(self.output_folder, 'structured_data.db')
 
+         # Add this new setting
+        self.save_results_to_txt = False  # Default to False
+
+
        
     def load_settings(self):
         if os.path.exists(self.config_file):

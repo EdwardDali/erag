@@ -66,6 +66,7 @@ class AdvancedExploratoryDataAnalysisB3:
         self.timeout_seconds = 10
         self.image_data = []
         self.pdf_generator = None
+        self.settings = settings
 
     def calculate_figure_size(self, aspect_ratio=16/9):
         max_width = int(np.sqrt(self.max_pixels * aspect_ratio))
@@ -864,6 +865,9 @@ class AdvancedExploratoryDataAnalysisB3:
         self.interpret_results("Dynamic Time Warping (DTW)", {'image_paths': image_paths}, table_name)
 
     def save_results(self, analysis_type, results):
+        if not self.settings.save_results_to_txt:
+            return  # Skip saving if the option is disabled
+
         results_file = os.path.join(self.output_folder, f"{analysis_type.lower().replace(' ', '_')}_results.txt")
         with open(results_file, "w", encoding='utf-8') as f:
             f.write(f"Results for {analysis_type}:\n")

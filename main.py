@@ -466,6 +466,7 @@ class ERAGGUI:
         knol_frame = self.create_labelframe(columns[1], "Knol Creation Settings", 0)
         search_frame = self.create_labelframe(columns[1], "Search Settings", 1)
         file_frame = self.create_labelframe(columns[1], "File Settings", 2)
+        xdas_frame = self.create_labelframe(columns[1], "XDAs Settings", 3)
 
         web_sum_frame = self.create_labelframe(columns[2], "Web Sum Settings", 0)
         web_rag_frame = self.create_labelframe(columns[2], "Web RAG Settings", 1)
@@ -569,6 +570,10 @@ class ERAGGUI:
             ("Conversation Context Size", "conversation_context_size"),
             ("Update Threshold", "update_threshold"),
         ])
+
+         # Add this new checkbox
+        self.create_checkbox(xdas_frame, "Save Results to TXT", "save_results_to_txt", 
+                             len(xdas_frame.grid_slaves()), 0)
 
         # Groq API Key field
         ttk.Label(api_frame, text="Groq API Key:").grid(row=len(api_frame.grid_slaves()), column=0, sticky="e", padx=5, pady=2)
@@ -701,6 +706,9 @@ class ERAGGUI:
 
         # Update the model list in the main GUI to reflect any changes
         self.update_model_list()
+
+        settings.save_results_to_txt = self.save_results_to_txt_var.get()
+
         
        
     def update_env_file(self, key: str, value: str) -> None:
