@@ -13,6 +13,7 @@ from tkinter import messagebox, ttk, filedialog, simpledialog
 import threading
 import asyncio
 import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Suppress TensorFlow logging
 from dotenv import load_dotenv, set_key  # Add set_key here
 from src.talk2doc import RAGSystem
 from src.embeddings_utils import compute_and_save_embeddings, load_or_compute_embeddings
@@ -46,6 +47,7 @@ from src.fn_processing import process_financial_data
 from src.f_da import FinancialExploratoryDataAnalysis
 from src.ax_da_b5 import AdvancedExploratoryDataAnalysisB5
 from src.ax_da_b6 import AdvancedExploratoryDataAnalysisB6
+from src.ax_da_b7 import AdvancedExploratoryDataAnalysisB7
 from src.merge_sd import merge_structured_data
 
 
@@ -178,6 +180,10 @@ class ERAGGUI:
         axda_b6_button = tk.Button(rag_frame, text="A-XDA-B6", command=self.run_axda_b6)
         axda_b6_button.pack(side="left", padx=5, pady=5)
         ToolTip(axda_b6_button, "Perform Advanced Exploratory Data Analysis (Batch 6) on a selected SQLite database")
+
+        axda_b7_button = tk.Button(rag_frame, text="A-XDA-B7", command=self.run_axda_b7)
+        axda_b7_button.pack(side="left", padx=5, pady=5)
+        ToolTip(axda_b7_button, "Perform Advanced Exploratory Data Analysis (Batch 7) on a selected SQLite database")
 
         ixda_button = tk.Button(rag_frame, text="I-XDA", command=self.run_ixda)
         ixda_button.pack(side="left", padx=5, pady=5)
@@ -1760,6 +1766,70 @@ class ERAGGUI:
                                            f"PDF report generated: {pdf_path}")
         except Exception as e:
             error_message = f"An error occurred during Advanced Exploratory Data Analysis (Batch 6): {str(e)}"
+            print(error(error_message))
+            messagebox.showerror("Error", error_message)
+
+    def run_axda_b7(self):
+        try:
+            db_path = filedialog.askopenfilename(
+                title="Select SQLite Database",
+                filetypes=[("SQLite files", "*.db"), ("All files", "*.*")]
+            )
+            if not db_path:
+                messagebox.showwarning("Warning", "No database selected.")
+                return
+
+            api_type = self.api_type_var.get()
+            worker_model = self.model_var.get()
+            supervisor_model = self.supervisor_model_var.get()
+            
+            # Create separate EragAPI instances for worker and supervisor
+            worker_erag_api = create_erag_api(api_type, worker_model)
+            supervisor_erag_api = create_erag_api(api_type, supervisor_model)
+            
+            # Create AdvancedExploratoryDataAnalysisB7 instance with both APIs
+            axda_b7 = AdvancedExploratoryDataAnalysisB7(worker_erag_api, supervisor_erag_api, db_path)
+            
+            # Apply settings to A-XDA-B7
+            settings.apply_settings()
+            
+            # Run A-XDA-B7 in a separate thread to keep the GUI responsive
+            threading.Thread(target=self.run_axda_b7_thread, args=(axda_b7,), daemon=True).start()
+            
+            output_folder = os.path.join(os.path.dirname(db_path), "axda_b7_output")
+            
+            # Create an informative message about the Worker-Supervisor Model architecture
+            architecture_info = (
+                "This A-XDA-B7 module supports a Worker Model and Supervisory Model architecture:\n\n"
+                f"Worker Model: {worker_model}\n"
+                f"Supervisory Model: {supervisor_model}\n\n"
+                "The Worker Model performs the initial analysis, while the Supervisory Model reviews and enhances the results, "
+                "providing a more comprehensive and refined analysis."
+            )
+            
+            messagebox.showinfo("A-XDA-B7 Process Started", 
+                                f"{architecture_info}\n\n"
+                                f"Advanced Exploratory Data Analysis (Batch 7) started on the selected database {os.path.basename(db_path)}.\n"
+                                f"Check the console for progress updates and AI interpretations.\n"
+                                f"Results will be saved in {output_folder}")
+        except Exception as e:
+            error_message = f"An error occurred while starting the A-XDA-B7 process: {str(e)}"
+            print(error(error_message))
+            messagebox.showerror("Error", error_message)
+
+    def run_axda_b7_thread(self, axda_b7):
+        try:
+            axda_b7.run()
+            print(success("Advanced Exploratory Data Analysis (Batch 7) completed successfully."))
+            
+            # Generate PDF report
+            pdf_path = axda_b7.generate_pdf_report()
+            
+            print(success(f"PDF report generated successfully: {pdf_path}"))
+            messagebox.showinfo("Success", f"Advanced Exploratory Data Analysis (Batch 7) completed successfully.\n"
+                                           f"PDF report generated: {pdf_path}")
+        except Exception as e:
+            error_message = f"An error occurred during Advanced Exploratory Data Analysis (Batch 7): {str(e)}"
             print(error(error_message))
             messagebox.showerror("Error", error_message)
 
