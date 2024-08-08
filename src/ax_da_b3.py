@@ -26,8 +26,10 @@ from statsmodels.tsa.seasonal import seasonal_decompose
 from statsmodels.graphics.tsaplots import plot_acf
 from statsmodels.tsa.stattools import acf
 from statsmodels.stats.outliers_influence import OLSInfluence
-from pgmpy.models import BayesianNetwork
-from pgmpy.estimators import HillClimbSearch, BayesianEstimator
+
+# Remove pgmpy import
+# from pgmpy.models import BayesianNetwork
+# from pgmpy.estimators import HillClimbSearch, BayesianEstimator
 
 from hmmlearn import hmm
 from dtaidistance import dtw
@@ -466,70 +468,51 @@ class AdvancedExploratoryDataAnalysisB3:
         self.interpret_results("Autocorrelation Plots", {'image_paths': image_paths}, table_name)
 
     def bayesian_networks(self, df, table_name):
-        print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Bayesian Networks"))
+        print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - Simplified Correlation Network"))
         image_paths = []
         
-        columns = df.select_dtypes(include=['float64', 'int64', 'bool', 'category']).columns[:5]
+        columns = df.select_dtypes(include=['float64', 'int64']).columns[:5]
         if len(columns) >= 2:
-            def plot_bayesian_network():
+            def plot_correlation_network():
                 data = df[columns]
                 
-                # Learn the structure of the Bayesian Network
-                hc = HillClimbSearch(data)
-                best_model = hc.estimate()
+                # Compute correlation matrix
+                corr_matrix = data.corr()
                 
-                # Fit the parameters of the Bayesian Network
-                model = BayesianNetwork(best_model.edges())
-                model.fit(data, estimator=BayesianEstimator, prior_type="BDeu")
+                # Create a graph from the correlation matrix
+                G = nx.Graph()
+                for i in range(len(columns)):
+                    for j in range(i+1, len(columns)):
+                        if abs(corr_matrix.iloc[i, j]) > 0.5:  # Threshold for edge creation
+                            G.add_edge(columns[i], columns[j], weight=abs(corr_matrix.iloc[i, j]))
                 
-                # Create a networkx graph from the model's edges
-                G = nx.DiGraph()
-                G.add_edges_from(model.edges())
-                
-                # Plot the Bayesian Network
+                # Plot the network
                 fig, ax = plt.subplots(figsize=self.calculate_figure_size())
                 pos = nx.spring_layout(G)
                 nx.draw(G, pos, with_labels=True, node_color='lightblue', 
                         node_size=3000, font_size=10, font_weight='bold', ax=ax)
                 
-                # Add edge labels (probabilities)
-                edge_labels = {(u, v): f"{u}->{v}" for u, v in G.edges()}
+                # Add edge labels (correlations)
+                edge_labels = nx.get_edge_attributes(G, 'weight')
+                edge_labels = {k: f'{v:.2f}' for k, v in edge_labels.items()}
                 nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels, font_size=8)
                 
-                ax.set_title('Bayesian Network')
+                ax.set_title('Simplified Correlation Network')
                 plt.tight_layout()
                 return fig, ax
 
-            result = self.generate_plot(plot_bayesian_network)
+            result = self.generate_plot(plot_correlation_network)
             if result is not None:
                 fig, _ = result
-                img_path = os.path.join(self.output_folder, f"{table_name}_bayesian_network.png")
+                img_path = os.path.join(self.output_folder, f"{table_name}_correlation_network.png")
                 plt.savefig(img_path, dpi=100, bbox_inches='tight')
                 plt.close(fig)
                 image_paths.append(img_path)
-                
-                # Add a heatmap of the learned CPDs
-                def plot_cpd_heatmap():
-                    fig, axes = plt.subplots(1, len(columns), figsize=(20, 5))
-                    for i, node in enumerate(columns):
-                        cpd = model.get_cpds(node)
-                        sns.heatmap(cpd.values, annot=True, cmap='YlGnBu', ax=axes[i])
-                        axes[i].set_title(f'CPD for {node}')
-                    plt.tight_layout()
-                    return fig, axes
-
-                result_cpd = self.generate_plot(plot_cpd_heatmap)
-                if result_cpd is not None:
-                    fig_cpd, _ = result_cpd
-                    img_path_cpd = os.path.join(self.output_folder, f"{table_name}_bayesian_network_cpd.png")
-                    plt.savefig(img_path_cpd, dpi=100, bbox_inches='tight')
-                    plt.close(fig_cpd)
-                    image_paths.append(img_path_cpd)
             else:
-                print("Skipping Bayesian Network plot due to error in plot generation.")
+                print("Skipping Correlation Network plot due to error in plot generation.")
         else:
-            print("Not enough suitable columns for Bayesian Network analysis.")
-        self.interpret_results("Bayesian Networks", {'image_paths': image_paths}, table_name)
+            print("Not enough suitable columns for Correlation Network analysis.")
+        self.interpret_results("Simplified Correlation Network", {'image_paths': image_paths}, table_name)
 
     def isolation_forest(self, df, table_name):
         

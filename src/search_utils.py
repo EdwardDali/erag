@@ -1,35 +1,65 @@
 import re
-import torch
-from sentence_transformers import util
+import numpy as np
 import logging
 from typing import List, Tuple
 import networkx as nx
-import spacy
+import nltk
+from nltk.tokenize import word_tokenize
+from nltk.tag import pos_tag
+from nltk.chunk import ne_chunk
 from src.settings import settings
 import os
 import json
 from src.look_and_feel import success, info, warning, error
 
+nltk.download('punkt', quiet=True)
+nltk.download('averaged_perceptron_tagger', quiet=True)
+nltk.download('maxent_ne_chunker', quiet=True)
+nltk.download('words', quiet=True)
+
 class SearchUtils:
     def __init__(self, model, db_embeddings=None, db_content=None, knowledge_graph=None):
         self.model = model
-        self.nlp = spacy.load(settings.nlp_model)
+        self.db_embeddings = np.array([])  # Initialize with an empty array
+        self.db_content = []
         
         # Load db_embeddings and db_content
         if db_embeddings is not None and db_content is not None:
             self.db_embeddings = db_embeddings
             self.db_content = db_content
         else:
-            embeddings_path = os.path.join(settings.output_folder, os.path.basename(settings.embeddings_file_path))
+            embeddings_path = os.path.join(settings.output_folder, 'db_embeddings.npy')
+            content_path = os.path.join(settings.output_folder, 'db_content.txt')
+            
+            # Load embeddings
             if os.path.exists(embeddings_path):
-                loaded_data = torch.load(embeddings_path)
-                self.db_embeddings = loaded_data['embeddings']
-                self.db_content = loaded_data['content']
-                logging.info(info(f"Loaded embeddings and content from {embeddings_path}"))
+                try:
+                    self.db_embeddings = np.load(embeddings_path)
+                    logging.info(f"Loaded embeddings from {embeddings_path}")
+                except Exception as e:
+                    logging.error(f"Error loading embeddings from {embeddings_path}: {str(e)}")
+                    # Keep the default empty array
             else:
-                logging.error(error(f"Embeddings file not found: {embeddings_path}"))
-                self.db_embeddings = torch.tensor([])
-                self.db_content = []
+                logging.error(f"Embeddings file not found: {embeddings_path}")
+            
+            # Load content
+            if os.path.exists(content_path):
+                try:
+                    with open(content_path, 'r', encoding='utf-8') as f:
+                        self.db_content = f.readlines()
+                    logging.info(f"Loaded content from {content_path}")
+                except Exception as e:
+                    logging.error(f"Error loading content from {content_path}: {str(e)}")
+            else:
+                logging.error(f"Content file not found: {content_path}")
+
+        logging.info(f"SearchUtils initialized with {len(self.db_content)} database entries")
+        logging.info(f"Embeddings shape: {self.db_embeddings.shape}")
+        
+        if len(self.db_content) == 0:
+            logging.warning("Database content is empty. Text search will not yield results.")
+        if self.db_embeddings.size == 0:
+            logging.warning("Embeddings are empty. Semantic search will not be available.")
 
         # Load knowledge graph
         if knowledge_graph is not None:
@@ -37,12 +67,14 @@ class SearchUtils:
         else:
             graph_path = os.path.join(settings.output_folder, os.path.basename(settings.knowledge_graph_file_path))
             if os.path.exists(graph_path):
+                import networkx as nx
+                import json
                 with open(graph_path, 'r') as f:
                     graph_data = json.load(f)
                 self.knowledge_graph = nx.node_link_graph(graph_data)
-                logging.info(info(f"Loaded knowledge graph from {graph_path}"))
+                logging.info(f"Loaded knowledge graph from {graph_path}")
             else:
-                logging.error(error(f"Knowledge graph file not found: {graph_path}"))
+                logging.error(f"Knowledge graph file not found: {graph_path}")
                 self.knowledge_graph = nx.Graph()
 
     def lexical_search(self, query: str) -> List[str]:
@@ -62,17 +94,13 @@ class SearchUtils:
         if not settings.enable_semantic_search:
             return []
         
-        if isinstance(self.db_embeddings, torch.Tensor):
-            self.db_embeddings = self.db_embeddings.numpy()
-        
         if hasattr(self.model, 'encode'):
-            # For SentenceTransformer models
-            with torch.no_grad():
-                input_embedding = self.model.encode([query], convert_to_tensor=True, show_progress_bar=False)
-            cos_scores = util.cos_sim(input_embedding, torch.from_numpy(self.db_embeddings))[0]
-            top_indices = torch.topk(cos_scores, k=min(settings.top_k, len(cos_scores)))[1].tolist()
+            # For models with encode method
+            input_embedding = self.model.encode([query])
+            cos_scores = np.dot(self.db_embeddings, input_embedding.T).flatten()
+            top_indices = cos_scores.argsort()[-settings.top_k:][::-1]
         else:
-            # For LLM models (Ollama, Llama), we'll use a simple keyword matching as a fallback
+            # Fallback to keyword matching
             query_words = set(query.lower().split())
             scores = [sum(word in content.lower() for word in query_words) for content in self.db_content]
             top_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:settings.top_k]
@@ -81,23 +109,25 @@ class SearchUtils:
 
     def get_graph_context(self, query: str) -> List[str]:
         if not settings.enable_graph_search or not self.knowledge_graph.nodes():
+            logging.info("Graph search is disabled or knowledge graph is empty")
             return []
 
         query_entities = set(self.extract_entities(query))
+        logging.debug(f"Extracted entities from query: {query_entities}")
         node_scores = []
 
         for node, data in self.knowledge_graph.nodes(data=True):
             if data.get('type') == 'entity':
                 entity_name = node
                 entity_type = data.get('entity_type', 'Unknown')
-                confidence = data.get('confidence', 0.5)  # Default confidence if not set
+                confidence = data.get('confidence', 0.5)
                 connected_chunks = [n for n in self.knowledge_graph.neighbors(node) if self.knowledge_graph.nodes[n]['type'] == 'chunk']
                 connected_docs = set([self.get_parent_document(chunk) for chunk in connected_chunks])
                 
                 relevance_score = 1 if entity_name.lower() in query.lower() else 0
                 relevance_score += len(connected_chunks) * 0.1
                 relevance_score += len(connected_docs) * 0.2
-                relevance_score *= confidence  # Adjust relevance based on confidence
+                relevance_score *= confidence
                 
                 if relevance_score >= settings.entity_relevance_threshold:
                     node_scores.append((node, entity_type, connected_chunks, relevance_score))
@@ -118,22 +148,36 @@ class SearchUtils:
             context_text = f"{entity_info}\n{related_info}\nRelevant Chunks:\n" + "\n".join(chunk_contexts)
             context.append(context_text)
 
+        logging.info(f"Returning {len(context)} graph context results")
         return context
 
     def text_search(self, query: str) -> List[str]:
         if not settings.enable_text_search:
+            logging.info("Text search is disabled in settings")
             return []
         
         query_terms = query.lower().split()
+        logging.debug(f"Searching for query terms: {query_terms}")
         results = []
         for content in self.db_content:
+            content = content.strip()  # Remove leading/trailing whitespace
             if any(term in content.lower() for term in query_terms):
-                results.append(content.strip())
-        return sorted(results, key=lambda x: sum(term in x.lower() for term in query_terms), reverse=True)[:settings.top_k]
+                results.append(content)
+        
+        logging.info(f"Found {len(results)} results before applying top_k limit")
+        final_results = sorted(results, key=lambda x: sum(term in x.lower() for term in query_terms), reverse=True)[:settings.top_k]
+        logging.info(f"Returning {len(final_results)} results after applying top_k limit")
+        return final_results
 
     def extract_entities(self, text: str) -> List[str]:
-        doc = self.nlp(text)
-        return [ent.text for ent in doc.ents]
+        tokens = word_tokenize(text)
+        pos_tags = pos_tag(tokens)
+        chunks = ne_chunk(pos_tags)
+        entities = []
+        for chunk in chunks:
+            if hasattr(chunk, 'label'):
+                entities.append(' '.join(c[0] for c in chunk))
+        return entities
 
     def get_parent_document(self, chunk_node: str) -> str:
         for neighbor in self.knowledge_graph.neighbors(chunk_node):
@@ -144,9 +188,6 @@ class SearchUtils:
     def get_relevant_context(self, user_input: str, conversation_context: List[str]) -> Tuple[List[str], List[str], List[str], List[str]]:
         logging.info(info(f"DB Embeddings shape: {self.db_embeddings.shape if hasattr(self.db_embeddings, 'shape') else 'No shape attribute'}"))
         logging.info(info(f"DB Content length: {len(self.db_content)}"))
-
-        if isinstance(self.db_embeddings, torch.Tensor) and self.db_embeddings.dim() > 1:
-            self.db_embeddings = self.db_embeddings.numpy()
 
         if self.db_embeddings.size == 0 or len(self.db_content) == 0:
             logging.warning(warning("DB Embeddings or DB Content is empty"))

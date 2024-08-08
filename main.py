@@ -14,10 +14,10 @@ import threading
 import asyncio
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Suppress TensorFlow logging
-from dotenv import load_dotenv, set_key  # Add set_key here
+from dotenv import load_dotenv, set_key
 from src.talk2doc import RAGSystem
 from src.embeddings_utils import compute_and_save_embeddings, load_or_compute_embeddings
-from sentence_transformers import SentenceTransformer
+# Remove this line: from sentence_transformers import SentenceTransformer
 from src.create_graph import create_knowledge_graph, create_knowledge_graph_from_raw
 from src.settings import settings
 from src.search_utils import SearchUtils
@@ -49,6 +49,8 @@ from src.ax_da_b5 import AdvancedExploratoryDataAnalysisB5
 from src.ax_da_b6 import AdvancedExploratoryDataAnalysisB6
 from src.ax_da_b7 import AdvancedExploratoryDataAnalysisB7
 from src.merge_sd import merge_structured_data
+import logging
+
 
 
 # Load environment variables from .env file
@@ -88,7 +90,7 @@ class ERAGGUI:
         self.api_type_var.set("ollama")  # Default to ollama
         self.model_var = tk.StringVar(master)
         self.rag_system = None
-        self.model = SentenceTransformer(settings.model_name)
+        # Remove this line: self.model = SentenceTransformer(settings.model_name)
         self.db_embeddings = None
         self.db_indexes = None
         self.db_content = None
@@ -751,14 +753,16 @@ class ERAGGUI:
         for format, var in self.dataset_output_formats_vars.items():
             var.set(format in settings.dataset_output_formats)
         self.dataset_output_file_var.set(os.path.basename(settings.dataset_output_file))
-
+    
     def run_route_query(self):
         try:
             api_type = self.api_type_var.get()
             model = self.model_var.get()
             
-            # Create the RouteQuery instance with EragAPI
-            erag_api = EragAPI(api_type)
+            # Create the EragAPI instance
+            erag_api = create_erag_api(api_type, model)
+            
+            # Create the RouteQuery instance with the EragAPI
             route_query = RouteQuery(erag_api)
             
             # Apply settings to RouteQuery
@@ -872,9 +876,12 @@ class ERAGGUI:
                 messagebox.showwarning("Warning", f"{db_file_path} not found. Please upload some documents first.")
                 return
 
+            # Create EragAPI instance for embeddings
+            erag_api = create_erag_api("ollama", model=settings.ollama_model, embedding_model="chroma/all-minilm-l6-v2-f32:latest")
+
             # Process db.txt
             self.db_embeddings, self.db_indexes, self.db_content = load_or_compute_embeddings(
-                self.model, 
+                erag_api, 
                 db_file_path, 
                 settings.embeddings_file_path
             )
@@ -882,6 +889,7 @@ class ERAGGUI:
 
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred while computing embeddings: {str(e)}")
+
 
     def create_knowledge_graph(self):
         try:
@@ -2087,7 +2095,8 @@ class ERAGGUI:
             error_message = f"An error occurred while starting the system: {str(e)}"
             print(error(error_message))
             messagebox.showerror("Error", error_message)
-
+            
+            
     def check_api_keys(self):
         if self.api_type_var.get() == "groq" and not self.groq_api_key:
             self.groq_api_key = simpledialog.askstring("Groq API Key", "Please enter your Groq API Key:", show='*')
@@ -2103,7 +2112,6 @@ class ERAGGUI:
                 messagebox.showinfo("Success", "Gemini API Key has been saved.")
             else:
                 messagebox.showwarning("Warning", "Gemini API Key is required to use the Gemini API.")
-
 
 def main():
     root = tk.Tk()

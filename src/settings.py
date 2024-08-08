@@ -30,7 +30,7 @@ class Settings:
 
         # Embeddings Settings
         self.batch_size = 32
-        self.embeddings_file_path = ensure_output_path("db_embeddings.pt")
+        self.embeddings_file_path = ensure_output_path("db_embeddings.npy")
         self.db_file_path = ensure_output_path("db.txt")
 
         # Graph Settings
