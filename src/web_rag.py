@@ -1,16 +1,14 @@
-
 from src.settings import settings
 import logging
 from bs4 import BeautifulSoup
 import requests
 from duckduckgo_search import DDGS
 import re
-from sentence_transformers import SentenceTransformer
 import numpy as np
 from collections import deque
-from src.search_utils import SearchUtils
 from src.look_and_feel import success, info, warning, error
 from src.api_model import EragAPI, create_erag_api
+from src.search_utils import SearchUtils
 import os
 
 class WebRAG:
@@ -22,23 +20,20 @@ class WebRAG:
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
             "Accept-Language": "en-US,en;q=0.5"
         })
-        self.model = SentenceTransformer(settings.sentence_transformer_model)
-        self.search_utils = None
+        self.search_utils = SearchUtils(None)  # Initialize with None, we'll update it later
         self.all_search_results = []
         self.conversation_history = []
         self.conversation_context = deque(maxlen=settings.conversation_context_size * 2)
         self.current_urls = set()
         
-        # Correct the web_rag_file path
         self.web_rag_file = os.path.join(settings.output_folder, os.path.basename(settings.web_rag_file))
         
         self.current_question_file = None
         self.context_size = settings.initial_context_size
-        self.processed_urls = set()  # Keep track of processed URLs
-        self.current_query = None  # Store the current query
-        self.search_offset = 0  # New attribute to keep track of search offset
+        self.processed_urls = set()
+        self.current_query = None
+        self.search_offset = 0
         
-        # Ensure output folder exists
         os.makedirs(settings.output_folder, exist_ok=True)
 
 
@@ -170,15 +165,18 @@ class WebRAG:
                     print(error(f"Failed to process content from {url}"))
 
         if all_content:
-            new_embeddings = self.model.encode(all_content, show_progress_bar=False)
-            self.search_utils.db_embeddings = np.vstack([self.search_utils.db_embeddings, new_embeddings])
+            new_embeddings = self.search_utils.model.transform(all_content)
+            self.search_utils.db_embeddings = np.vstack([self.search_utils.db_embeddings.toarray(), new_embeddings.toarray()])
             self.search_utils.db_content.extend(all_content)
 
         return True
         
     def _create_embeddings(self, all_content):
-        embeddings = self.model.encode(all_content, show_progress_bar=False)
-        self.search_utils = SearchUtils(self.model, embeddings, all_content, None)
+        # We'll use TfidfVectorizer from scikit-learn for text representation
+        from sklearn.feature_extraction.text import TfidfVectorizer
+        vectorizer = TfidfVectorizer()
+        embeddings = vectorizer.fit_transform(all_content)
+        self.search_utils = SearchUtils(vectorizer, embeddings, all_content, None)
 
     def create_chunks(self, text):
         chunks = []
@@ -212,11 +210,14 @@ class WebRAG:
             logging.error("Search utils not initialized. Cannot generate Q&A.")
             return "I'm sorry, but I don't have enough information to answer that question."
 
-        lexical_results = self.search_utils.lexical_search(query)[:self.context_size]
-        text_results = self.search_utils.text_search(query)[:self.context_size]
-        semantic_results = self.search_utils.semantic_search(query)[:self.context_size]
+        lexical_results, semantic_results, graph_results, text_results = self.search_utils.get_relevant_context(query, list(self.conversation_context))
         
-        combined_results = lexical_results + text_results + semantic_results
+        combined_results = (
+            lexical_results[:self.context_size] +
+            semantic_results[:self.context_size] +
+            graph_results[:self.context_size] +
+            text_results[:self.context_size]
+        )
         
         if not combined_results:
             return "I'm sorry, but I don't have enough relevant information to answer that question."

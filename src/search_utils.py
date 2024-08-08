@@ -1,19 +1,25 @@
 import re
-import torch
-from sentence_transformers import util
+import numpy as np
 import logging
 from typing import List, Tuple
 import networkx as nx
-import spacy
+import nltk
+from nltk.tokenize import word_tokenize
+from nltk.tag import pos_tag
+from nltk.chunk import ne_chunk
 from src.settings import settings
 import os
 import json
 from src.look_and_feel import success, info, warning, error
 
+nltk.download('punkt', quiet=True)
+nltk.download('averaged_perceptron_tagger', quiet=True)
+nltk.download('maxent_ne_chunker', quiet=True)
+nltk.download('words', quiet=True)
+
 class SearchUtils:
     def __init__(self, model, db_embeddings=None, db_content=None, knowledge_graph=None):
         self.model = model
-        self.nlp = spacy.load(settings.nlp_model)
         
         # Load db_embeddings and db_content
         if db_embeddings is not None and db_content is not None:
@@ -22,13 +28,13 @@ class SearchUtils:
         else:
             embeddings_path = os.path.join(settings.output_folder, os.path.basename(settings.embeddings_file_path))
             if os.path.exists(embeddings_path):
-                loaded_data = torch.load(embeddings_path)
+                loaded_data = np.load(embeddings_path, allow_pickle=True).item()
                 self.db_embeddings = loaded_data['embeddings']
                 self.db_content = loaded_data['content']
                 logging.info(info(f"Loaded embeddings and content from {embeddings_path}"))
             else:
                 logging.error(error(f"Embeddings file not found: {embeddings_path}"))
-                self.db_embeddings = torch.tensor([])
+                self.db_embeddings = np.array([])
                 self.db_content = []
 
         # Load knowledge graph
@@ -62,17 +68,13 @@ class SearchUtils:
         if not settings.enable_semantic_search:
             return []
         
-        if isinstance(self.db_embeddings, torch.Tensor):
-            self.db_embeddings = self.db_embeddings.numpy()
-        
         if hasattr(self.model, 'encode'):
-            # For SentenceTransformer models
-            with torch.no_grad():
-                input_embedding = self.model.encode([query], convert_to_tensor=True, show_progress_bar=False)
-            cos_scores = util.cos_sim(input_embedding, torch.from_numpy(self.db_embeddings))[0]
-            top_indices = torch.topk(cos_scores, k=min(settings.top_k, len(cos_scores)))[1].tolist()
+            # For models with encode method
+            input_embedding = self.model.encode([query])
+            cos_scores = np.dot(self.db_embeddings, input_embedding.T).flatten()
+            top_indices = cos_scores.argsort()[-settings.top_k:][::-1]
         else:
-            # For LLM models (Ollama, Llama), we'll use a simple keyword matching as a fallback
+            # Fallback to keyword matching
             query_words = set(query.lower().split())
             scores = [sum(word in content.lower() for word in query_words) for content in self.db_content]
             top_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:settings.top_k]
@@ -132,8 +134,14 @@ class SearchUtils:
         return sorted(results, key=lambda x: sum(term in x.lower() for term in query_terms), reverse=True)[:settings.top_k]
 
     def extract_entities(self, text: str) -> List[str]:
-        doc = self.nlp(text)
-        return [ent.text for ent in doc.ents]
+        tokens = word_tokenize(text)
+        pos_tags = pos_tag(tokens)
+        chunks = ne_chunk(pos_tags)
+        entities = []
+        for chunk in chunks:
+            if hasattr(chunk, 'label'):
+                entities.append(' '.join(c[0] for c in chunk))
+        return entities
 
     def get_parent_document(self, chunk_node: str) -> str:
         for neighbor in self.knowledge_graph.neighbors(chunk_node):
@@ -144,9 +152,6 @@ class SearchUtils:
     def get_relevant_context(self, user_input: str, conversation_context: List[str]) -> Tuple[List[str], List[str], List[str], List[str]]:
         logging.info(info(f"DB Embeddings shape: {self.db_embeddings.shape if hasattr(self.db_embeddings, 'shape') else 'No shape attribute'}"))
         logging.info(info(f"DB Content length: {len(self.db_content)}"))
-
-        if isinstance(self.db_embeddings, torch.Tensor) and self.db_embeddings.dim() > 1:
-            self.db_embeddings = self.db_embeddings.numpy()
 
         if self.db_embeddings.size == 0 or len(self.db_content) == 0:
             logging.warning(warning("DB Embeddings or DB Content is empty"))

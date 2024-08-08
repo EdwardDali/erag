@@ -14,10 +14,10 @@ import threading
 import asyncio
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Suppress TensorFlow logging
-from dotenv import load_dotenv, set_key  # Add set_key here
+from dotenv import load_dotenv, set_key
 from src.talk2doc import RAGSystem
 from src.embeddings_utils import compute_and_save_embeddings, load_or_compute_embeddings
-from sentence_transformers import SentenceTransformer
+# Remove this line: from sentence_transformers import SentenceTransformer
 from src.create_graph import create_knowledge_graph, create_knowledge_graph_from_raw
 from src.settings import settings
 from src.search_utils import SearchUtils
@@ -88,7 +88,7 @@ class ERAGGUI:
         self.api_type_var.set("ollama")  # Default to ollama
         self.model_var = tk.StringVar(master)
         self.rag_system = None
-        self.model = SentenceTransformer(settings.model_name)
+        # Remove this line: self.model = SentenceTransformer(settings.model_name)
         self.db_embeddings = None
         self.db_indexes = None
         self.db_content = None
@@ -872,9 +872,12 @@ class ERAGGUI:
                 messagebox.showwarning("Warning", f"{db_file_path} not found. Please upload some documents first.")
                 return
 
+            # Create EragAPI instance for embeddings
+            erag_api = create_erag_api(self.api_type_var.get(), self.model_var.get())
+
             # Process db.txt
             self.db_embeddings, self.db_indexes, self.db_content = load_or_compute_embeddings(
-                self.model, 
+                erag_api, 
                 db_file_path, 
                 settings.embeddings_file_path
             )
@@ -882,6 +885,7 @@ class ERAGGUI:
 
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred while computing embeddings: {str(e)}")
+
 
     def create_knowledge_graph(self):
         try:

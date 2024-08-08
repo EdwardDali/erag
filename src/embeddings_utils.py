@@ -1,7 +1,6 @@
-import torch
-from sentence_transformers import SentenceTransformer
-import os
+import numpy as np
 from typing import List, Tuple, Optional
+import os
 import logging
 from src.settings import settings
 from src.api_model import EragAPI
@@ -35,25 +34,25 @@ def compute_and_save_embeddings(
         db_embeddings = []
         for i in range(0, len(content), settings.batch_size):
             batch = content[i:i+settings.batch_size]
-            batch_embeddings = erag_api.encode(batch, convert_to_tensor=True)
+            batch_embeddings = erag_api.encode(batch)
             db_embeddings.append(batch_embeddings)
             print(info(f"Processed batch {i//settings.batch_size + 1}/{(len(content)-1)//settings.batch_size + 1}"))
 
-        db_embeddings = torch.cat(db_embeddings, dim=0)
+        db_embeddings = np.concatenate(db_embeddings, axis=0)
         print(info(f"Final embeddings shape: {db_embeddings.shape}"))
         
-        indexes = torch.arange(len(content))
+        indexes = np.arange(len(content))
         data_to_save = {
             'embeddings': db_embeddings, 
             'indexes': indexes,
             'content': content
         }
         
-        torch.save(data_to_save, save_path)
+        np.save(save_path, data_to_save)
         print(success(f"Embeddings, indexes, and content saved to {save_path}"))
         
         # Verify saved data
-        loaded_data = torch.load(save_path)
+        loaded_data = np.load(save_path, allow_pickle=True).item()
         print(info(f"Verified saved embeddings shape: {loaded_data['embeddings'].shape}"))
         print(info(f"Verified saved indexes shape: {loaded_data['indexes'].shape}"))
         print(info(f"Verified saved content length: {len(loaded_data['content'])}"))
@@ -61,13 +60,13 @@ def compute_and_save_embeddings(
         print(error(f"Error in compute_and_save_embeddings: {str(e)}"))
         raise
 
-def load_embeddings_and_data(embeddings_file: str) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor], Optional[List[str]]]:
+def load_embeddings_and_data(embeddings_file: str) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], Optional[List[str]]]:
     try:
         # Ensure embeddings_file is in the output folder
         embeddings_file = os.path.join(settings.output_folder, os.path.basename(embeddings_file))
         
         if os.path.exists(embeddings_file):
-            data = torch.load(embeddings_file)
+            data = np.load(embeddings_file, allow_pickle=True).item()
             embeddings = data['embeddings']
             indexes = data['indexes']
             content = data['content']
@@ -82,7 +81,7 @@ def load_embeddings_and_data(embeddings_file: str) -> Tuple[Optional[torch.Tenso
         print(error(f"Error in load_embeddings_and_data: {str(e)}"))
         raise
 
-def load_or_compute_embeddings(erag_api: EragAPI, db_file: str, embeddings_file: str) -> Tuple[torch.Tensor, torch.Tensor, List[str]]:
+def load_or_compute_embeddings(erag_api: EragAPI, db_file: str, embeddings_file: str) -> Tuple[np.ndarray, np.ndarray, List[str]]:
     try:
         # Ensure db_file and embeddings_file are in the output folder
         db_file = os.path.join(settings.output_folder, os.path.basename(db_file))
