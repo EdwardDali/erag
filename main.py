@@ -49,6 +49,8 @@ from src.ax_da_b5 import AdvancedExploratoryDataAnalysisB5
 from src.ax_da_b6 import AdvancedExploratoryDataAnalysisB6
 from src.ax_da_b7 import AdvancedExploratoryDataAnalysisB7
 from src.merge_sd import merge_structured_data
+import logging
+
 
 
 # Load environment variables from .env file
@@ -2093,7 +2095,8 @@ class ERAGGUI:
             error_message = f"An error occurred while starting the system: {str(e)}"
             print(error(error_message))
             messagebox.showerror("Error", error_message)
-
+            
+            
     def check_api_keys(self):
         if self.api_type_var.get() == "groq" and not self.groq_api_key:
             self.groq_api_key = simpledialog.askstring("Groq API Key", "Please enter your Groq API Key:", show='*')
@@ -2109,7 +2112,6 @@ class ERAGGUI:
                 messagebox.showinfo("Success", "Gemini API Key has been saved.")
             else:
                 messagebox.showwarning("Warning", "Gemini API Key is required to use the Gemini API.")
-
 
 def main():
     root = tk.Tk()

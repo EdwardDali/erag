@@ -11,6 +11,7 @@ from src.api_model import EragAPI
 from src.look_and_feel import success, info, warning, error, colorize, MAGENTA, RESET
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
+import logging
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
