@@ -15,6 +15,8 @@ class RouteQuery:
         self.erag_api = erag_api
         # Ensure output folder exists
         os.makedirs(settings.output_folder, exist_ok=True)
+        self.db_content = self.load_db_content()
+        
 
 
     def load_db_content(self):
@@ -79,12 +81,7 @@ class RouteQuery:
         Relevance: [high/low]
         Complexity: [simple/deep]
         Recommendation: [A/B/C/D]
-        Explanation: [Your detailed explanation here]
-
-        Remember:
-        - The presence of relevant topics in the TOC is a strong indicator to use local systems (A or B). Only recommend web-based options (C or D) if the TOC clearly lacks relevant entries.
-        - For queries about current events or rapidly changing information not likely to be in our local database, you may consider web-based options even if some related content exists in the TOC.
-        - Always explain your reasoning, especially when choosing between talk2doc and create_knol for locally available information."""
+        Explanation: [Your detailed explanation here]"""
 
         user_message = f"Query: {query}\n\nDatabase Content Summary:\n{db_content}\n\nPlease evaluate the query and the database content summary, then provide your recommendation."
         
@@ -147,7 +144,7 @@ class RouteQuery:
             return RAGSystem(self.erag_api)
         elif component_name == 'create_knol':
             from src.create_knol import KnolCreator
-            return KnolCreator(self.erag_api)
+            return KnolCreator(self.erag_api, self.erag_api)  # Using the same API for both worker and supervisor
         elif component_name == 'web_rag':
             from src.web_rag import WebRAG
             return WebRAG(self.erag_api)

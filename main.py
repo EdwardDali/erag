@@ -751,14 +751,16 @@ class ERAGGUI:
         for format, var in self.dataset_output_formats_vars.items():
             var.set(format in settings.dataset_output_formats)
         self.dataset_output_file_var.set(os.path.basename(settings.dataset_output_file))
-
+    
     def run_route_query(self):
         try:
             api_type = self.api_type_var.get()
             model = self.model_var.get()
             
-            # Create the RouteQuery instance with EragAPI
-            erag_api = EragAPI(api_type)
+            # Create the EragAPI instance
+            erag_api = create_erag_api(api_type, model)
+            
+            # Create the RouteQuery instance with the EragAPI
             route_query = RouteQuery(erag_api)
             
             # Apply settings to RouteQuery
