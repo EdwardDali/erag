@@ -873,7 +873,7 @@ class ERAGGUI:
                 return
 
             # Create EragAPI instance for embeddings
-            erag_api = create_erag_api(self.api_type_var.get(), self.model_var.get())
+            erag_api = create_erag_api("ollama", model=settings.ollama_model, embedding_model="chroma/all-minilm-l6-v2-f32:latest")
 
             # Process db.txt
             self.db_embeddings, self.db_indexes, self.db_content = load_or_compute_embeddings(

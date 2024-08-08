@@ -1,13 +1,9 @@
 import numpy as np
-from typing import List, Tuple, Optional
 import os
-import logging
+from typing import List, Tuple, Optional
 from src.settings import settings
 from src.api_model import EragAPI
 from src.look_and_feel import success, info, warning, error
-
-# Set up logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 def ensure_output_folder():
     os.makedirs(settings.output_folder, exist_ok=True)
@@ -27,18 +23,16 @@ def compute_and_save_embeddings(
     try:
         ensure_output_folder()
         
-        # Ensure save_path is in the output folder
+        # Ensure save_path is in the output folder and has .npy extension
         save_path = os.path.join(settings.output_folder, os.path.basename(save_path))
+        if not save_path.endswith('.npy'):
+            save_path += '.npy'
         
         print(info(f"Computing embeddings for {len(content)} items"))
-        db_embeddings = []
-        for i in range(0, len(content), settings.batch_size):
-            batch = content[i:i+settings.batch_size]
-            batch_embeddings = erag_api.encode(batch)
-            db_embeddings.append(batch_embeddings)
-            print(info(f"Processed batch {i//settings.batch_size + 1}/{(len(content)-1)//settings.batch_size + 1}"))
-
-        db_embeddings = np.concatenate(db_embeddings, axis=0)
+        
+        # Process all content in a single batch
+        db_embeddings = erag_api.encode(content)
+        
         print(info(f"Final embeddings shape: {db_embeddings.shape}"))
         
         indexes = np.arange(len(content))
@@ -62,8 +56,10 @@ def compute_and_save_embeddings(
 
 def load_embeddings_and_data(embeddings_file: str) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], Optional[List[str]]]:
     try:
-        # Ensure embeddings_file is in the output folder
+        # Ensure embeddings_file is in the output folder and has .npy extension
         embeddings_file = os.path.join(settings.output_folder, os.path.basename(embeddings_file))
+        if not embeddings_file.endswith('.npy'):
+            embeddings_file += '.npy'
         
         if os.path.exists(embeddings_file):
             data = np.load(embeddings_file, allow_pickle=True).item()
@@ -86,6 +82,8 @@ def load_or_compute_embeddings(erag_api: EragAPI, db_file: str, embeddings_file:
         # Ensure db_file and embeddings_file are in the output folder
         db_file = os.path.join(settings.output_folder, os.path.basename(db_file))
         embeddings_file = os.path.join(settings.output_folder, os.path.basename(embeddings_file))
+        if not embeddings_file.endswith('.npy'):
+            embeddings_file += '.npy'
         
         embeddings, indexes, content = load_embeddings_and_data(embeddings_file)
         if embeddings is None or indexes is None or content is None:
