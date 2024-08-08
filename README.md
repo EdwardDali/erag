@@ -78,11 +78,12 @@ ERAG is composed of several interconnected components:
    python -m nltk.downloader punkt
    ```
 
-4. Install Ollama (optional, for using Ollama API) and install ollama models:
+4. Install Ollama (for using Ollama API and **for embeddings**) and install ollama models:
    - Linux/macOS: `curl https://ollama.ai/install.sh | sh`
    - Windows: Visit https://ollama.ai/download and follow installation instructions
   
    - ollama run gemma2:2b
+   - ollama run chroma/all-minilm-l6-v2-f32:latest   - for embedddings
 
 5. Set up environment variables:
    - Create a `.env` file in the project root
