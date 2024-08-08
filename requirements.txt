@@ -41,7 +41,6 @@ python-docx
 pyarrow
 jellyfish
 python-dateutil
-torch
 tkinter
 duckduckgo-search
 lxml
