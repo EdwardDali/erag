@@ -2122,16 +2122,19 @@ class ERAGGUI:
         try:
             api_type = self.api_type_var.get()
             model = self.model_var.get()
+            embedding_class = self.embedding_class_var.get()
             embedding_model = self.embedding_model_var.get()
             
             # Check API keys before proceeding
             self.check_api_keys()
             
             # Ensure the EragAPI instance is up-to-date
-            self.erag_api = create_erag_api(api_type, model, embedding_model)
+            self.erag_api = create_erag_api(api_type, model, embedding_class, embedding_model)
             
-            print(info(f"EragAPI initialized with {self.erag_api.api_type} backend and embedding model: {embedding_model}"))
-            print(info(f"Talking to {model} using EragAPI (backed by {self.erag_api.api_type}). Type 'exit' to end the conversation."))
+            print(info(f"EragAPI initialized with {self.erag_api.api_type} backend"))
+            print(info(f"Model: {self.erag_api.model}"))
+            print(info(f"Embedding class: {self.erag_api.embedding_class}"))
+            print(info(f"Embedding model: {self.erag_api.embedding_model}"))
         
             if api_type == "llama":
                 if not self.server_manager.can_start_server():
