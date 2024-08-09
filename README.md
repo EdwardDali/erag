@@ -67,7 +67,9 @@ ERAG is composed of several interconnected components:
 
 ## Installation
 
-1. Download the latest release archive
+1. Clone the repository:
+   ```
+   git clone https://github.com/EdwardDali/erag.git && cd erag
   
 2. Install torch
 CPU only
