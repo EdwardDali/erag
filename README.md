@@ -73,28 +73,29 @@ ERAG is composed of several interconnected components:
    ```
 2. Install torch
 CPU only
+```
 pip install torch==2.3.1 torchvision==0.18.1 torchaudio==2.3.1 --index-url https://download.pytorch.org/whl/cpu
-
-3. Install required Python dependencies:
+```
+4. Install required Python dependencies:
    ```
    pip install -r requirements.txt
    ```
    
 
-4. Download required spaCy and NLTK models:
+5. Download required spaCy and NLTK models:
    ```
    python -m spacy download en_core_web_sm
    python -m nltk.downloader punkt
    ```
 
-5. Install Ollama (for using Ollama API and **for embeddings**) and install ollama models:
+6. Install Ollama (for using Ollama API and **for embeddings**) and install ollama models:
    - Linux/macOS: `curl https://ollama.ai/install.sh | sh`
    - Windows: Visit https://ollama.ai/download and follow installation instructions
   
    - ollama run gemma2:2b
    - ollama run chroma/all-minilm-l6-v2-f32:latest   - for embedddings
 
-6. Set up environment variables:
+7. Set up environment variables:
    - Create a `.env` file in the project root
    - Add the following variables (if applicable):
      ```
