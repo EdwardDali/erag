@@ -17,7 +17,13 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Suppress TensorFlow logging
 from dotenv import load_dotenv, set_key
 from src.talk2doc import RAGSystem
 from src.embeddings_utils import compute_and_save_embeddings, load_or_compute_embeddings
-# Remove this line: from sentence_transformers import SentenceTransformer
+# Try to import SentenceTransformer, but don't fail if it's not available
+try:
+    from sentence_transformers import SentenceTransformer
+    SENTENCE_TRANSFORMERS_AVAILABLE = True
+except ImportError:
+    SENTENCE_TRANSFORMERS_AVAILABLE = False
+    print("SentenceTransformer is not available. Some embedding functionalities will be limited.")
 from src.create_graph import create_knowledge_graph, create_knowledge_graph_from_raw
 from src.settings import settings
 from src.search_utils import SearchUtils
@@ -156,8 +162,10 @@ class ERAGGUI:
 
         # Embedding Class selection
         tk.Label(embedding_model_frame, text="Embedding Class:").grid(row=0, column=0, padx=5, pady=5, sticky="e")
-        embedding_class_options = ["ollama", "sentence_transformers"]
-        embedding_class_menu = ttk.Combobox(embedding_model_frame, textvariable=self.embedding_class_var, values=embedding_class_options, state="readonly", width=15)
+        embedding_class_options = ["ollama"]
+        if SENTENCE_TRANSFORMERS_AVAILABLE:
+            embedding_class_options.append("sentence_transformers")
+        embedding_class_menu = ttk.Combobox(embedding_model_frame, textvariable=self.embedding_class_var, values=embedding_class_options, state="readonly", width=20)
         embedding_class_menu.grid(row=0, column=1, padx=5, pady=5)
         embedding_class_menu.bind("<<ComboboxSelected>>", self.update_embedding_model)
 
@@ -168,6 +176,7 @@ class ERAGGUI:
 
         # Initialize embedding model
         self.update_embedding_model()
+
 
 
 
@@ -398,8 +407,10 @@ class ERAGGUI:
         embedding_class = self.embedding_class_var.get()
         if embedding_class == "ollama":
             embedding_models = ["chroma/all-minilm-l6-v2-f32:latest"]  # Add more Ollama embedding models if available
-        else:  # sentence_transformers
+        elif embedding_class == "sentence_transformers" and SENTENCE_TRANSFORMERS_AVAILABLE:
             embedding_models = ["all-MiniLM-L6-v2", "paraphrase-multilingual-MiniLM-L12-v2"]  # Add more Sentence Transformers models as needed
+        else:
+            embedding_models = ["chroma/all-minilm-l6-v2-f32:latest"]  # Fallback to Ollama if SentenceTransformer is not available
 
         self.embedding_model_menu['values'] = embedding_models
         if embedding_models:

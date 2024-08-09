@@ -14,8 +14,14 @@ import numpy as np
 import logging
 import warnings
 from urllib3.exceptions import InsecureRequestWarning
-from sentence_transformers import SentenceTransformer
 
+# Try to import SentenceTransformer, but don't fail if it's not available
+try:
+    from sentence_transformers import SentenceTransformer
+    SENTENCE_TRANSFORMERS_AVAILABLE = True
+except ImportError:
+    SENTENCE_TRANSFORMERS_AVAILABLE = False
+    print(warning("SentenceTransformer is not available. Some embedding functionalities will be limited."))
 
 # Load environment variables from .env file
 load_dotenv()
@@ -46,7 +52,12 @@ class EragAPI:
         if self.embedding_class == "ollama":
             self.embedding_client = OpenAI(base_url='http://localhost:11434/v1', api_key='ollama')
         elif self.embedding_class == "sentence_transformers":
-            self.embedding_client = SentenceTransformer(self.embedding_model)
+            if SENTENCE_TRANSFORMERS_AVAILABLE:
+                self.embedding_client = SentenceTransformer(self.embedding_model)
+            else:
+                print(warning("SentenceTransformer is not available. Falling back to Ollama for embeddings."))
+                self.embedding_class = "ollama"
+                self.embedding_client = OpenAI(base_url='http://localhost:11434/v1', api_key='ollama')
         else:
             raise ValueError(error(f"Invalid embedding class: {self.embedding_class}"))
 
@@ -100,7 +111,11 @@ class EragAPI:
         if self.embedding_class == "ollama":
             return self._encode_ollama(texts)
         elif self.embedding_class == "sentence_transformers":
-            return self._encode_sentence_transformers(texts)
+            if SENTENCE_TRANSFORMERS_AVAILABLE:
+                return self._encode_sentence_transformers(texts)
+            else:
+                print(warning("SentenceTransformer is not available. Falling back to Ollama for embeddings."))
+                return self._encode_ollama(texts)
         
     def _encode_ollama(self, texts):
         embeddings = []
