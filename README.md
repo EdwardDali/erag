@@ -72,7 +72,7 @@ ERAG is composed of several interconnected components:
    git clone https://github.com/EdwardDali/erag.git && cd erag
    ```
 2. Install torch
-   # CPU only
+CPU only
 pip install torch==2.3.1 torchvision==0.18.1 torchaudio==2.3.1 --index-url https://download.pytorch.org/whl/cpu
 
 3. Install required Python dependencies:
