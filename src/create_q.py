@@ -26,23 +26,15 @@ def read_pdf(file_path):
 def generate_questions(erag_api, chunk, question_number, total_questions, output_file, chunk_size):
     print(info(f"Generating questions for chunk {question_number}/{total_questions} (size: {chunk_size})"))
     
-    prompt = f"""Based on the following text, generate {settings.questions_per_chunk} specific and insightful questions that test a reader's understanding of the key concepts, main ideas, or important details. Follow these guidelines:
-
-1. Do not ask general questions about the text itself, such as "What is the main idea of the text?" or "What is the discussed in the text?"
-2. Focus on specific details, events, characters, or concepts mentioned in the text.
-3. Frame questions in a way that they can stand alone without referring to "the text" or "the passage."
-4. Ensure questions are directly related to the content provided and require understanding of the specific information given.
-5. Use varied question types: factual recall, inference, analysis, and application of concepts.
-
-Provide only the questions, without any additional text or answers.
+    prompt = f"""Based on the following text, generate {settings.questions_per_chunk} insightful questions that would test a reader's understanding of the key concepts, main ideas, or important details. The questions should be specific to the content provided. Provide only the questions, without any additional text or answers.
 
 Text:
 {chunk}
 
-Generate {settings.questions_per_chunk} specific questions:"""
+Generate {settings.questions_per_chunk} questions:"""
 
     messages = [
-        {"role": "system", "content": "You are a helpful assistant that generates specific and insightful questions based on given text."},
+        {"role": "system", "content": "You are a helpful assistant that generates insightful questions based on given text."},
         {"role": "user", "content": prompt}
     ]
     response = erag_api.chat(messages, temperature=settings.temperature)

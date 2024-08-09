@@ -3,58 +3,40 @@
 import sys
 import os
 import re
+import torch
 import numpy as np
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
+from sentence_transformers import SentenceTransformer
 from typing import List, Dict, Tuple
 import logging
 from collections import deque
 import networkx as nx
 import json
+from src.search_utils import SearchUtils
 from src.settings import settings
 from src.api_model import EragAPI, create_erag_api
+from src.embeddings_utils import load_or_compute_embeddings
 from src.look_and_feel import success, info, warning, error, colorize, MAGENTA, RESET, user_input as color_user_input, llm_response as color_llm_response
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
-class SearchUtils:
-    def __init__(self, db_content):
-        self.db_content = db_content
-        self.vectorizer = TfidfVectorizer()
-        self.db_vectors = self.vectorizer.fit_transform(self.db_content)
-
-    def get_relevant_context(self, query, conversation_context):
-        query_vector = self.vectorizer.transform([query])
-        similarities = cosine_similarity(query_vector, self.db_vectors).flatten()
-        top_k_indices = similarities.argsort()[-settings.top_k:][::-1]
-        
-        lexical_context = [self.db_content[i] for i in top_k_indices]
-        semantic_context = lexical_context  # In this simplified version, lexical and semantic are the same
-        graph_context = []  # Placeholder for graph context
-        text_context = conversation_context[-5:]  # Last 5 conversation entries
-        
-        return lexical_context, semantic_context, graph_context, text_context
 
 class KnolCreator:
     def __init__(self, worker_erag_api: EragAPI, supervisor_erag_api: EragAPI, manager_erag_api: EragAPI = None):
         self.worker_erag_api = worker_erag_api
         self.supervisor_erag_api = supervisor_erag_api
         self.manager_erag_api = manager_erag_api
-        self.db_content = self.load_db_content()
+        self.embedding_model = SentenceTransformer(settings.sentence_transformer_model)
+        self.db_embeddings, _, self.db_content = self.load_embeddings()
         self.conversation_history = []
         self.new_entries = []
         self.conversation_context = deque(maxlen=settings.conversation_context_size * 2)
         self.knowledge_graph = self.load_knowledge_graph()
-        self.search_utils = SearchUtils(self.db_content)
+        self.search_utils = SearchUtils(self.embedding_model, self.db_embeddings, self.db_content, self.knowledge_graph)
         self.output_folder = None
         os.makedirs(settings.output_folder, exist_ok=True)
 
-    def load_db_content(self):
-        if os.path.exists(settings.db_file_path):
-            with open(settings.db_file_path, "r", encoding='utf-8') as db_file:
-                return db_file.readlines()
-        return []
+    def load_embeddings(self):
+        return load_or_compute_embeddings(self.worker_erag_api, settings.db_file_path, settings.embeddings_file_path)
 
     def load_knowledge_graph(self):
         try:

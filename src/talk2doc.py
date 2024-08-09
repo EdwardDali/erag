@@ -1,52 +1,41 @@
+import sys
 import os
+import torch
 import numpy as np
+from sentence_transformers import SentenceTransformer
 from typing import List, Dict
 import logging
 from collections import deque
-import json
+from src.embeddings_utils import load_embeddings_and_data
 import networkx as nx
+import json
+from src.search_utils import SearchUtils
 from src.settings import settings
 from src.api_model import EragAPI
 from src.look_and_feel import success, info, warning, error, colorize, MAGENTA, RESET
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-class SearchUtils:
-    def __init__(self, db_content):
-        self.db_content = db_content
-        self.vectorizer = TfidfVectorizer()
-        self.db_vectors = self.vectorizer.fit_transform(self.db_content)
-
-    def get_relevant_context(self, query, conversation_context):
-        query_vector = self.vectorizer.transform([query])
-        similarities = cosine_similarity(query_vector, self.db_vectors).flatten()
-        top_k_indices = similarities.argsort()[-settings.top_k:][::-1]
-        
-        lexical_context = [self.db_content[i] for i in top_k_indices]
-        semantic_context = lexical_context  # In this simplified version, lexical and semantic are the same
-        graph_context = []  # Placeholder for graph context
-        text_context = conversation_context[-5:]  # Last 5 conversation entries
-        
-        return lexical_context, semantic_context, graph_context, text_context
-
 class RAGSystem:
     def __init__(self, erag_api: EragAPI):
         self.erag_api = erag_api
+        self.embedding_model = SentenceTransformer(settings.sentence_transformer_model)
+        self.db_embeddings, _, _ = self.load_embeddings()
+        self.db_content = self.load_db_content()
         self.conversation_history = []
         self.new_entries = []
         self.conversation_context = deque(maxlen=settings.conversation_context_size * 2)
         self.knowledge_graph = self.load_knowledge_graph()
-        self.db_content = self.load_db_content()
-        self.search_utils = SearchUtils(self.db_content)
+        self.search_utils = SearchUtils(self.embedding_model, self.db_embeddings, self.db_content, self.knowledge_graph)
 
-        print(info(f"RAGSystem initialized with API type: {self.erag_api.api_type}"))
-        print(info(f"Model: {self.erag_api.model}"))
-        print(info(f"Embedding class: {self.erag_api.embedding_class}"))
-        print(info(f"Embedding model: {self.erag_api.embedding_model}"))
-
+    def load_embeddings(self):
+        embeddings, indexes, content = load_embeddings_and_data(settings.embeddings_file_path)
+        if embeddings is None or indexes is None or content is None:
+            logging.error(f"Failed to load data from {settings.embeddings_file_path}. Make sure the file exists and is properly formatted.")
+            return torch.tensor([]), torch.tensor([]), []
+        return embeddings, indexes, content
+    
     def load_db_content(self):
         if os.path.exists(settings.db_file_path):
             with open(settings.db_file_path, "r", encoding='utf-8') as db_file:
@@ -123,6 +112,7 @@ Text Search Results:
 
             if user_input.lower() == 'exit':
                 print(warning("Thank you for using the RAG system. Goodbye!"))
+                self.update_embeddings()
                 break
             elif user_input.lower() == 'clear':
                 self.conversation_history.clear()
@@ -156,10 +146,25 @@ Text Search Results:
                 db_file.write(f"{entry['role']}: {entry['content']}\n")
         self.new_entries.extend([entry['content'] for entry in new_entries])
         
-        # Also update db_content and re-initialize search_utils
-        new_content = [f"{entry['role']}: {entry['content']}" for entry in new_entries]
-        self.db_content.extend(new_content)
-        self.search_utils = SearchUtils(self.db_content)
+        # Also update db_content
+        self.db_content.extend([f"{entry['role']}: {entry['content']}" for entry in new_entries])
+
+    def update_embeddings(self):
+        if len(self.new_entries) >= settings.update_threshold:
+            logging.info("Updating embeddings...")
+            new_embeddings = self.embedding_model.encode(self.new_entries, convert_to_tensor=True, show_progress_bar=False)
+            self.db_embeddings = torch.cat([self.db_embeddings, new_embeddings], dim=0)
+            
+            # Save updated embeddings
+            data_to_save = {
+                'embeddings': self.db_embeddings,
+                'indexes': torch.arange(len(self.db_content)),
+                'content': self.db_content
+            }
+            torch.save(data_to_save, settings.embeddings_file_path)
+            
+            self.new_entries.clear()
+            logging.info("Embeddings updated successfully.")
 
     def save_debug_results(self, user_input: str, lexical_context: List[str], 
                            semantic_context: List[str], 
@@ -184,4 +189,17 @@ Text Search Results:
             f.write(f"{response}\n")
             f.write("\n" + "="*50 + "\n\n")
 
-# The main function is removed as it's not used when called from main.py
+def main(api_type: str):
+    erag_api = EragAPI(api_type)
+    rag_system = RAGSystem(erag_api)
+    rag_system.run()
+
+if __name__ == "__main__":
+    if len(sys.argv) > 1:
+        api_type = sys.argv[1]
+        main(api_type)
+    else:
+        print(error("No API type provided."))
+        print(warning("Usage: python src/talk2doc.py <api_type>"))
+        print(info("Available API types: ollama, llama, sentence_transformer"))
+        sys.exit(1)

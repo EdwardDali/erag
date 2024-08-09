@@ -14,16 +14,10 @@ import threading
 import asyncio
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Suppress TensorFlow logging
-from dotenv import load_dotenv, set_key
+from dotenv import load_dotenv, set_key  # Add set_key here
 from src.talk2doc import RAGSystem
 from src.embeddings_utils import compute_and_save_embeddings, load_or_compute_embeddings
-# Try to import SentenceTransformer, but don't fail if it's not available
-try:
-    from sentence_transformers import SentenceTransformer
-    SENTENCE_TRANSFORMERS_AVAILABLE = True
-except ImportError:
-    SENTENCE_TRANSFORMERS_AVAILABLE = False
-    print("SentenceTransformer is not available. Some embedding functionalities will be limited.")
+from sentence_transformers import SentenceTransformer
 from src.create_graph import create_knowledge_graph, create_knowledge_graph_from_raw
 from src.settings import settings
 from src.search_utils import SearchUtils
@@ -55,8 +49,6 @@ from src.ax_da_b5 import AdvancedExploratoryDataAnalysisB5
 from src.ax_da_b6 import AdvancedExploratoryDataAnalysisB6
 from src.ax_da_b7 import AdvancedExploratoryDataAnalysisB7
 from src.merge_sd import merge_structured_data
-import logging
-
 
 
 # Load environment variables from .env file
@@ -96,7 +88,7 @@ class ERAGGUI:
         self.api_type_var.set("ollama")  # Default to ollama
         self.model_var = tk.StringVar(master)
         self.rag_system = None
-        # Remove this line: self.model = SentenceTransformer(settings.model_name)
+        self.model = SentenceTransformer(settings.model_name)
         self.db_embeddings = None
         self.db_indexes = None
         self.db_content = None
@@ -115,9 +107,6 @@ class ERAGGUI:
         self.supervisor_model_var = tk.StringVar(master)
         self.manager_model_var = tk.StringVar(master)
         self.default_manager_model_var = tk.StringVar(master)
-        self.embedding_class_var = tk.StringVar(master)
-        self.embedding_class_var.set("ollama")  # Default to ollama
-        self.embedding_model_var = tk.StringVar(master)
 
         # Create output folder if it doesn't exist
         os.makedirs(settings.output_folder, exist_ok=True)
@@ -146,7 +135,6 @@ class ERAGGUI:
         self.create_server_tab()
 
     def create_main_tab(self):
-        self.create_embedding_model_frame()
         self.create_model_frame()
         self.create_upload_frame()
         self.create_embeddings_frame()
@@ -155,29 +143,6 @@ class ERAGGUI:
         self.create_web_rag_frame()
         self.create_structured_data_rag_frame()
         self.create_financial_data_rag_frame()
-
-    def create_embedding_model_frame(self):
-        embedding_model_frame = tk.LabelFrame(self.main_tab, text="Embedding Model Selection")
-        embedding_model_frame.pack(fill="x", padx=10, pady=5)
-
-        # Embedding Class selection
-        tk.Label(embedding_model_frame, text="Embedding Class:").grid(row=0, column=0, padx=5, pady=5, sticky="e")
-        embedding_class_options = ["ollama"]
-        if SENTENCE_TRANSFORMERS_AVAILABLE:
-            embedding_class_options.append("sentence_transformers")
-        embedding_class_menu = ttk.Combobox(embedding_model_frame, textvariable=self.embedding_class_var, values=embedding_class_options, state="readonly", width=20)
-        embedding_class_menu.grid(row=0, column=1, padx=5, pady=5)
-        embedding_class_menu.bind("<<ComboboxSelected>>", self.update_embedding_model)
-
-        # Embedding Model selection
-        tk.Label(embedding_model_frame, text="Embedding Model:").grid(row=0, column=2, padx=5, pady=5, sticky="e")
-        self.embedding_model_menu = ttk.Combobox(embedding_model_frame, textvariable=self.embedding_model_var, state="readonly", width=30)
-        self.embedding_model_menu.grid(row=0, column=3, padx=5, pady=5)
-
-        # Initialize embedding model
-        self.update_embedding_model()
-
-
 
 
     def create_structured_data_rag_frame(self):
@@ -401,30 +366,6 @@ class ERAGGUI:
         create_self_knol_button = tk.Button(agent_frame, text="Create Self Knol", command=self.create_self_knol)
         create_self_knol_button.pack(side="left", padx=5, pady=5)
         ToolTip(create_self_knol_button, "Create a knowledge artifact (Self Knol) using only the model's knowledge")
-
-
-    def update_embedding_model(self, event=None):
-        embedding_class = self.embedding_class_var.get()
-        if embedding_class == "ollama":
-            embedding_models = ["chroma/all-minilm-l6-v2-f32:latest"]  # Add more Ollama embedding models if available
-        elif embedding_class == "sentence_transformers" and SENTENCE_TRANSFORMERS_AVAILABLE:
-            embedding_models = ["all-MiniLM-L6-v2", "paraphrase-multilingual-MiniLM-L12-v2"]  # Add more Sentence Transformers models as needed
-        else:
-            embedding_models = ["chroma/all-minilm-l6-v2-f32:latest"]  # Fallback to Ollama if SentenceTransformer is not available
-
-        self.embedding_model_menu['values'] = embedding_models
-        if embedding_models:
-            self.embedding_model_var.set(embedding_models[0])
-        
-        self.update_embedding_model_setting()
-
-    def update_embedding_model_setting(self):
-        embedding_class = self.embedding_class_var.get()
-        embedding_model = self.embedding_model_var.get()
-        settings.update_setting("embedding_class", embedding_class)
-        settings.update_setting("embedding_model", embedding_model)
-        print(success(f"Embedding settings updated - Class: {embedding_class}, Model: {embedding_model}"))
-
 
     def run_talk2model(self):
         try:
@@ -810,16 +751,14 @@ class ERAGGUI:
         for format, var in self.dataset_output_formats_vars.items():
             var.set(format in settings.dataset_output_formats)
         self.dataset_output_file_var.set(os.path.basename(settings.dataset_output_file))
-    
+
     def run_route_query(self):
         try:
             api_type = self.api_type_var.get()
             model = self.model_var.get()
             
-            # Create the EragAPI instance
-            erag_api = create_erag_api(api_type, model)
-            
-            # Create the RouteQuery instance with the EragAPI
+            # Create the RouteQuery instance with EragAPI
+            erag_api = EragAPI(api_type)
             route_query = RouteQuery(erag_api)
             
             # Apply settings to RouteQuery
@@ -926,22 +865,16 @@ class ERAGGUI:
 
     def execute_embeddings(self):
         try:
+            # Ensure we're using the correct path from settings
             db_file_path = settings.db_file_path
             
             if not os.path.exists(db_file_path):
                 messagebox.showwarning("Warning", f"{db_file_path} not found. Please upload some documents first.")
                 return
 
-            api_type = self.api_type_var.get()
-            model = self.model_var.get()
-            embedding_class = self.embedding_class_var.get()
-            embedding_model = self.embedding_model_var.get()
-
+            # Process db.txt
             self.db_embeddings, self.db_indexes, self.db_content = load_or_compute_embeddings(
-                api_type,
-                model,
-                embedding_class,
-                embedding_model,
+                self.model, 
                 db_file_path, 
                 settings.embeddings_file_path
             )
@@ -949,8 +882,6 @@ class ERAGGUI:
 
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred while computing embeddings: {str(e)}")
-
-
 
     def create_knowledge_graph(self):
         try:
@@ -2122,20 +2053,16 @@ class ERAGGUI:
         try:
             api_type = self.api_type_var.get()
             model = self.model_var.get()
-            embedding_class = self.embedding_class_var.get()
-            embedding_model = self.embedding_model_var.get()
             
             # Check API keys before proceeding
             self.check_api_keys()
             
             # Ensure the EragAPI instance is up-to-date
-            self.erag_api = create_erag_api(api_type, model, embedding_class, embedding_model)
+            self.erag_api = create_erag_api(api_type, model)
             
-            print(info(f"EragAPI initialized with {self.erag_api.api_type} backend"))
-            print(info(f"Model: {self.erag_api.model}"))
-            print(info(f"Embedding class: {self.erag_api.embedding_class}"))
-            print(info(f"Embedding model: {self.erag_api.embedding_model}"))
-        
+            print(info(f"EragAPI initialized with {self.erag_api.api_type} backend."))
+            print(info(f"Talking to {model} using EragAPI (backed by {self.erag_api.api_type}). Type 'exit' to end the conversation."))
+            
             if api_type == "llama":
                 if not self.server_manager.can_start_server():
                     raise Exception("Server cannot be started. Please check your settings.")
@@ -2160,8 +2087,7 @@ class ERAGGUI:
             error_message = f"An error occurred while starting the system: {str(e)}"
             print(error(error_message))
             messagebox.showerror("Error", error_message)
-            
-            
+
     def check_api_keys(self):
         if self.api_type_var.get() == "groq" and not self.groq_api_key:
             self.groq_api_key = simpledialog.askstring("Groq API Key", "Please enter your Groq API Key:", show='*')
@@ -2177,6 +2103,7 @@ class ERAGGUI:
                 messagebox.showinfo("Success", "Gemini API Key has been saved.")
             else:
                 messagebox.showwarning("Warning", "Gemini API Key is required to use the Gemini API.")
+
 
 def main():
     root = tk.Tk()

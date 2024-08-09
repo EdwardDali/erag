@@ -3,8 +3,7 @@ import os
 from collections import deque
 from src.settings import settings
 from src.look_and_feel import error, success, warning, info, highlight
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
+from sentence_transformers import SentenceTransformer
 
 class Talk2SD:
     def __init__(self, erag_api):
@@ -13,7 +12,7 @@ class Talk2SD:
         self.schema = self.fetch_schema()
         self.conversation_history = []
         self.conversation_context = deque(maxlen=settings.conversation_context_size * 2)
-        self.vectorizer = TfidfVectorizer()
+        self.embedding_model = SentenceTransformer(settings.sentence_transformer_model)
         self.system_prompt = self.generate_system_prompt()
 
     def fetch_schema(self):
@@ -153,6 +152,21 @@ class Talk2SD:
             print(error(f"Error executing SQL query: {str(e)}"))
             return None
 
+    def generate_response(self, user_input, sql_query, result):
+        prompt = f"""
+        User question: {user_input}
+        SQL query: {sql_query}
+        Query result: {result}
+
+        Based on the SQL query result, generate a concise and factual response that directly answers the user's question.
+        Do not add any storytelling or unnecessary elaboration. Focus solely on the data returned by the SQL query.
+        If the result is empty or None, state that no data was found.
+        
+        Response:
+        """
+        response = self.erag_api.chat([{"role": "system", "content": self.system_prompt}, {"role": "user", "content": prompt}])
+        return response.strip() if response else None
+
     def update_conversation_context(self, user_input: str, assistant_response: str):
         self.conversation_context.append(f"User: {user_input}")
         self.conversation_context.append(f"Assistant: {assistant_response}")
@@ -163,19 +177,4 @@ class Talk2SD:
             self.conversation_history = self.conversation_history[-settings.max_history_length * 3:]
 
     def encode_text(self, text):
-        # Use TfidfVectorizer instead of SentenceTransformer
-        if not hasattr(self, 'fitted_vectorizer'):
-            self.fitted_vectorizer = self.vectorizer.fit([text])
-        return self.fitted_vectorizer.transform([text])
-
-    def find_similar_context(self, query, context_list, top_k=5):
-        # Encode the query and context
-        query_vector = self.encode_text(query)
-        context_vectors = self.vectorizer.transform(context_list)
-
-        # Calculate cosine similarity
-        similarities = cosine_similarity(query_vector, context_vectors)[0]
-
-        # Get top-k similar contexts
-        top_indices = similarities.argsort()[-top_k:][::-1]
-        return [context_list[i] for i in top_indices]
+        return self.embedding_model.encode(text, convert_to_tensor=True, show_progress_bar=False)
