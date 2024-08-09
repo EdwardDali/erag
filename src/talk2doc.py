@@ -1,4 +1,3 @@
-import sys
 import os
 import numpy as np
 from typing import List, Dict
@@ -11,7 +10,6 @@ from src.api_model import EragAPI
 from src.look_and_feel import success, info, warning, error, colorize, MAGENTA, RESET
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
-import logging
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -43,6 +41,11 @@ class RAGSystem:
         self.knowledge_graph = self.load_knowledge_graph()
         self.db_content = self.load_db_content()
         self.search_utils = SearchUtils(self.db_content)
+
+        print(info(f"RAGSystem initialized with API type: {self.erag_api.api_type}"))
+        print(info(f"Model: {self.erag_api.model}"))
+        print(info(f"Embedding class: {self.erag_api.embedding_class}"))
+        print(info(f"Embedding model: {self.erag_api.embedding_model}"))
 
     def load_db_content(self):
         if os.path.exists(settings.db_file_path):
@@ -181,17 +184,4 @@ Text Search Results:
             f.write(f"{response}\n")
             f.write("\n" + "="*50 + "\n\n")
 
-def main(api_type: str):
-    erag_api = EragAPI(api_type)
-    rag_system = RAGSystem(erag_api)
-    rag_system.run()
-
-if __name__ == "__main__":
-    if len(sys.argv) > 1:
-        api_type = sys.argv[1]
-        main(api_type)
-    else:
-        print(error("No API type provided."))
-        print(warning("Usage: python src/talk2doc.py <api_type>"))
-        print(info("Available API types: ollama, llama, sentence_transformer"))
-        sys.exit(1)
+# The main function is removed as it's not used when called from main.py
