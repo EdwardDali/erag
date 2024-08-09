@@ -2,7 +2,11 @@
 
 ## Overview
 
+
 ERAG is an advanced system that combines lexical, semantic, text, and knowledge graph searches with conversation context to provide accurate and contextually relevant responses. This tool processes various document types, creates embeddings, builds knowledge graphs, and uses this information to answer user queries intelligently. It also includes modules for interacting with web content, GitHub repositories, performing exploratoru data analysis using various language models.
+
+working on CPU only
+tested on Windows 10
 
 ![ERAG GUI 1](https://github.com/EdwardDali/e-rag/blob/main/docs/gui1.PNG)
 ![ERAG GUI 2](https://github.com/EdwardDali/e-rag/blob/main/docs/gui2.PNG)
@@ -66,26 +70,30 @@ ERAG is composed of several interconnected components:
    ```
    git clone https://github.com/EdwardDali/erag.git && cd erag
    ```
+2. Install torch
+   # CPU only
+pip install torch==2.3.1 torchvision==0.18.1 torchaudio==2.3.1 --index-url https://download.pytorch.org/whl/cpu
 
-2. Install required Python dependencies:
+3. Install required Python dependencies:
    ```
    pip install -r requirements.txt
    ```
+   
 
-3. Download required spaCy and NLTK models:
+4. Download required spaCy and NLTK models:
    ```
    python -m spacy download en_core_web_sm
    python -m nltk.downloader punkt
    ```
 
-4. Install Ollama (for using Ollama API and **for embeddings**) and install ollama models:
+5. Install Ollama (for using Ollama API and **for embeddings**) and install ollama models:
    - Linux/macOS: `curl https://ollama.ai/install.sh | sh`
    - Windows: Visit https://ollama.ai/download and follow installation instructions
   
    - ollama run gemma2:2b
    - ollama run chroma/all-minilm-l6-v2-f32:latest   - for embedddings
 
-5. Set up environment variables:
+6. Set up environment variables:
    - Create a `.env` file in the project root
    - Add the following variables (if applicable):
      ```
