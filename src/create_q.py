@@ -28,7 +28,7 @@ def generate_questions(erag_api, chunk, question_number, total_questions, output
     
     prompt = f"""Based on the following text, generate {settings.questions_per_chunk} specific and insightful questions that test a reader's understanding of the key concepts, main ideas, or important details. Follow these guidelines:
 
-1. Do not ask general questions about the text itself, such as "What is this text about?" or "What is discussed in the text?"
+1. Do not ask general questions about the text itself, such as "What is the main idea of the text?" or "What is the discussed in the text?"
 2. Focus on specific details, events, characters, or concepts mentioned in the text.
 3. Frame questions in a way that they can stand alone without referring to "the text" or "the passage."
 4. Ensure questions are directly related to the content provided and require understanding of the specific information given.

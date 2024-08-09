@@ -14,15 +14,18 @@ import numpy as np
 import logging
 import warnings
 from urllib3.exceptions import InsecureRequestWarning
+from sentence_transformers import SentenceTransformer
+
 
 # Load environment variables from .env file
 load_dotenv()
 
 class EragAPI:
-    def __init__(self, api_type, model=None, embedding_model=None):
+    def __init__(self, api_type, model=None, embedding_class=None, embedding_model=None):
         self.api_type = api_type
         self.model = model
-        self.embedding_model = embedding_model or "chroma/all-minilm-l6-v2-f32:latest"
+        self.embedding_class = embedding_class or settings.get_default_embedding_class()
+        self.embedding_model = embedding_model or settings.get_default_embedding_model()
 
         if api_type == "ollama":
             self.client = OpenAI(base_url='http://localhost:11434/v1', api_key='ollama')
@@ -38,6 +41,14 @@ class EragAPI:
             self.model = self.client.model
         else:
             raise ValueError(error("Invalid API type"))
+        
+        # Embedding model initialization
+        if self.embedding_class == "ollama":
+            self.embedding_client = OpenAI(base_url='http://localhost:11434/v1', api_key='ollama')
+        elif self.embedding_class == "sentence_transformers":
+            self.embedding_client = SentenceTransformer(self.embedding_model)
+        else:
+            raise ValueError(error(f"Invalid embedding class: {self.embedding_class}"))
 
     def chat(self, messages, temperature=0.7, max_tokens=None, stream=False):
         try:
@@ -82,11 +93,16 @@ class EragAPI:
             return response
         except Exception as e:
             return error(f"An error occurred: {str(e)}")
+        
+    
 
     def encode(self, texts):
-        if self.api_type != "ollama":
-            raise NotImplementedError("Encoding is only implemented for Ollama API type")
+        if self.embedding_class == "ollama":
+            return self._encode_ollama(texts)
+        elif self.embedding_class == "sentence_transformers":
+            return self._encode_sentence_transformers(texts)
         
+    def _encode_ollama(self, texts):
         embeddings = []
         batch_size = len(texts)
         
@@ -113,6 +129,12 @@ class EragAPI:
         logging.getLogger("httpx").setLevel(logging.NOTSET)
         
         return np.array(embeddings)
+    
+    def _encode_sentence_transformers(self, texts):
+            print(info(f"Computing embeddings for {len(texts)} texts using Sentence Transformers model: {self.embedding_model}"))
+            embeddings = self.embedding_client.encode(texts)
+            print(info(f"Embeddings shape: {embeddings.shape}"))
+            return embeddings
 
 def update_settings(settings, api_type, model):
         if api_type == "ollama":
@@ -338,7 +360,11 @@ def get_available_models(api_type, server_manager=None):
         return []
 
 # Factory function to create EragAPI instance
-def create_erag_api(api_type, model=None, embedding_model=None):
+def create_erag_api(api_type, model=None, embedding_class=None, embedding_model=None):
     if model is None:
         model = settings.get_default_model(api_type)
-    return EragAPI(api_type, model, embedding_model)
+    if embedding_class is None:
+        embedding_class = settings.get_default_embedding_class()
+    if embedding_model is None:
+        embedding_model = settings.get_default_embedding_model()
+    return EragAPI(api_type, model, embedding_class, embedding_model)

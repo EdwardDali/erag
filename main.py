@@ -109,6 +109,9 @@ class ERAGGUI:
         self.supervisor_model_var = tk.StringVar(master)
         self.manager_model_var = tk.StringVar(master)
         self.default_manager_model_var = tk.StringVar(master)
+        self.embedding_class_var = tk.StringVar(master)
+        self.embedding_class_var.set("ollama")  # Default to ollama
+        self.embedding_model_var = tk.StringVar(master)
 
         # Create output folder if it doesn't exist
         os.makedirs(settings.output_folder, exist_ok=True)
@@ -137,6 +140,7 @@ class ERAGGUI:
         self.create_server_tab()
 
     def create_main_tab(self):
+        self.create_embedding_model_frame()
         self.create_model_frame()
         self.create_upload_frame()
         self.create_embeddings_frame()
@@ -145,6 +149,26 @@ class ERAGGUI:
         self.create_web_rag_frame()
         self.create_structured_data_rag_frame()
         self.create_financial_data_rag_frame()
+
+    def create_embedding_model_frame(self):
+        embedding_model_frame = tk.LabelFrame(self.main_tab, text="Embedding Model Selection")
+        embedding_model_frame.pack(fill="x", padx=10, pady=5)
+
+        # Embedding Class selection
+        tk.Label(embedding_model_frame, text="Embedding Class:").grid(row=0, column=0, padx=5, pady=5, sticky="e")
+        embedding_class_options = ["ollama", "sentence_transformers"]
+        embedding_class_menu = ttk.Combobox(embedding_model_frame, textvariable=self.embedding_class_var, values=embedding_class_options, state="readonly", width=15)
+        embedding_class_menu.grid(row=0, column=1, padx=5, pady=5)
+        embedding_class_menu.bind("<<ComboboxSelected>>", self.update_embedding_model)
+
+        # Embedding Model selection
+        tk.Label(embedding_model_frame, text="Embedding Model:").grid(row=0, column=2, padx=5, pady=5, sticky="e")
+        self.embedding_model_menu = ttk.Combobox(embedding_model_frame, textvariable=self.embedding_model_var, state="readonly", width=30)
+        self.embedding_model_menu.grid(row=0, column=3, padx=5, pady=5)
+
+        # Initialize embedding model
+        self.update_embedding_model()
+
 
 
     def create_structured_data_rag_frame(self):
@@ -368,6 +392,28 @@ class ERAGGUI:
         create_self_knol_button = tk.Button(agent_frame, text="Create Self Knol", command=self.create_self_knol)
         create_self_knol_button.pack(side="left", padx=5, pady=5)
         ToolTip(create_self_knol_button, "Create a knowledge artifact (Self Knol) using only the model's knowledge")
+
+
+    def update_embedding_model(self, event=None):
+        embedding_class = self.embedding_class_var.get()
+        if embedding_class == "ollama":
+            embedding_models = ["chroma/all-minilm-l6-v2-f32:latest"]  # Add more Ollama embedding models if available
+        else:  # sentence_transformers
+            embedding_models = ["all-MiniLM-L6-v2", "paraphrase-multilingual-MiniLM-L12-v2"]  # Add more Sentence Transformers models as needed
+
+        self.embedding_model_menu['values'] = embedding_models
+        if embedding_models:
+            self.embedding_model_var.set(embedding_models[0])
+        
+        self.update_embedding_model_setting()
+
+    def update_embedding_model_setting(self):
+        embedding_class = self.embedding_class_var.get()
+        embedding_model = self.embedding_model_var.get()
+        settings.update_setting("embedding_class", embedding_class)
+        settings.update_setting("embedding_model", embedding_model)
+        print(success(f"Embedding settings updated - Class: {embedding_class}, Model: {embedding_model}"))
+
 
     def run_talk2model(self):
         try:
@@ -869,19 +915,22 @@ class ERAGGUI:
 
     def execute_embeddings(self):
         try:
-            # Ensure we're using the correct path from settings
             db_file_path = settings.db_file_path
             
             if not os.path.exists(db_file_path):
                 messagebox.showwarning("Warning", f"{db_file_path} not found. Please upload some documents first.")
                 return
 
-            # Create EragAPI instance for embeddings
-            erag_api = create_erag_api("ollama", model=settings.ollama_model, embedding_model="chroma/all-minilm-l6-v2-f32:latest")
+            api_type = self.api_type_var.get()
+            model = self.model_var.get()
+            embedding_class = self.embedding_class_var.get()
+            embedding_model = self.embedding_model_var.get()
 
-            # Process db.txt
             self.db_embeddings, self.db_indexes, self.db_content = load_or_compute_embeddings(
-                erag_api, 
+                api_type,
+                model,
+                embedding_class,
+                embedding_model,
                 db_file_path, 
                 settings.embeddings_file_path
             )
@@ -889,6 +938,7 @@ class ERAGGUI:
 
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred while computing embeddings: {str(e)}")
+
 
 
     def create_knowledge_graph(self):
@@ -2061,16 +2111,17 @@ class ERAGGUI:
         try:
             api_type = self.api_type_var.get()
             model = self.model_var.get()
+            embedding_model = self.embedding_model_var.get()
             
             # Check API keys before proceeding
             self.check_api_keys()
             
             # Ensure the EragAPI instance is up-to-date
-            self.erag_api = create_erag_api(api_type, model)
+            self.erag_api = create_erag_api(api_type, model, embedding_model)
             
-            print(info(f"EragAPI initialized with {self.erag_api.api_type} backend."))
+            print(info(f"EragAPI initialized with {self.erag_api.api_type} backend and embedding model: {embedding_model}"))
             print(info(f"Talking to {model} using EragAPI (backed by {self.erag_api.api_type}). Type 'exit' to end the conversation."))
-            
+        
             if api_type == "llama":
                 if not self.server_manager.can_start_server():
                     raise Exception("Server cannot be started. Please check your settings.")

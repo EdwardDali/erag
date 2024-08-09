@@ -121,8 +121,12 @@ class Settings:
 
         self.structured_data_db = os.path.join(self.output_folder, 'structured_data.db')
 
-         # Add this new setting
+         # XDAs settings
         self.save_results_to_txt = False  # Default to False
+
+        # Embedding Settings
+        self.embedding_class = "ollama"
+        self.embedding_model = "chroma/all-minilm-l6-v2-f32:latest"
 
 
        
@@ -170,6 +174,12 @@ class Settings:
             return self.gemini_model
         else:
             raise ValueError(f"Unknown API type: {api_type}")
+        
+    def get_default_embedding_class(self) -> str:
+        return self.embedding_class
+
+    def get_default_embedding_model(self) -> str:
+        return self.embedding_model
 
     def update_setting(self, key: str, value: Any):
         if hasattr(self, key):

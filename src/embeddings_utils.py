@@ -2,7 +2,7 @@ import numpy as np
 import os
 from typing import List, Tuple, Optional
 from src.settings import settings
-from src.api_model import EragAPI
+from src.api_model import create_erag_api
 from src.look_and_feel import success, info, warning, error
 
 def ensure_output_folder():
@@ -16,7 +16,7 @@ def load_db_content(file_path: str) -> List[str]:
     return content
 
 def compute_and_save_embeddings(
-    erag_api: EragAPI,
+    erag_api,
     save_path: str,
     content: List[str]
 ) -> None:
@@ -28,7 +28,7 @@ def compute_and_save_embeddings(
         if not save_path.endswith('.npy'):
             save_path += '.npy'
         
-        print(info(f"Computing embeddings for {len(content)} items"))
+        print(info(f"Computing embeddings for {len(content)} items using {erag_api.embedding_class} model: {erag_api.embedding_model}"))
         
         # Process all content in a single batch
         db_embeddings = erag_api.encode(content)
@@ -77,7 +77,7 @@ def load_embeddings_and_data(embeddings_file: str) -> Tuple[Optional[np.ndarray]
         print(error(f"Error in load_embeddings_and_data: {str(e)}"))
         raise
 
-def load_or_compute_embeddings(erag_api: EragAPI, db_file: str, embeddings_file: str) -> Tuple[np.ndarray, np.ndarray, List[str]]:
+def load_or_compute_embeddings(api_type: str, model: str, embedding_class: str, embedding_model: str, db_file: str, embeddings_file: str) -> Tuple[np.ndarray, np.ndarray, List[str]]:
     try:
         # Ensure db_file and embeddings_file are in the output folder
         db_file = os.path.join(settings.output_folder, os.path.basename(db_file))
@@ -88,6 +88,7 @@ def load_or_compute_embeddings(erag_api: EragAPI, db_file: str, embeddings_file:
         embeddings, indexes, content = load_embeddings_and_data(embeddings_file)
         if embeddings is None or indexes is None or content is None:
             content = load_db_content(db_file)
+            erag_api = create_erag_api(api_type, model, embedding_class, embedding_model)
             compute_and_save_embeddings(erag_api, embeddings_file, content)
             embeddings, indexes, content = load_embeddings_and_data(embeddings_file)
         return embeddings, indexes, content
@@ -98,11 +99,17 @@ def load_or_compute_embeddings(erag_api: EragAPI, db_file: str, embeddings_file:
 if __name__ == "__main__":
     try:
         ensure_output_folder()
-        # Use the EragAPI
-        erag_api = EragAPI(settings.api_type)
+        # Use the create_erag_api function
+        erag_api = create_erag_api(settings.api_type, settings.get_default_model(settings.api_type), 
+                                   settings.embedding_class, settings.embedding_model)
         
         # Process db.txt from the output folder
-        embeddings, indexes, content = load_or_compute_embeddings(erag_api, settings.db_file_path, settings.embeddings_file_path)
+        embeddings, indexes, content = load_or_compute_embeddings(settings.api_type, 
+                                                                  settings.get_default_model(settings.api_type),
+                                                                  settings.embedding_class, 
+                                                                  settings.embedding_model, 
+                                                                  settings.db_file_path, 
+                                                                  settings.embeddings_file_path)
         print(success(f"DB Embeddings shape: {embeddings.shape}, Indexes shape: {indexes.shape}"))
         print(success(f"DB Content length: {len(content)}"))
     except Exception as e:
