@@ -50,6 +50,9 @@ from src.ax_da_b6 import AdvancedExploratoryDataAnalysisB6
 from src.ax_da_b7 import AdvancedExploratoryDataAnalysisB7
 from src.merge_sd import merge_structured_data
 
+# Set up logging
+import logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Load environment variables from .env file
 load_dotenv()
@@ -107,6 +110,10 @@ class ERAGGUI:
         self.supervisor_model_var = tk.StringVar(master)
         self.manager_model_var = tk.StringVar(master)
         self.default_manager_model_var = tk.StringVar(master)
+        self.embedding_class_var = tk.StringVar(master)
+        self.embedding_class_var.set(settings.default_embedding_class)
+        self.embedding_model_var = tk.StringVar(master)
+        self.is_initializing = True
 
         # Create output folder if it doesn't exist
         os.makedirs(settings.output_folder, exist_ok=True)
@@ -133,8 +140,10 @@ class ERAGGUI:
         self.create_main_tab()
         self.create_settings_tab()
         self.create_server_tab()
+        self.is_initializing = False
 
     def create_main_tab(self):
+        self.create_embedding_model_frame()
         self.create_model_frame()
         self.create_upload_frame()
         self.create_embeddings_frame()
@@ -143,6 +152,27 @@ class ERAGGUI:
         self.create_web_rag_frame()
         self.create_structured_data_rag_frame()
         self.create_financial_data_rag_frame()
+
+    def create_embedding_model_frame(self):
+        embedding_model_frame = tk.LabelFrame(self.main_tab, text="Embedding Model Selection")
+        embedding_model_frame.pack(fill="x", padx=10, pady=5)
+
+        tk.Label(embedding_model_frame, text="Embedding Class:").grid(row=0, column=0, padx=5, pady=5, sticky="e")
+        self.embedding_class_var = tk.StringVar(value=settings.default_embedding_class)
+        embedding_class_options = ["ollama", "sentence_transformers"]
+        embedding_class_menu = ttk.Combobox(embedding_model_frame, textvariable=self.embedding_class_var, values=embedding_class_options, state="readonly", width=20)
+        embedding_class_menu.grid(row=0, column=1, padx=5, pady=5)
+        embedding_class_menu.bind("<<ComboboxSelected>>", self.update_embedding_model_list)
+
+        tk.Label(embedding_model_frame, text="Embedding Model:").grid(row=0, column=2, padx=5, pady=5, sticky="e")
+        self.embedding_model_var = tk.StringVar(value=settings.default_embedding_model)
+        self.embedding_model_menu = ttk.Combobox(embedding_model_frame, textvariable=self.embedding_model_var, state="readonly", width=30)
+        self.embedding_model_menu.grid(row=0, column=3, padx=5, pady=5)
+        self.embedding_model_menu.bind("<<ComboboxSelected>>", self.update_embedding_model_setting)
+
+        # Initialize model lists
+        self.update_embedding_model_list()
+
 
 
     def create_structured_data_rag_frame(self):
@@ -280,6 +310,71 @@ class ERAGGUI:
         # Initialize model list
         self.update_model_list()
 
+
+    def update_embedding_model_list(self, event=None):
+        embedding_class = self.embedding_class_var.get()
+        if embedding_class == "sentence_transformers":
+            models = [settings.sentence_transformer_model]
+        elif embedding_class == "ollama":
+            models = [settings.ollama_embedding_model]
+        else:
+            models = []
+
+        self.embedding_model_menu['values'] = models
+        if models:
+            self.embedding_model_var.set(models[0])
+        
+        # Update settings
+        settings.update_setting("default_embedding_class", embedding_class)
+        settings.update_setting("default_embedding_model", self.embedding_model_var.get())
+        
+        # Print changes to console
+        print(success(f"Updated embedding model list for embedding class: {embedding_class}"))
+        print(success(f"Available embedding models: {', '.join(models)}"))
+        print(success(f"Selected embedding model: {self.embedding_model_var.get()}"))
+
+        # Update EragAPI if it exists and we're not initializing
+        if hasattr(self, 'erag_api') and self.erag_api is not None and not self.is_initializing:
+            self.erag_api.embedding_class = embedding_class
+            self.erag_api.embedding_model = self.embedding_model_var.get()
+            print(info("EragAPI updated with new embedding settings"))
+
+        # Show message box only if we're not initializing
+        if not self.is_initializing:
+            messagebox.showinfo("Embedding Settings Updated", 
+                                f"Embedding class: {embedding_class}\n"
+                                f"Embedding model: {self.embedding_model_var.get()}")
+    
+    def get_ollama_embedding_models(self):
+        try:
+            result = subprocess.run(["ollama", "list"], capture_output=True, text=True)
+            models = result.stdout.strip().split('\n')[1:]  # Skip the header
+            # Filter for embedding models (you may need to adjust this filtering logic)
+            embedding_models = [model.split()[0] for model in models if 'embedding' in model.lower()]
+            return embedding_models if embedding_models else ["chroma/all-minilm-l6-v2-f32:latest"]
+        except subprocess.CalledProcessError:
+            print(error("Error running 'ollama list' command"))
+            return ["chroma/all-minilm-l6-v2-f32:latest"]
+
+    def update_embedding_model_setting(self, event=None):
+        embedding_model = self.embedding_model_var.get()
+        
+        # Update settings
+        settings.update_setting("default_embedding_model", embedding_model)
+        
+        # Print changes to console
+        print(success(f"Selected embedding model: {embedding_model}"))
+
+        # Update EragAPI if it exists and we're not initializing
+        if hasattr(self, 'erag_api') and self.erag_api is not None and not self.is_initializing:
+            self.erag_api.embedding_model = embedding_model
+            print(info("EragAPI updated with new embedding model"))
+
+        # Show message box only if we're not initializing
+        if not self.is_initializing:
+            messagebox.showinfo("Embedding Model Updated", 
+                                f"Embedding model: {embedding_model}")
+
     def update_model_list(self, event=None):
         api_type = self.api_type_var.get()
         
@@ -297,8 +392,12 @@ class ERAGGUI:
 
         if models:
             # Set worker model
-            if api_type == "ollama" and settings.ollama_model in models:
-                self.model_var.set(settings.ollama_model)
+            if api_type == "ollama":
+                if settings.ollama_model in models:
+                    self.model_var.set(settings.ollama_model)
+                else:
+                    self.model_var.set(models[0])
+                    settings.update_setting("ollama_model", models[0])
             elif api_type == "llama" and self.server_manager.current_model in models:
                 self.model_var.set(self.server_manager.current_model)
             elif api_type == "groq":
@@ -308,7 +407,6 @@ class ERAGGUI:
                     new_default = models[0]
                     self.model_var.set(new_default)
                     settings.update_setting("groq_model", new_default)
-                    print(warning(f"Default Groq model not available. Updated to: {new_default}"))
             elif api_type == "gemini":
                 if settings.gemini_model in models:
                     self.model_var.set(settings.gemini_model)
@@ -316,7 +414,6 @@ class ERAGGUI:
                     new_default = models[0]
                     self.model_var.set(new_default)
                     settings.update_setting("gemini_model", new_default)
-                    print(warning(f"Default Gemini model not available. Updated to: {new_default}"))
             else:
                 self.model_var.set(models[0])
 
@@ -349,6 +446,22 @@ class ERAGGUI:
         print(success(f"Selected worker model: {self.model_var.get()}"))
         print(success(f"Selected supervisor model: {self.supervisor_model_var.get()}"))
         print(success(f"Selected manager model: {self.manager_model_var.get()}"))
+
+    def update_embedding_model_setting(self, event=None):
+        embedding_class = self.embedding_class_var.get()
+        embedding_model = self.embedding_model_var.get()
+        
+        settings.update_setting("default_embedding_class", embedding_class)
+        settings.update_setting("default_embedding_model", embedding_model)
+        
+        print(info(f"Embedding class updated to: {embedding_class}"))
+        print(info(f"Embedding model updated to: {embedding_model}"))
+        
+        # Update the EragAPI instance with the new embedding settings
+        if hasattr(self, 'erag_api'):
+            self.erag_api.embedding_class = embedding_class
+            self.erag_api.embedding_model = embedding_model
+            print(info("EragAPI updated with new embedding settings"))
 
     def create_agent_frame(self):
         agent_frame = tk.LabelFrame(self.main_tab, text="Model and Agent")
@@ -385,6 +498,9 @@ class ERAGGUI:
     def update_model_setting(self, event=None, show_message=True):
         api_type = self.api_type_var.get()
         model = self.model_var.get()
+        embedding_class = self.embedding_class_var.get()
+        embedding_model = self.embedding_model_var.get()
+        
         if model:
             update_settings(settings, api_type, model)
             if api_type == "llama":
@@ -392,13 +508,15 @@ class ERAGGUI:
                     messagebox.showwarning("Model Selection", f"Failed to set model: {model}")
                     return
             
-            # Update the EragAPI instance with the new model
-            self.erag_api = create_erag_api(api_type, model)
+            # Update the EragAPI instance with the new model and embedding settings
+            self.erag_api = create_erag_api(api_type, model, embedding_class, embedding_model)
             
             print(info(f"EragAPI initialized with {api_type} backend for model: {model}"))
+            print(info(f"Embedding class updated to: {embedding_class}"))
+            print(info(f"Embedding model updated to: {embedding_model}"))
             
             if show_message:
-                messagebox.showinfo("Model Selected", f"Selected model: {model}\nUsing EragAPI with {api_type} backend")
+                messagebox.showinfo("Model Selected", f"Selected model: {model}\nUsing EragAPI with {api_type} backend\nEmbedding class: {embedding_class}\nEmbedding model: {embedding_model}")
         elif show_message:
             messagebox.showwarning("Model Selection", "No model selected")
 
@@ -564,8 +682,12 @@ class ERAGGUI:
             ("Questions Per Chunk", "questions_per_chunk"),  # New field for questions per chunk
         ])
 
-        # API Settings
+         # API Settings
         self.create_settings_fields(api_frame, [
+            ("Default Embedding Class", "default_embedding_class"),
+            ("Default Embedding Model", "default_embedding_model"),  # Change this line
+            ("Sentence Transformer Model", "sentence_transformer_model"),
+            ("Ollama Embedding Model", "ollama_embedding_model"),
             ("Default Ollama Model", "ollama_model"),
             ("Default Llama Model", "llama_model"),
             ("Default Groq Model", "groq_model"),
@@ -715,7 +837,9 @@ class ERAGGUI:
 
         settings.save_results_to_txt = self.save_results_to_txt_var.get()
 
-        
+        # Apply embedding model settings
+        settings.update_setting("default_embedding_class", self.embedding_class_var.get())
+        settings.update_setting("default_embedding_model", self.embedding_model_var.get())
        
     def update_env_file(self, key: str, value: str) -> None:
         """
@@ -872,9 +996,15 @@ class ERAGGUI:
                 messagebox.showwarning("Warning", f"{db_file_path} not found. Please upload some documents first.")
                 return
 
+            # Create the appropriate model based on settings
+            if settings.default_embedding_class == "ollama":
+                model = create_erag_api(settings.api_type, embedding_class=settings.default_embedding_class, embedding_model=settings.default_embedding_model)
+            else:
+                model = SentenceTransformer(settings.default_embedding_model)
+
             # Process db.txt
             self.db_embeddings, self.db_indexes, self.db_content = load_or_compute_embeddings(
-                self.model, 
+                model, 
                 db_file_path, 
                 settings.embeddings_file_path
             )
@@ -2053,20 +2183,24 @@ class ERAGGUI:
         try:
             api_type = self.api_type_var.get()
             model = self.model_var.get()
+            embedding_class = self.embedding_class_var.get()
+            embedding_model = self.embedding_model_var.get()
             
             # Check API keys before proceeding
             self.check_api_keys()
             
             # Ensure the EragAPI instance is up-to-date
-            self.erag_api = create_erag_api(api_type, model)
+            self.erag_api = create_erag_api(api_type, model, embedding_class, embedding_model)
             
-            print(info(f"EragAPI initialized with {self.erag_api.api_type} backend."))
-            print(info(f"Talking to {model} using EragAPI (backed by {self.erag_api.api_type}). Type 'exit' to end the conversation."))
-            
+            print(info(f"EragAPI initialized with {self.erag_api.api_type} backend"))
+            print(info(f"Model: {self.erag_api.model}"))
+            print(info(f"Embedding class: {self.erag_api.embedding_class}"))
+            print(info(f"Embedding model: {self.erag_api.embedding_model}"))
+        
+            # API-specific checks
             if api_type == "llama":
                 if not self.server_manager.can_start_server():
                     raise Exception("Server cannot be started. Please check your settings.")
-                # Ensure the server is running with the selected model
                 if not self.server_manager.start_server():
                     raise Exception("Failed to start the llama.cpp server.")
             elif api_type == "groq" and not self.groq_api_key:

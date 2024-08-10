@@ -52,8 +52,14 @@ class Settings:
         self.gemini_model = "gemini-pro"  # Add default Gemini model
         self.temperature = 0.1
         self.model_name = "all-MiniLM-L6-v2"
-        self.sentence_transformer_model = "all-MiniLM-L6-v2"
         self.default_manager_model = None
+
+        # Embedding model settings
+        self.default_embedding_class = "ollama"  # Changed to ollama
+        self.default_embedding_model = "chroma/all-minilm-l6-v2-f32:latest"  # Changed to Ollama model
+        self.sentence_transformer_model = "all-MiniLM-L6-v2"  # Keep this for when sentence_transformers is selected
+        self.ollama_embedding_model = "chroma/all-minilm-l6-v2-f32:latest"
+        
 
         # Knol Creation Settings
         self.num_questions = 8
@@ -155,9 +161,18 @@ class Settings:
         # You may need to update this method if you've changed how settings are applied in your application
         pass
 
+
     def get_all_settings(self) -> Dict[str, Any]:
         return {key: value for key, value in self.__dict__.items() if not key.startswith('_')}
 
+
+    def get_default_embedding_model(self, embedding_class):
+        if embedding_class == "sentence_transformers":
+            return self.default_embedding_model  # Change this line
+        elif embedding_class == "ollama":
+            return self.ollama_embedding_model
+        else:
+            raise ValueError(f"Invalid embedding class: {embedding_class}")
     
     def get_default_model(self, api_type: str) -> str:
         if api_type == "ollama":

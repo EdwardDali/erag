@@ -1,14 +1,16 @@
 import torch
-from sentence_transformers import SentenceTransformer
 import os
+import numpy as np  # Add this import
 from typing import List, Tuple, Optional
 import logging
 from src.settings import settings
 from src.api_model import EragAPI
 from src.look_and_feel import success, info, warning, error
+from sentence_transformers import SentenceTransformer
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
 
 def ensure_output_folder():
     os.makedirs(settings.output_folder, exist_ok=True)
@@ -20,22 +22,26 @@ def load_db_content(file_path: str) -> List[str]:
             content = [line.strip() for line in db_file]
     return content
 
-def compute_and_save_embeddings(
-    erag_api: EragAPI,
-    save_path: str,
-    content: List[str]
-) -> None:
+def compute_and_save_embeddings(model, save_path: str, content: List[str]) -> None:
     try:
         ensure_output_folder()
         
-        # Ensure save_path is in the output folder
         save_path = os.path.join(settings.output_folder, os.path.basename(save_path))
         
-        print(info(f"Computing embeddings for {len(content)} items"))
+        print(info(f"Computing embeddings for {len(content)} items using {type(model).__name__}"))
         db_embeddings = []
         for i in range(0, len(content), settings.batch_size):
             batch = content[i:i+settings.batch_size]
-            batch_embeddings = erag_api.encode(batch, convert_to_tensor=True)
+            if isinstance(model, EragAPI):
+                if model.embedding_class == "ollama":
+                    batch_embeddings = model._encode_ollama(batch)
+                else:
+                    batch_embeddings = model._encode_sentence_transformers(batch)
+            elif isinstance(model, SentenceTransformer):
+                batch_embeddings = model.encode(batch, convert_to_tensor=True)
+            else:
+                raise ValueError(f"Unsupported model type: {type(model).__name__}")
+            
             db_embeddings.append(batch_embeddings)
             print(info(f"Processed batch {i//settings.batch_size + 1}/{(len(content)-1)//settings.batch_size + 1}"))
 
@@ -63,7 +69,6 @@ def compute_and_save_embeddings(
 
 def load_embeddings_and_data(embeddings_file: str) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor], Optional[List[str]]]:
     try:
-        # Ensure embeddings_file is in the output folder
         embeddings_file = os.path.join(settings.output_folder, os.path.basename(embeddings_file))
         
         if os.path.exists(embeddings_file):
@@ -71,6 +76,13 @@ def load_embeddings_and_data(embeddings_file: str) -> Tuple[Optional[torch.Tenso
             embeddings = data['embeddings']
             indexes = data['indexes']
             content = data['content']
+            
+            # Ensure embeddings and indexes are PyTorch tensors
+            if not isinstance(embeddings, torch.Tensor):
+                embeddings = torch.tensor(embeddings)
+            if not isinstance(indexes, torch.Tensor):
+                indexes = torch.tensor(indexes)
+            
             print(info(f"Loaded embeddings shape: {embeddings.shape}"))
             print(info(f"Loaded indexes shape: {indexes.shape}"))
             print(info(f"Loaded content length: {len(content)}"))
@@ -82,16 +94,15 @@ def load_embeddings_and_data(embeddings_file: str) -> Tuple[Optional[torch.Tenso
         print(error(f"Error in load_embeddings_and_data: {str(e)}"))
         raise
 
-def load_or_compute_embeddings(erag_api: EragAPI, db_file: str, embeddings_file: str) -> Tuple[torch.Tensor, torch.Tensor, List[str]]:
+def load_or_compute_embeddings(model, db_file: str, embeddings_file: str) -> Tuple[torch.Tensor, torch.Tensor, List[str]]:
     try:
-        # Ensure db_file and embeddings_file are in the output folder
         db_file = os.path.join(settings.output_folder, os.path.basename(db_file))
         embeddings_file = os.path.join(settings.output_folder, os.path.basename(embeddings_file))
         
         embeddings, indexes, content = load_embeddings_and_data(embeddings_file)
         if embeddings is None or indexes is None or content is None:
             content = load_db_content(db_file)
-            compute_and_save_embeddings(erag_api, embeddings_file, content)
+            compute_and_save_embeddings(model, embeddings_file, content)
             embeddings, indexes, content = load_embeddings_and_data(embeddings_file)
         return embeddings, indexes, content
     except Exception as e:
@@ -101,11 +112,14 @@ def load_or_compute_embeddings(erag_api: EragAPI, db_file: str, embeddings_file:
 if __name__ == "__main__":
     try:
         ensure_output_folder()
-        # Use the EragAPI
-        erag_api = EragAPI(settings.api_type)
+        # Use the updated EragAPI or SentenceTransformer
+        if settings.default_embedding_class == "ollama":
+            model = EragAPI(settings.api_type, embedding_class=settings.default_embedding_class, embedding_model=settings.default_embedding_model)
+        else:
+            model = SentenceTransformer(settings.default_embedding_model)
         
         # Process db.txt from the output folder
-        embeddings, indexes, content = load_or_compute_embeddings(erag_api, settings.db_file_path, settings.embeddings_file_path)
+        embeddings, indexes, content = load_or_compute_embeddings(model, settings.db_file_path, settings.embeddings_file_path)
         print(success(f"DB Embeddings shape: {embeddings.shape}, Indexes shape: {indexes.shape}"))
         print(success(f"DB Content length: {len(content)}"))
     except Exception as e:
