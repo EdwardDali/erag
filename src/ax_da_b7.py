@@ -7,8 +7,6 @@ from statsmodels.tsa.holtwinters import ExponentialSmoothing
 from statsmodels.tsa.seasonal import seasonal_decompose
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 from sklearn.ensemble import GradientBoostingRegressor
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense
 from scipy.signal import periodogram
 from statsmodels.tsa.filters.hp_filter import hpfilter
 from sklearn.model_selection import train_test_split
@@ -802,11 +800,12 @@ class AdvancedExploratoryDataAnalysisB7:
             'image_paths': image_paths,
             'gb_results': gb_results
         }, table_name)
-
+    
+    
     def lstm_time_series(self, df, table_name):
-        print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - LSTM for Time Series"))
+        print(info(f"Performing test {self.technique_counter}/{self.total_techniques} - SARIMAX Time Series (replacing LSTM)"))
         image_paths = []
-        lstm_results = {}
+        sarimax_results = {}
 
         try:
             date_col = df.select_dtypes(include=['datetime64']).columns
@@ -829,65 +828,55 @@ class AdvancedExploratoryDataAnalysisB7:
 
                 df[col] = df[col].interpolate().bfill().ffill()
 
-                series = df[col].values
-                if len(series) < 10:  # Ensure we have enough data points for LSTM
-                    raise ValueError(f"Not enough data points for LSTM analysis in column {col}")
+                # Fit SARIMAX model
+                model = SARIMAX(df[col], order=(1, 1, 1), seasonal_order=(1, 1, 1, 12))
+                results = model.fit()
 
-                series = (series - np.min(series)) / (np.max(series) - np.min(series))  # Normalize
+                # Generate in-sample predictions
+                predictions = results.predict(start=0, end=-1)
 
-                X = []
-                y = []
-                for i in range(len(series) - 5):
-                    X.append(series[i:i+5])
-                    y.append(series[i+5])
-                X, y = np.array(X), np.array(y)
+                # Generate out-of-sample forecast
+                forecast_steps = min(30, int(len(df) * 0.1))
+                forecast = results.forecast(steps=forecast_steps)
 
-                X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
-                model = Sequential([
-                    LSTM(50, activation='relu', input_shape=(5, 1)),
-                    Dense(1)
-                ])
-                model.compile(optimizer='adam', loss='mse')
-
-                model.fit(X_train, y_train, epochs=50, batch_size=32, verbose=0)
-
-                predictions = model.predict(X)
-
-                def plot_lstm():
+                def plot_sarimax():
                     fig, ax = plt.subplots(figsize=self.calculate_figure_size())
-                    ax.plot(df.index[5:], y, label='Observed')
-                    ax.plot(df.index[5:], predictions, color='red', label='LSTM')
-                    ax.set_title(f'LSTM for Time Series: {col}')
+                    ax.plot(df.index, df[col], label='Observed')
+                    ax.plot(df.index, predictions, color='red', label='SARIMAX')
+                    ax.plot(pd.date_range(start=df.index[-1], periods=forecast_steps+1)[1:], 
+                            forecast, color='green', label='Forecast')
+                    ax.set_title(f'SARIMAX Time Series: {col}')
                     ax.set_xlabel('Date')
                     ax.set_ylabel('Value')
                     ax.legend()
                     plt.tight_layout()
                     return fig, ax
 
-                result = self.generate_plot(plot_lstm)
+                result = self.generate_plot(plot_sarimax)
                 if result is not None:
                     fig, _ = result
-                    img_path = os.path.join(self.output_folder, f"{table_name}_lstm_{col}.png")
+                    img_path = os.path.join(self.output_folder, f"{table_name}_sarimax_{col}.png")
                     plt.savefig(img_path, dpi=100, bbox_inches='tight')
                     plt.close(fig)
                     image_paths.append(img_path)
 
-                lstm_results[col] = {
-                    'mse': mean_squared_error(y_test, model.predict(X_test)),
-                    'final_loss': model.history.history['loss'][-1]
+                sarimax_results[col] = {
+                    'aic': results.aic,
+                    'bic': results.bic,
+                    'mse': mean_squared_error(df[col], predictions),
+                    'forecast': forecast.tolist()
                 }
 
-            if not lstm_results:
-                raise ValueError("No valid data for LSTM analysis")
+            if not sarimax_results:
+                raise ValueError("No valid data for SARIMAX analysis")
 
         except Exception as e:
-            print(error(f"Error in LSTM analysis: {str(e)}"))
-            lstm_results = {'error': str(e)}
+            print(error(f"Error in SARIMAX analysis: {str(e)}"))
+            sarimax_results = {'error': str(e)}
 
-        self.interpret_results("LSTM for Time Series", {
+        self.interpret_results("SARIMAX Time Series (replacing LSTM)", {
             'image_paths': image_paths,
-            'lstm_results': lstm_results
+            'sarimax_results': sarimax_results
         }, table_name)
 
     def fourier_analysis(self, df, table_name):
