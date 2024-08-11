@@ -12,7 +12,7 @@ You can use this application to:
 6. Talk with a **specific url**.
 7. **Generate Datasets** based on your documents.
 8. Analyze and summarize **GitHub** repositories
-9. Do Exploratory Data Analysis (**EDA**) on excels and csv.
+9. Do AI powered Exploratory Data Analysis (**EDA**) on excels and csv.
 10. Utilize multiple AI models in **collaboration** (worker, supervisor, manager) for complex tasks
 
 
