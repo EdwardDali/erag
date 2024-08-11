@@ -1,15 +1,20 @@
+# Standard library imports
+import json
+import logging
+import os
 import re
+import threading
+from queue import Queue
+from typing import Dict, List, Optional, Tuple
+
+# Third-party imports
 import docx
 import fitz  # PyMuPDF
 from tkinter import filedialog
-from typing import Optional, List, Tuple
-import logging
-import os
+
+# Local imports
+from src.look_and_feel import error, info, success, warning
 from src.settings import settings
-import json
-from src.look_and_feel import success, info, warning, error
-from queue import Queue
-import threading
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -23,19 +28,17 @@ class FileProcessor:
         self.total_files = 0
         self.processed_files = 0
 
-    def ensure_output_folder(self):
+    @staticmethod
+    def ensure_output_folder():
         os.makedirs(settings.output_folder, exist_ok=True)
 
-    def extract_toc_from_text(self, text: str) -> str:
-        # Look for the "Contents" marker
+    @staticmethod
+    def extract_toc_from_text(text: str) -> str:
         contents_match = re.search(r'\n\s*Contents\s*\n', text, re.IGNORECASE)
         if not contents_match:
             return "No table of contents found"
 
-        start_index = contents_match.end()
-        
-        # Extract lines until we hit a clear end or reach a reasonable limit
-        lines = text[start_index:].split('\n')
+        lines = text[contents_match.end():].split('\n')
         toc_lines = []
         for line in lines:
             stripped_line = line.strip()
@@ -43,34 +46,27 @@ class FileProcessor:
                 continue
             if re.match(r'^CHAPTER [IVXLC]+\.?\s+', stripped_line, re.IGNORECASE):
                 toc_lines.append(stripped_line)
-            elif len(toc_lines) > 0 and not re.match(r'^CHAPTER', stripped_line, re.IGNORECASE):
-                # If we've already started collecting chapters and this isn't a new chapter,
-                # it might be the start of the main content
+            elif toc_lines and not re.match(r'^CHAPTER', stripped_line, re.IGNORECASE):
                 break
             if len(toc_lines) >= 50:  # Reasonable limit for number of chapters
                 break
 
-        clean_toc = '\n'.join(toc_lines)
-        return clean_toc
+        return '\n'.join(toc_lines)
 
-    def generate_toc_docx(self, doc: docx.Document) -> List[Tuple[int, str, int]]:
-        toc = []
-        for para in doc.paragraphs:
-            if para.style.name.startswith('Heading'):
-                level = int(para.style.name[-1])
-                toc.append((level, para.text, 0))  # 0 as placeholder for page number
-        return toc
+    @staticmethod
+    def generate_toc_docx(doc: docx.Document) -> List[Tuple[int, str, int]]:
+        return [(int(para.style.name[-1]), para.text, 0) for para in doc.paragraphs if para.style.name.startswith('Heading')]
 
-    def generate_toc_pdf(self, pdf_path: str) -> List[Tuple[int, str, int]]:
+    @staticmethod
+    def generate_toc_pdf(pdf_path: str) -> List[Tuple[int, str, int]]:
         with fitz.open(pdf_path) as doc:
-            toc = doc.get_toc()
-        return [(level, title, page) for level, title, page in toc]
+            return doc.get_toc()
 
     def generate_toc_json(self, data: dict, prefix: str = "") -> List[Tuple[int, str, int]]:
         toc = []
         for key, value in data.items():
             full_key = f"{prefix}.{key}" if prefix else key
-            toc.append((1, full_key, 0))  # 0 as placeholder for page number
+            toc.append((1, full_key, 0))
             if isinstance(value, dict):
                 toc.extend(self.generate_toc_json(value, full_key))
             elif isinstance(value, list) and value and isinstance(value[0], dict):
@@ -78,7 +74,7 @@ class FileProcessor:
         return toc
 
     def upload_multiple_files(self, file_type: str) -> int:
-        filetypes = {
+        filetypes: Dict[str, List[Tuple[str, str]]] = {
             "DOCX": [("DOCX Files", "*.docx")],
             "PDF": [("PDF Files", "*.pdf")],
             "Text": [("Text Files", "*.txt")],
@@ -136,33 +132,45 @@ class FileProcessor:
 
     def process_single_file(self, file_type: str, file_path: str) -> Optional[Tuple[str, str]]:
         try:
-            if file_type == "DOCX":
-                doc = docx.Document(file_path)
-                text = " ".join([paragraph.text for paragraph in doc.paragraphs])
-                self.toc = self.generate_toc_docx(doc)
-            elif file_type == "PDF":
-                with fitz.open(file_path) as doc:
-                    text = " ".join([page.get_text() for page in doc])
-                self.toc = self.generate_toc_pdf(file_path)
-            elif file_type == "Text":
-                with open(file_path, 'r', encoding="utf-8") as txt_file:
-                    text = txt_file.read()
-                toc_text = self.extract_toc_from_text(text)
-                self.toc = [(1, line, 0) for line in toc_text.split('\n') if line.strip()]
-            elif file_type == "JSON":
-                with open(file_path, 'r', encoding="utf-8") as json_file:
-                    data = json.load(json_file)
-                    text = json.dumps(data, indent=2)
-                    self.toc = self.generate_toc_json(data)
-            else:
-                raise ValueError(f"Unsupported file type: {file_type}")
-            
-            return text, os.path.basename(file_path)
+            processors = {
+                "DOCX": self.process_docx,
+                "PDF": self.process_pdf,
+                "Text": self.process_text,
+                "JSON": self.process_json
+            }
+            return processors[file_type](file_path)
         except Exception as e:
             logging.error(f"Error processing {file_type} file: {str(e)}")
             return None, None
 
-    def handle_text_chunking(self, text: str) -> List[str]:
+    def process_docx(self, file_path: str) -> Tuple[str, str]:
+        doc = docx.Document(file_path)
+        text = " ".join([paragraph.text for paragraph in doc.paragraphs])
+        self.toc = self.generate_toc_docx(doc)
+        return text, os.path.basename(file_path)
+
+    def process_pdf(self, file_path: str) -> Tuple[str, str]:
+        with fitz.open(file_path) as doc:
+            text = " ".join([page.get_text() for page in doc])
+        self.toc = self.generate_toc_pdf(file_path)
+        return text, os.path.basename(file_path)
+
+    def process_text(self, file_path: str) -> Tuple[str, str]:
+        with open(file_path, 'r', encoding="utf-8") as txt_file:
+            text = txt_file.read()
+        toc_text = self.extract_toc_from_text(text)
+        self.toc = [(1, line, 0) for line in toc_text.split('\n') if line.strip()]
+        return text, os.path.basename(file_path)
+
+    def process_json(self, file_path: str) -> Tuple[str, str]:
+        with open(file_path, 'r', encoding="utf-8") as json_file:
+            data = json.load(json_file)
+            text = json.dumps(data, indent=2)
+            self.toc = self.generate_toc_json(data)
+        return text, os.path.basename(file_path)
+
+    @staticmethod
+    def handle_text_chunking(text: str) -> List[str]:
         text = re.sub(r'\s+', ' ', text).strip()
         chunks = []
         start = 0
@@ -179,13 +187,10 @@ class FileProcessor:
         return chunks
 
     def format_toc(self) -> str:
-        formatted_toc = []
-        for level, title, page in self.toc:
-            indent = "  " * (level - 1)
-            formatted_toc.append(f"{indent}- {title}")
-        return '\n'.join(formatted_toc)
+        return '\n'.join(f"{'  ' * (level - 1)}- {title}" for level, title, _ in self.toc)
 
-    def append_to_db_content(self, filename: str, table_of_contents: str):
+    @staticmethod
+    def append_to_db_content(filename: str, table_of_contents: str):
         db_content_file = os.path.join(settings.output_folder, "db_content.txt")
         with open(db_content_file, "a", encoding="utf-8") as f:
             f.write(f"\n\n--- {filename} ---\n")
@@ -193,7 +198,8 @@ class FileProcessor:
             f.write(table_of_contents)
             f.write("\n\n")
 
-    def append_to_db(self, chunks: List[str], db_file: str = "db.txt"):
+    @staticmethod
+    def append_to_db(chunks: List[str], db_file: str = "db.txt"):
         db_file_path = os.path.join(settings.output_folder, db_file)
         total_chunks = len(chunks)
         with open(db_file_path, "a", encoding="utf-8") as f:
@@ -212,6 +218,5 @@ def upload_multiple_files(file_type: str) -> int:
 
 if __name__ == "__main__":
     settings.load_settings()
-    file_types = ["DOCX", "PDF", "Text", "JSON"]
-    for file_type in file_types:
+    for file_type in ["DOCX", "PDF", "Text", "JSON"]:
         upload_multiple_files(file_type)

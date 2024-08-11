@@ -484,12 +484,18 @@ class ERAGGUI:
         try:
             api_type = self.api_type_var.get()
             model = self.model_var.get()
+            embedding_class = self.embedding_class_var.get()
+            embedding_model = self.embedding_model_var.get()
             
             # Create and run the Talk2Model instance in a separate thread
-            talk2model = Talk2Model(create_erag_api(api_type, model), model)
+            erag_api = create_erag_api(api_type, model, embedding_class, embedding_model)
+            talk2model = Talk2Model(erag_api)
             threading.Thread(target=talk2model.run, daemon=True).start()
             
-            messagebox.showinfo("Info", f"Talk2Model started with {api_type} API and {model} model. Check the console for interaction.")
+            messagebox.showinfo("Info", f"Talk2Model started with {api_type} API and {model} model.\n"
+                                        f"Embedding Class: {embedding_class}\n"
+                                        f"Embedding Model: {embedding_model}\n"
+                                        f"Check the console for interaction.")
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred while starting Talk2Model: {str(e)}")
 
