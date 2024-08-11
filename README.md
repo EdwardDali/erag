@@ -2,8 +2,21 @@
 
 ## Overview
 
+You can use this application to:
 
-ERAG is an advanced system that combines lexical, semantic, text, and knowledge graph searches with conversation context to provide accurate and contextually relevant responses. This tool processes various document types, creates embeddings, builds knowledge graphs, and uses this information to answer user queries intelligently. It also includes modules for interacting with web content, GitHub repositories, performing exploratoru data analysis using various language models.
+1. Talk **privately** with your documents using Ollama.
+2. Talk **fast** with your documents using Groq and others.
+3. Have a **Long Term Memory** chatbot using conversation context size from settings.
+4. Perform Retrieval-Augmented Generation (**RAG**) using various APIs (Ollama, LLaMA, Groq, Gemini)
+5. Perform AI powered **web search**.
+6. Talk with a **specific url**.
+7. **Generate Datasets** based on your documents.
+8. Analyze and summarize **GitHub** repositories
+9. Do Exploratory Data Analysis (**EDA**) on excels and csv.
+10. Utilize multiple AI models in **collaboration** (worker, supervisor, manager) for complex tasks
+
+
+Thus, ERAG is an advanced system that combines lexical, semantic, text, and knowledge graph searches with conversation context to provide accurate and contextually relevant responses. This tool processes various document types, creates embeddings, builds knowledge graphs, and uses this information to answer user queries intelligently. It also includes modules for interacting with web content, GitHub repositories, performing exploratoru data analysis using various language models.
 
 working on CPU only
 
