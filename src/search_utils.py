@@ -156,8 +156,8 @@ class SearchUtils:
             List[str]: The re-ranked results
         """
         # Encode the query and the initial results
-        query_embedding = self.rerank_model.encode([query], convert_to_tensor=True)
-        result_embeddings = self.rerank_model.encode(initial_results, convert_to_tensor=True)
+        query_embedding = self.rerank_model.encode([query], convert_to_tensor=True, show_progress_bar=False)
+        result_embeddings = self.rerank_model.encode(initial_results, convert_to_tensor=True, show_progress_bar=False)
 
         # Calculate cosine similarities
         cosine_scores = util.pytorch_cos_sim(query_embedding, result_embeddings)[0]

@@ -74,8 +74,8 @@ class RAGSystem:
 
         combined_context = f"""Conversation Context:\n{' '.join(self.conversation_context)}
 
-    Relevant Context (Re-ranked):
-    {' '.join(reranked_contexts)}"""
+Relevant Context (Re-ranked):
+{' '.join(reranked_contexts)}"""
 
         messages = [
             {"role": "system", "content": system_message},
@@ -157,12 +157,12 @@ class RAGSystem:
             logging.info("Embeddings updated successfully.")
 
     def save_debug_results(self, user_input: str, 
-                        lexical_results: List[str],
-                        semantic_results: List[str],
-                        graph_results: List[str],
-                        text_results: List[str],
-                        reranked_results: List[str],
-                        response: str):
+                           lexical_results: List[str],
+                           semantic_results: List[str],
+                           graph_results: List[str],
+                           text_results: List[str],
+                           reranked_results: List[str],
+                           response: str):
         with open(settings.results_file_path, "a", encoding='utf-8') as f:
             f.write(f"User Input: {user_input}\n\n")
             

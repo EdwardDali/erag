@@ -595,8 +595,9 @@ class ERAGGUI:
 
         knol_frame = self.create_labelframe(columns[1], "Knol Creation Settings", 0)
         search_frame = self.create_labelframe(columns[1], "Search Settings", 1)
-        file_frame = self.create_labelframe(columns[1], "File Settings", 2)
-        xdas_frame = self.create_labelframe(columns[1], "XDAs Settings", 3)
+        rerank_frame = self.create_labelframe(columns[1], "Re-ranking Settings", 2)
+        file_frame = self.create_labelframe(columns[1], "File Settings", 3)
+        xdas_frame = self.create_labelframe(columns[1], "XDAs Settings", 4)
 
         web_sum_frame = self.create_labelframe(columns[2], "Web Sum Settings", 0)
         web_rag_frame = self.create_labelframe(columns[2], "Web RAG Settings", 1)
@@ -703,6 +704,10 @@ class ERAGGUI:
             ("Max History Length", "max_history_length"),
             ("Conversation Context Size", "conversation_context_size"),
             ("Update Threshold", "update_threshold"),
+        ])
+
+        self.create_settings_fields(rerank_frame, [
+            ("Re-rank Top K", "rerank_top_k"),
         ])
 
          # Add this new checkbox
