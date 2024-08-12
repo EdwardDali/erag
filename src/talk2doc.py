@@ -64,39 +64,29 @@ class RAGSystem:
     def get_response(self, query: str) -> str:
         system_message = "You are a helpful assistant that is an expert at extracting the most useful information from a given text. Prioritize the most recent conversation context when answering questions, but also consider other relevant information if necessary. If the given context doesn't provide a suitable answer, rely on your general knowledge."
 
-        lexical_context, semantic_context, graph_context, text_context = self.search_utils.get_relevant_context(query, list(self.conversation_context))
+        lexical_results, semantic_results, graph_results, text_results = self.search_utils.get_relevant_context(query, list(self.conversation_context))
         
-        lexical_str = "\n".join(lexical_context)
-        semantic_str = "\n".join(semantic_context)
-        graph_str = "\n".join(graph_context)
-        text_str = "\n".join(text_context)
+        # Combine all contexts for re-ranking
+        all_contexts = lexical_results + semantic_results + graph_results + text_results
+
+        # Re-rank the combined contexts
+        reranked_contexts = self.search_utils.rerank_results(query, all_contexts, settings.rerank_top_k)
 
         combined_context = f"""Conversation Context:\n{' '.join(self.conversation_context)}
 
-Lexical Search Results:
-{lexical_str}
-
-Semantic Search Results:
-{semantic_str}
-
-Knowledge Graph Context:
-{graph_str}
-
-Text Search Results:
-{text_str}"""
-
-        print(info(f"Combined context pulled: {combined_context[:200]}..."))
+    Relevant Context (Re-ranked):
+    {' '.join(reranked_contexts)}"""
 
         messages = [
             {"role": "system", "content": system_message},
             *self.conversation_history,
-            {"role": "user", "content": f"Context:\n{combined_context}\n\nQuestion: {query}\n\nPlease prioritize the Conversation Context when answering, followed by the most relevant information from either the lexical, semantic, knowledge graph, or text search results. If none of the provided context is relevant, you can answer based on your general knowledge."}
+            {"role": "user", "content": f"Context:\n{combined_context}\n\nQuestion: {query}\n\nPlease prioritize the Conversation Context when answering, followed by the most relevant information from the re-ranked context. If none of the provided context is relevant, you can answer based on your general knowledge."}
         ]
 
         try:
             response = self.erag_api.chat(messages, temperature=settings.temperature)
             print(success(f"Generated response for query: {query[:50]}..."))
-            self.save_debug_results(query, lexical_context, semantic_context, graph_context, text_context, response)
+            self.save_debug_results(query, lexical_results, semantic_results, graph_results, text_results, reranked_contexts, response)
             return response
         except Exception as e:
             error_message = f"Error in API call: {str(e)}"
@@ -166,25 +156,34 @@ Text Search Results:
             self.new_entries.clear()
             logging.info("Embeddings updated successfully.")
 
-    def save_debug_results(self, user_input: str, lexical_context: List[str], 
-                           semantic_context: List[str], 
-                           graph_context: List[str], 
-                           text_context: List[str],
-                           response: str):
-        with open(settings.results_file_path, "a", encoding="utf-8") as f:
+    def save_debug_results(self, user_input: str, 
+                        lexical_results: List[str],
+                        semantic_results: List[str],
+                        graph_results: List[str],
+                        text_results: List[str],
+                        reranked_results: List[str],
+                        response: str):
+        with open(settings.results_file_path, "a", encoding='utf-8') as f:
             f.write(f"User Input: {user_input}\n\n")
+            
+            f.write("Original Search Results:\n")
             f.write("Lexical Search Results:\n")
-            for i, content in enumerate(lexical_context, 1):
+            for i, content in enumerate(lexical_results, 1):
                 f.write(f"{i}. {content}\n")
             f.write("\nSemantic Search Results:\n")
-            for i, content in enumerate(semantic_context, 1):
+            for i, content in enumerate(semantic_results, 1):
                 f.write(f"{i}. {content}\n")
             f.write("\nGraph Context Results:\n")
-            for i, content in enumerate(graph_context, 1):
+            for i, content in enumerate(graph_results, 1):
                 f.write(f"{i}. {content}\n")
             f.write("\nText Search Results:\n")
-            for i, content in enumerate(text_context, 1):
+            for i, content in enumerate(text_results, 1):
                 f.write(f"{i}. {content}\n")
+            
+            f.write("\nRe-ranked Results:\n")
+            for i, content in enumerate(reranked_results, 1):
+                f.write(f"{i}. {content}\n")
+            
             f.write("\nCombined Response:\n")
             f.write(f"{response}\n")
             f.write("\n" + "="*50 + "\n\n")

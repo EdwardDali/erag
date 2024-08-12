@@ -72,6 +72,7 @@ class Settings:
 
         # Search Settings
         self.top_k: int = 5
+        self.rerank_top_k: int = 2  # Add this line
         self.entity_relevance_threshold: float = 0.5
         self.lexical_weight: float = 1.0
         self.semantic_weight: float = 1.0
@@ -119,6 +120,7 @@ class Settings:
 
         # Additional Settings
         self.save_results_to_txt: bool = False
+
 
     def load_settings(self):
         if os.path.exists(self.config_file):

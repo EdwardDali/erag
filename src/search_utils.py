@@ -8,12 +8,14 @@ import spacy
 from src.settings import settings
 import os
 import json
+import numpy as np
 from src.look_and_feel import success, info, warning, error
 
 class SearchUtils:
     def __init__(self, model, db_embeddings=None, db_content=None, knowledge_graph=None):
         self.model = model
         self.nlp = spacy.load(settings.nlp_model)
+        self.rerank_model = model
         
         # Load db_embeddings and db_content
         if db_embeddings is not None and db_content is not None:
@@ -140,6 +142,31 @@ class SearchUtils:
             if self.knowledge_graph.nodes[neighbor]['type'] == 'document':
                 return neighbor
         return None
+    
+    def rerank_results(self, query: str, initial_results: List[str], top_k: int) -> List[str]:
+        """
+        Re-rank the initial results using the rerank_model.
+        
+        Args:
+            query (str): The user's query
+            initial_results (List[str]): The initial top-k results
+            top_k (int): The number of results to return after re-ranking
+
+        Returns:
+            List[str]: The re-ranked results
+        """
+        # Encode the query and the initial results
+        query_embedding = self.rerank_model.encode([query], convert_to_tensor=True)
+        result_embeddings = self.rerank_model.encode(initial_results, convert_to_tensor=True)
+
+        # Calculate cosine similarities
+        cosine_scores = util.pytorch_cos_sim(query_embedding, result_embeddings)[0]
+
+        # Sort the results by similarity score
+        sorted_results = sorted(zip(initial_results, cosine_scores), key=lambda x: x[1], reverse=True)
+
+        # Return the top_k re-ranked results
+        return [result for result, _ in sorted_results[:top_k]]
 
     def get_relevant_context(self, user_input: str, conversation_context: List[str]) -> Tuple[List[str], List[str], List[str], List[str]]:
         logging.info(info(f"DB Embeddings shape: {self.db_embeddings.shape if hasattr(self.db_embeddings, 'shape') else 'No shape attribute'}"))
@@ -164,4 +191,19 @@ class SearchUtils:
         logging.info(success(f"Number of graph results: {len(graph_results)}"))
         logging.info(success(f"Number of text search results: {len(text_results)}"))
 
-        return lexical_results, semantic_results, graph_results, text_results
+        # Combine all search results
+        all_results = lexical_results + semantic_results + graph_results + text_results
+
+        # Remove duplicates while preserving order
+        unique_results = []
+        seen = set()
+        for result in all_results:
+            if result not in seen:
+                unique_results.append(result)
+                seen.add(result)
+
+        # Re-rank the unique results
+        reranked_results = self.rerank_results(user_input, unique_results, settings.rerank_top_k)
+
+        # For consistency with the existing return structure, we'll return the reranked results for all four categories
+        return reranked_results, reranked_results, reranked_results, reranked_results
