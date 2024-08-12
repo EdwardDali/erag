@@ -18,11 +18,12 @@ from src.settings import settings
 load_dotenv()
 
 class EragAPI:
-    def __init__(self, api_type, model=None, embedding_class=None, embedding_model=None):
+    def __init__(self, api_type, model=None, embedding_class=None, embedding_model=None, reranker_model=None):
         self.api_type = api_type
         self.model = model or settings.get_default_model(api_type)
         self.embedding_class = embedding_class or settings.get_default_embedding_class()
         self.embedding_model = embedding_model or settings.get_default_embedding_model()
+        self.reranker_model = reranker_model or settings.reranker_model
 
         clients = {
             "ollama": lambda: OpenAI(base_url='http://localhost:11434/v1', api_key='ollama'),
@@ -178,7 +179,8 @@ def get_available_models(api_type, server_manager=None):
         print(error(f"Error fetching models for {api_type}: {str(e)}"))
         return []
 
-def create_erag_api(api_type, model=None, embedding_class=None, embedding_model=None):
+def create_erag_api(api_type, model=None, embedding_class=None, embedding_model=None, reranker_model=None):
     embedding_class = embedding_class or settings.get_default_embedding_class()
     embedding_model = embedding_model or settings.get_default_embedding_model(embedding_class)
-    return EragAPI(api_type, model, embedding_class, embedding_model)
+    reranker_model = reranker_model or settings.reranker_model
+    return EragAPI(api_type, model, embedding_class, embedding_model, reranker_model)

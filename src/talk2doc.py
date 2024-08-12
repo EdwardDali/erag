@@ -27,8 +27,8 @@ class RAGSystem:
         self.new_entries = []
         self.conversation_context = deque(maxlen=settings.conversation_context_size * 2)
         self.knowledge_graph = self.load_knowledge_graph()
-        self.search_utils = SearchUtils(self.embedding_model, self.db_embeddings, self.db_content, self.knowledge_graph)
-
+        self.search_utils = SearchUtils(self.erag_api, self.embedding_model, self.db_embeddings, self.db_content, self.knowledge_graph)
+    
     def load_embeddings(self):
         embeddings, indexes, content = load_embeddings_and_data(settings.embeddings_file_path)
         if embeddings is None or indexes is None or content is None:

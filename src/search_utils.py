@@ -12,10 +12,11 @@ import numpy as np
 from src.look_and_feel import success, info, warning, error
 
 class SearchUtils:
-    def __init__(self, model, db_embeddings=None, db_content=None, knowledge_graph=None):
+    def __init__(self, erag_api, model, db_embeddings=None, db_content=None, knowledge_graph=None):
+        self.erag_api = erag_api
         self.model = model
         self.nlp = spacy.load(settings.nlp_model)
-        self.rerank_model = model
+        self.rerank_model = erag_api
         
         # Load db_embeddings and db_content
         if db_embeddings is not None and db_content is not None:
@@ -145,28 +146,40 @@ class SearchUtils:
     
     def rerank_results(self, query: str, initial_results: List[str], top_k: int) -> List[str]:
         """
-        Re-rank the initial results using the rerank_model.
-        
-        Args:
-            query (str): The user's query
-            initial_results (List[str]): The initial top-k results
-            top_k (int): The number of results to return after re-ranking
-
-        Returns:
-            List[str]: The re-ranked results
+        Re-rank the initial results using the rerank_model from EragAPI.
         """
-        # Encode the query and the initial results
-        query_embedding = self.rerank_model.encode([query], convert_to_tensor=True, show_progress_bar=False)
-        result_embeddings = self.rerank_model.encode(initial_results, convert_to_tensor=True, show_progress_bar=False)
+        # Prepare the messages for the re-ranking model
+        messages = [
+            {"role": "system", "content": "You are a helpful assistant that ranks search results based on their relevance to a given query. Rank the following results from most relevant to least relevant."},
+            {"role": "user", "content": f"Query: {query}\n\nResults to rank:\n" + "\n".join(initial_results)}
+        ]
 
-        # Calculate cosine similarities
-        cosine_scores = util.pytorch_cos_sim(query_embedding, result_embeddings)[0]
+        # Get the ranking from the model
+        response = self.erag_api.chat(messages, temperature=0.2)  # Lower temperature for more consistent ranking
 
-        # Sort the results by similarity score
-        sorted_results = sorted(zip(initial_results, cosine_scores), key=lambda x: x[1], reverse=True)
+        # Parse the response to get the ranked results
+        ranked_results = self.parse_ranking_response(response, initial_results)
 
-        # Return the top_k re-ranked results
-        return [result for result, _ in sorted_results[:top_k]]
+        # Return the top_k ranked results
+        return ranked_results[:top_k]
+    
+    def parse_ranking_response(self, response: str, initial_results: List[str]) -> List[str]:
+        """
+        Parse the model's response to extract the ranked results.
+        This method should be adapted based on the expected format of the model's response.
+        """
+        # This is a simple implementation and may need to be adjusted based on the actual response format
+        ranked_results = []
+        for line in response.split('\n'):
+            for result in initial_results:
+                if result in line:
+                    ranked_results.append(result)
+                    break
+        
+        # Add any missing results at the end
+        ranked_results.extend([r for r in initial_results if r not in ranked_results])
+        
+        return ranked_results
 
     def get_relevant_context(self, user_input: str, conversation_context: List[str]) -> Tuple[List[str], List[str], List[str], List[str]]:
         logging.info(info(f"DB Embeddings shape: {self.db_embeddings.shape if hasattr(self.db_embeddings, 'shape') else 'No shape attribute'}"))

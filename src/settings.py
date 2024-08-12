@@ -48,6 +48,8 @@ class Settings:
         self.temperature: float = 0.1
         self.model_name: str = "all-MiniLM-L6-v2"
         self.default_manager_model: Optional[str] = None
+         # Re-ranker model setting
+        self.reranker_model: str = "qwen2:1.5b-instruct-q8_0"  # Default value, can be changed
 
         # Embedding model settings
         self.default_embedding_class: str = "ollama"

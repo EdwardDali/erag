@@ -306,6 +306,13 @@ class ERAGGUI:
         self.manager_model_menu = ttk.Combobox(model_frame, textvariable=self.manager_model_var, state="readonly", width=30)
         self.manager_model_menu.grid(row=0, column=7, padx=5, pady=5)
 
+         # Add Re-ranker Model selection
+        tk.Label(model_frame, text="Re-ranker Model:").grid(row=0, column=8, padx=5, pady=5, sticky="e")
+        self.reranker_model_var = tk.StringVar(value=settings.reranker_model)
+        self.reranker_model_menu = ttk.Combobox(model_frame, textvariable=self.reranker_model_var, state="readonly", width=30)
+        self.reranker_model_menu.grid(row=0, column=9, padx=5, pady=5)
+
+
 
         # Initialize model list
         self.update_model_list()
@@ -389,6 +396,7 @@ class ERAGGUI:
         self.model_menu['values'] = models
         self.supervisor_model_menu['values'] = models
         self.manager_model_menu['values'] = manager_models
+        self.reranker_model_menu['values'] = models  # Add this line for re-ranker model
 
         if models:
             # Set worker model
@@ -427,12 +435,20 @@ class ERAGGUI:
             else:
                 self.manager_model_var.set('None')
 
+            # Set re-ranker model
+            if settings.reranker_model in models:
+                self.reranker_model_var.set(settings.reranker_model)
+            else:
+                self.reranker_model_var.set(models[0])
+                settings.update_setting("reranker_model", models[0])
+
             if not self.is_initializing:
                 self.update_model_setting()
         else:
             self.model_var.set("")
             self.supervisor_model_var.set("")
             self.manager_model_var.set('None')
+            self.reranker_model_var.set("")
         
         if self.is_initializing:
             self.is_initializing = False
@@ -446,6 +462,7 @@ class ERAGGUI:
         print(success(f"Selected worker model: {self.model_var.get()}"))
         print(success(f"Selected supervisor model: {self.supervisor_model_var.get()}"))
         print(success(f"Selected manager model: {self.manager_model_var.get()}"))
+        print(success(f"Selected re-ranker model: {self.reranker_model_var.get()}"))
 
     def update_embedding_model_setting(self, event=None):
         embedding_class = self.embedding_class_var.get()
@@ -506,6 +523,7 @@ class ERAGGUI:
         model = self.model_var.get()
         embedding_class = self.embedding_class_var.get()
         embedding_model = self.embedding_model_var.get()
+        reranker_model = self.reranker_model_var.get()
         
         if model:
             update_settings(settings, api_type, model)
@@ -515,14 +533,20 @@ class ERAGGUI:
                     return
             
             # Update the EragAPI instance with the new model and embedding settings
-            self.erag_api = create_erag_api(api_type, model, embedding_class, embedding_model)
+            self.erag_api = create_erag_api(api_type, model, embedding_class, embedding_model, reranker_model)
             
             print(info(f"EragAPI initialized with {api_type} backend for model: {model}"))
             print(info(f"Embedding class updated to: {embedding_class}"))
             print(info(f"Embedding model updated to: {embedding_model}"))
+            print(info(f"Re-ranker model updated to: {reranker_model}"))
             
             if show_message:
-                messagebox.showinfo("Model Selected", f"Selected model: {model}\nUsing EragAPI with {api_type} backend\nEmbedding class: {embedding_class}\nEmbedding model: {embedding_model}")
+                messagebox.showinfo("Model Selected", 
+                                    f"Selected model: {model}\n"
+                                    f"Using EragAPI with {api_type} backend\n"
+                                    f"Embedding class: {embedding_class}\n"
+                                    f"Embedding model: {embedding_model}\n"
+                                    f"Re-ranker model: {reranker_model}")
         elif show_message:
             messagebox.showwarning("Model Selection", "No model selected")
 
