@@ -145,7 +145,19 @@ class FileProcessor:
 
     def process_docx(self, file_path: str) -> Tuple[str, str]:
         doc = docx.Document(file_path)
-        text = " ".join([paragraph.text for paragraph in doc.paragraphs])
+        
+        # Extract text from paragraphs and tables
+        text_content = []
+        
+        for element in doc.element.body:
+            if element.tag.endswith('p'):
+                text_content.append(element.text)
+            elif element.tag.endswith('tbl'):
+                for row in element.findall('.//w:tr', namespaces=element.nsmap):
+                    cells = [cell.text for cell in row.findall('.//w:t', namespaces=element.nsmap)]
+                    text_content.append(' | '.join(cells))
+        
+        text = " ".join(text_content)
         self.toc = self.generate_toc_docx(doc)
         return text, os.path.basename(file_path)
 
