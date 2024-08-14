@@ -49,6 +49,7 @@ from src.ax_da_b5 import AdvancedExploratoryDataAnalysisB5
 from src.ax_da_b6 import AdvancedExploratoryDataAnalysisB6
 from src.ax_da_b7 import AdvancedExploratoryDataAnalysisB7
 from src.merge_sd import merge_structured_data
+from src.code_editor import CodeEditor
 
 # Set up logging
 import logging
@@ -509,21 +510,13 @@ class ERAGGUI:
             embedding_class = self.embedding_class_var.get()
             embedding_model = self.embedding_model_var.get()
             
+            self.check_api_keys()  # Ensure API keys are set
+            
             print(info(f"Initializing EragAPI with: API type: {api_type}, Model: {model}, Embedding class: {embedding_class}, Embedding model: {embedding_model}"))
             
-            # Create EragAPI instance
             erag_api = create_erag_api(api_type, model, embedding_class, embedding_model)
             
-            # Verify that the API has the necessary methods
-            if not hasattr(erag_api, 'complete') or not callable(erag_api.complete):
-                raise AttributeError("The EragAPI instance does not have a 'complete' method.")
-            
-            print(success("EragAPI initialized successfully"))
-            
-            from src.code_editor import CodeEditor
             code_editor = CodeEditor(erag_api)
-            
-            # Run CodeEditor
             code_editor.run()
             
             print(info(f"AI-powered Application Generator started with {api_type} API and {model} model."))
