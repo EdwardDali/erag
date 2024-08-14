@@ -6,16 +6,37 @@ import tkinter as tk
 from tkinter import ttk, scrolledtext
 from tkinter import messagebox
 import datetime
+import logging
+import re
 from src.api_model import EragAPI
 from src.look_and_feel import error, success, warning, info
 from src.settings import settings
+
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class CodeEditor:
     def __init__(self, erag_api: EragAPI):
         self.api = erag_api
         self.files = {}
         self.output_folder = None
+        self.allowed_file_types = {
+            'py': 'Python',
+            'js': 'JavaScript',
+            'html': 'HTML',
+            'css': 'CSS',
+            'json': 'JSON',
+            'md': 'Markdown'
+        }
         self.setup_gui()
+
+    def sanitize_filename(self, filename: str) -> str:
+        # Remove any path components (e.g., 'foo/bar')
+        filename = os.path.basename(filename)
+        # Remove any non-alphanumeric characters except for periods, hyphens, and underscores
+        filename = re.sub(r'[^\w\-_\.]', '', filename)
+        # Ensure the filename is not too long (max 255 characters)
+        filename = filename[:255]
+        return filename
 
     def setup_gui(self):
         self.root = tk.Toplevel()
@@ -60,21 +81,20 @@ class CodeEditor:
 
     def save_file(self, filename: str, content: str, stage: str):
         if self.output_folder is None:
-            # Create a new subfolder for this application generation process
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             self.output_folder = os.path.join(settings.output_folder, f"generated_app_{timestamp}")
             os.makedirs(self.output_folder, exist_ok=True)
-            print(info(f"Created output folder: {self.output_folder}"))
+            logging.info(f"Created output folder: {self.output_folder}")
 
-        # Sanitize filename to remove any invalid characters
-        safe_filename = "".join([c for c in filename if c.isalnum() or c in ("_", "-", ".")]).rstrip()
+        safe_filename = self.sanitize_filename(filename)
         file_path = os.path.join(self.output_folder, f"{stage}_{safe_filename}")
+        logging.debug(f"Attempting to save file: {file_path}")
         try:
             with open(file_path, "w", encoding="utf-8") as f:
                 f.write(content)
-            print(success(f"Saved {stage} file: {file_path}"))
+            logging.info(f"Saved {stage} file: {file_path}")
         except IOError as e:
-            print(error(f"Error saving {stage} file: {str(e)}"))
+            logging.error(f"Error saving {stage} file: {str(e)}")
 
     def generate_application(self):
         request = self.request_entry.get()
@@ -85,43 +105,64 @@ class CodeEditor:
         self.show_loading()
         try:
             # Step 1: Generate initial file structure
-            print(info("Generating initial file structure..."))
-            prompt = f"Create a basic application structure based on this request: {request}\n"
-            prompt += "Provide a list of files needed for this application, each on a new line. Include only the file names, not their content."
+            logging.info("Generating initial file structure...")
+            prompt = f"""Create a basic application structure based on this request: {request}
+            Provide a list of files needed for this application, each on a new line. 
+            Include only the file names with appropriate extensions. 
+            Use standard naming conventions (e.g., snake_case for Python, camelCase for JavaScript).
+            Allowed file types are: {', '.join(self.allowed_file_types.keys())}"""
             response = self.api.complete(prompt)
             if not response:
                 raise ValueError("No response received from the API.")
-            file_list = [file.strip() for file in response.split('\n') if file.strip()]
-            print(success(f"Generated file list: {file_list}"))
+            file_list = [file.strip() for file in response.split('\n') if file.strip() and '.' in file]
+            file_list = [file for file in file_list if file.split('.')[-1] in self.allowed_file_types]
+            logging.info(f"Generated file list: {file_list}")
 
             # Step 2: Generate initial content for each file
             self.files = {}
             for file in file_list:
-                if file.endswith(':'):  # Skip lines that are just categories
-                    continue
-                print(info(f"Generating initial content for {file}..."))
-                prompt = f"Generate the initial content for the file '{file}' for the application: {request}\n"
-                prompt += "Provide only the code, no explanations."
+                logging.info(f"Generating initial content for {file}...")
+                file_type = self.allowed_file_types.get(file.split('.')[-1], "Unknown")
+                prompt = f"""Generate the initial content for the file '{file}' ({file_type}) for the application: {request}
+                Ensure the code is complete, syntactically correct, and follows best practices for {file_type}.
+                Provide only the code, no explanations."""
                 content = self.api.complete(prompt)
                 if not content:
-                    print(warning(f"No content generated for {file}"))
+                    logging.warning(f"No content generated for {file}")
                     continue
                 self.files[file] = content
                 self.save_file(file, content, "initial")
-                print(success(f"Initial content generated and saved for {file}"))
+                logging.info(f"Initial content generated and saved for {file}")
 
-            # Step 3: Iterate through files and improve them
-            for file in self.files:
-                print(info(f"Improving content for {file}..."))
-                prompt = f"Improve the following code for {file}:\n\n{self.files[file]}\n\n"
-                prompt += "Provide the improved code, no explanations."
-                improved_content = self.api.complete(prompt)
-                if improved_content:
-                    self.files[file] = improved_content
-                    self.save_file(file, improved_content, "improved")
-                    print(success(f"Content improved and saved for {file}"))
-                else:
-                    print(warning(f"No improvements made for {file}"))
+            # Step 3: Improve and integrate the files
+            logging.info("Improving and integrating files...")
+            file_contents = "\n\n".join([f"File: {file}\nContent:\n{content}" for file, content in self.files.items()])
+            prompt = f"""Improve and integrate the following files for the application: {request}
+
+{file_contents}
+
+Ensure all files work together cohesively. Improve error handling, consistency, and best practices across all files.
+Provide the improved content for each file, starting with the file name on a new line, followed by the improved code."""
+
+            improved_content = self.api.complete(prompt)
+            if improved_content:
+                # Parse the improved content and update files
+                current_file = None
+                current_content = []
+                for line in improved_content.split('\n'):
+                    if line.startswith("File: "):
+                        if current_file and current_content:
+                            self.files[current_file] = '\n'.join(current_content)
+                            self.save_file(current_file, self.files[current_file], "improved")
+                            logging.info(f"Content improved and saved for {current_file}")
+                        current_file = line[6:].strip()
+                        current_content = []
+                    else:
+                        current_content.append(line)
+                if current_file and current_content:
+                    self.files[current_file] = '\n'.join(current_content)
+                    self.save_file(current_file, self.files[current_file], "improved")
+                    logging.info(f"Content improved and saved for {current_file}")
 
             # Update file listing
             self.file_list.delete(*self.file_list.get_children())
@@ -131,7 +172,7 @@ class CodeEditor:
             messagebox.showinfo("Success", f"Application generated and improved successfully!\nFiles saved in: {self.output_folder}")
         except Exception as e:
             error_message = f"An error occurred while generating the application: {str(e)}"
-            print(error(error_message))
+            logging.error(error_message)
             messagebox.showerror("Error", error_message)
         finally:
             self.hide_loading()
