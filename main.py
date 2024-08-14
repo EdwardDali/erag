@@ -506,20 +506,21 @@ class ERAGGUI:
     def run_code_editor(self):
         try:
             api_type = self.api_type_var.get()
-            model = self.model_var.get()
-            embedding_class = self.embedding_class_var.get()
-            embedding_model = self.embedding_model_var.get()
+            worker_model = self.model_var.get()
+            supervisor_model = self.supervisor_model_var.get()
+            manager_model = self.manager_model_var.get()  # This could be 'None'
             
-            self.check_api_keys()  # Ensure API keys are set
+            worker_erag_api = create_erag_api(api_type, worker_model)
+            supervisor_erag_api = create_erag_api(api_type, supervisor_model)
+            manager_erag_api = create_erag_api(api_type, manager_model) if manager_model != 'None' else None
             
-            print(info(f"Initializing EragAPI with: API type: {api_type}, Model: {model}, Embedding class: {embedding_class}, Embedding model: {embedding_model}"))
-            
-            erag_api = create_erag_api(api_type, model, embedding_class, embedding_model)
-            
-            code_editor = CodeEditor(erag_api)
+            code_editor = CodeEditor(worker_erag_api, supervisor_erag_api, manager_erag_api)
             code_editor.run()
             
-            print(info(f"AI-powered Application Generator started with {api_type} API and {model} model."))
+            print(info(f"AI-powered Application Generator started with {api_type} API."))
+            print(info(f"Worker Model: {worker_model}"))
+            print(info(f"Supervisor Model: {supervisor_model}"))
+            print(info(f"Manager Model: {manager_model if manager_model != 'None' else 'Not used'}"))
         except Exception as e:
             error_message = f"An error occurred while starting the AI-powered Application Generator: {str(e)}"
             print(error(error_message))

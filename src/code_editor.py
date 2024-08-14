@@ -8,15 +8,17 @@ from tkinter import messagebox
 import datetime
 import logging
 import re
-from src.api_model import EragAPI
+from src.api_model import EragAPI, create_erag_api
 from src.look_and_feel import error, success, warning, info
 from src.settings import settings
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class CodeEditor:
-    def __init__(self, erag_api: EragAPI):
-        self.api = erag_api
+    def __init__(self, worker_erag_api: EragAPI, supervisor_erag_api: EragAPI, manager_erag_api: EragAPI = None):
+        self.worker_api = worker_erag_api
+        self.supervisor_api = supervisor_erag_api
+        self.manager_api = manager_erag_api
         self.files = {}
         self.output_folder = None
         self.allowed_file_types = {
@@ -27,9 +29,30 @@ class CodeEditor:
             'json': 'JSON',
             'md': 'Markdown'
         }
-        print(info(f"CodeEditor initialized with {self.api.api_type} backend."))
-        print(info(f"Using model: {self.api.model}"))
+        print(info(f"CodeEditor initialized with worker API: {self.worker_api.api_type}, supervisor API: {self.supervisor_api.api_type}"))
+        if self.manager_api:
+            print(info(f"Manager API: {self.manager_api.api_type}"))
         self.setup_gui()
+
+    def clean_api_response(self, response, file_type):
+            # Remove any text before and after the code block
+            code_block_pattern = r'```[\w\s]*\n([\s\S]*?)\n```'
+            code_blocks = re.findall(code_block_pattern, response)
+            
+            if code_blocks:
+                # If code blocks are found, use the last one (in case there are multiple)
+                cleaned_code = code_blocks[-1].strip()
+            else:
+                # If no code blocks are found, use the entire response
+                cleaned_code = response.strip()
+            
+            # Remove any remaining markdown code block syntax
+            cleaned_code = cleaned_code.replace('```' + file_type, '').replace('```', '')
+            
+            # Remove any "Here is the improved/polished version of the code:" or similar phrases
+            cleaned_code = re.sub(r'^.*?(Here is|This is|Updated|Improved|Polished).*?\n', '', cleaned_code, flags=re.IGNORECASE | re.MULTILINE)
+            
+            return cleaned_code.strip()
 
     def sanitize_filename(self, filename: str) -> str:
         # Remove any path components (e.g., 'foo/bar')
@@ -81,7 +104,7 @@ class CodeEditor:
         self.loading_label.pack(side=tk.BOTTOM)
         self.loading_label.pack_forget()
 
-    def save_file(self, filename: str, content: str, stage: str):
+    def save_file(self, filename, content, stage):
         if self.output_folder is None:
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             self.output_folder = os.path.join(settings.output_folder, f"generated_app_{timestamp}")
@@ -106,74 +129,23 @@ class CodeEditor:
 
         self.show_loading()
         try:
-            logging.info(f"Starting application generation with API type: {self.api.api_type}, Model: {self.api.model}")
-            # Step 1: Generate initial file structure
-            logging.info("Generating initial file structure...")
-            prompt = f"""Create a basic application structure based on this request: {request}
-            Provide a list of files needed for this application, each on a new line. 
-            Include only the file names with appropriate extensions. 
-            Use standard naming conventions (e.g., snake_case for Python, camelCase for JavaScript).
-            Allowed file types are: {', '.join(self.allowed_file_types.keys())}"""
-            messages = [{"role": "user", "content": prompt}]
-            response = self.api.chat(messages)
-            if not response:
-                raise ValueError("No response received from the API.")
-            file_list = [file.strip() for file in response.split('\n') if file.strip() and '.' in file]
-            file_list = [file for file in file_list if file.split('.')[-1] in self.allowed_file_types]
-            logging.info(f"Generated file list: {file_list}")
+            # Step 1: Worker generates initial file structure and content
+            file_list, initial_content = self.worker_generate_initial(request)
 
-            # Step 2: Generate initial content for each file
-            self.files = {}
-            for file in file_list:
-                logging.info(f"Generating initial content for {file}...")
-                file_type = self.allowed_file_types.get(file.split('.')[-1], "Unknown")
-                prompt = f"""Generate the initial content for the file '{file}' ({file_type}) for the application: {request}
-                Ensure the code is complete, syntactically correct, and follows best practices for {file_type}.
-                Provide only the code, no explanations."""
-                messages = [{"role": "user", "content": prompt}]
-                content = self.api.chat(messages)
-                if not content:
-                    logging.warning(f"No content generated for {file}")
-                    continue
-                self.files[file] = content
-                self.save_file(file, content, "initial")
-                logging.info(f"Initial content generated and saved for {file}")
+            # Step 2: Supervisor improves the files
+            supervisor_improved_content = self.supervisor_improve(request, initial_content)
 
-            # Step 3: Improve and integrate the files
-            logging.info("Improving and integrating files...")
-            file_contents = "\n\n".join([f"File: {file}\nContent:\n{content}" for file, content in self.files.items()])
-            prompt = f"""Improve and integrate the following files for the application: {request}
+            # Step 3: Manager further improves the files (if available)
+            if self.manager_api:
+                final_content = self.manager_improve(request, supervisor_improved_content)
+            else:
+                final_content = supervisor_improved_content
 
-    {file_contents}
+            # Step 4: Perform quality checks and rollback if necessary
+            best_content = self.perform_quality_checks(initial_content, supervisor_improved_content, final_content)
 
-    Ensure all files work together cohesively. Improve error handling, consistency, and best practices across all files.
-    Provide the improved content for each file, starting with the file name on a new line, followed by the improved code."""
-
-            messages = [{"role": "user", "content": prompt}]
-            improved_content = self.api.chat(messages)
-            if improved_content:
-                # Parse the improved content and update files
-                current_file = None
-                current_content = []
-                for line in improved_content.split('\n'):
-                    if line.startswith("File: "):
-                        if current_file and current_content:
-                            self.files[current_file] = '\n'.join(current_content)
-                            self.save_file(current_file, self.files[current_file], "improved")
-                            logging.info(f"Content improved and saved for {current_file}")
-                        current_file = line[6:].strip()
-                        current_content = []
-                    else:
-                        current_content.append(line)
-                if current_file and current_content:
-                    self.files[current_file] = '\n'.join(current_content)
-                    self.save_file(current_file, self.files[current_file], "improved")
-                    logging.info(f"Content improved and saved for {current_file}")
-
-            # Update file listing
-            self.file_list.delete(*self.file_list.get_children())
-            for file in self.files:
-                self.file_list.insert('', 'end', text=file, values=(file,))
+            # Update file listing and save files
+            self.update_file_listing(best_content)
 
             messagebox.showinfo("Success", f"Application generated and improved successfully!\nFiles saved in: {self.output_folder}")
         except Exception as e:
@@ -182,6 +154,174 @@ class CodeEditor:
             messagebox.showerror("Error", error_message)
         finally:
             self.hide_loading()
+
+    def worker_generate_initial(self, request):
+        logging.info("Worker: Generating initial file structure and content...")
+        file_structure_prompt = f"""Create a basic application structure based on this request: {request}
+        Provide a list of files needed for this application, each on a new line. 
+        Include only the file names with appropriate extensions. 
+        Use standard naming conventions (e.g., snake_case for Python, camelCase for JavaScript).
+        Allowed file types are: {', '.join(self.allowed_file_types.keys())}"""
+        
+        file_list_response = self.worker_api.chat([{"role": "user", "content": file_structure_prompt}])
+        file_list = [file.strip() for file in file_list_response.split('\n') if file.strip() and '.' in file]
+        file_list = [file for file in file_list if file.split('.')[-1] in self.allowed_file_types]
+
+        initial_content = {}
+        for file in file_list:
+            file_type = self.allowed_file_types.get(file.split('.')[-1], "Unknown")
+            content_prompt = f"""Generate the initial content for the file '{file}' ({file_type}) for the application: {request}
+            Ensure the code is complete, syntactically correct, and follows best practices for {file_type}.
+            Provide only the code, no explanations."""
+            content = self.worker_api.chat([{"role": "user", "content": content_prompt}])
+            initial_content[file] = content
+            self.save_file(file, content, "initial")
+
+        return file_list, initial_content
+
+    def supervisor_improve(self, request, content):
+        logging.info("Supervisor: Improving and integrating files...")
+        improved_content = {}
+        for file, file_content in content.items():
+            file_type = self.allowed_file_types.get(file.split('.')[-1], "Unknown")
+            improve_prompt = f"""Improve the following {file_type} code for the file '{file}' in the application: {request}
+
+Current content:
+{file_content}
+
+Please provide an improved version of this code. Focus on:
+1. Enhancing functionality and features
+2. Improving code structure and organization
+3. Implementing best practices and design patterns
+4. Optimizing performance
+5. Enhancing error handling and security
+
+IMPORTANT: 
+- Ensure that your improvements do not break existing functionality or reduce the quality of the code.
+- If you cannot meaningfully improve the code without risking its functionality, return the original code unchanged.
+- Provide ONLY the improved code, without any explanations or markdown formatting.
+
+"""
+
+            improved_file_content = self.supervisor_api.chat([{"role": "user", "content": improve_prompt}])
+            cleaned_content = self.clean_api_response(improved_file_content, file_type)
+            improved_content[file] = cleaned_content
+            self.save_file(file, cleaned_content, "supervisor_improved")
+
+        return improved_content
+    
+    def manager_improve(self, request, content):
+        logging.info("Manager: Further improving the application...")
+        final_content = {}
+        for file, file_content in content.items():
+            file_type = self.allowed_file_types.get(file.split('.')[-1], "Unknown")
+            improve_prompt = f"""Further improve the following {file_type} code for the file '{file}' in the application: {request}
+
+Current content:
+{file_content}
+
+Please provide a final, polished version of this code. Focus on:
+1. Ensuring all features are fully implemented
+2. Optimizing code efficiency and performance
+3. Enhancing code readability and maintainability
+4. Implementing advanced error handling and logging
+5. Ensuring security best practices are followed
+6. Adding helpful comments and documentation
+
+IMPORTANT: 
+- Ensure that your improvements do not break existing functionality or reduce the quality of the code.
+- If you cannot meaningfully improve the code without risking its functionality, return the original code unchanged.
+- Provide ONLY the improved code, without any explanations or markdown formatting.
+
+"""
+
+            final_file_content = self.manager_api.chat([{"role": "user", "content": improve_prompt}])
+            cleaned_content = self.clean_api_response(final_file_content, file_type)
+            final_content[file] = cleaned_content
+            self.save_file(file, cleaned_content, "manager_improved")
+
+        return final_content
+    
+    def perform_quality_checks(self, initial_content, supervisor_content, manager_content):
+        logging.info("Performing quality checks...")
+        best_content = {}
+        for file in initial_content.keys():
+            initial = initial_content[file]
+            supervisor = supervisor_content[file]
+            manager = manager_content[file] if manager_content else supervisor
+
+            # Perform quality checks
+            initial_score = self.evaluate_code_quality(file, initial)
+            supervisor_score = self.evaluate_code_quality(file, supervisor)
+            manager_score = self.evaluate_code_quality(file, manager)
+
+            logging.info(f"Quality scores for {file}: Initial: {initial_score}, Supervisor: {supervisor_score}, Manager: {manager_score}")
+
+            # Choose the best version
+            if manager_score >= supervisor_score and manager_score >= initial_score:
+                best_content[file] = manager
+                stage = "manager"
+            elif supervisor_score >= initial_score:
+                best_content[file] = supervisor
+                stage = "supervisor"
+            else:
+                best_content[file] = initial
+                stage = "initial"
+
+            logging.info(f"Chosen version for {file}: {stage}")
+            self.save_file(file, best_content[file], f"final_{stage}")
+
+        return best_content
+    
+    def evaluate_code_quality(self, filename, content):
+        file_type = filename.split('.')[-1]
+        evaluate_prompt = f"""Evaluate the quality of the following {file_type} code:
+
+{content}
+
+Please rate the code on a scale from 1 to 10 (10 being the highest quality) based on the following criteria:
+1. Functionality (Does it work as intended?)
+2. Code structure and organization
+3. Adherence to best practices
+4. Performance and efficiency
+5. Error handling and security
+6. Readability and maintainability
+
+Provide only a single number as your rating, with no explanation."""
+
+        try:
+            rating = float(self.worker_api.chat([{"role": "user", "content": evaluate_prompt}]))
+            return rating
+        except ValueError:
+            logging.error(f"Failed to get a numerical rating for {filename}. Defaulting to 5.")
+            return 5.0
+
+    def parse_improved_content(self, content):
+        improved_files = {}
+        current_file = None
+        current_content = []
+        for line in content.split('\n'):
+            if line.startswith("File: "):
+                if current_file and current_content:
+                    improved_files[current_file] = '\n'.join(current_content)
+                    self.save_file(current_file, improved_files[current_file], "improved")
+                current_file = line[6:].strip()
+                current_content = []
+            else:
+                current_content.append(line)
+        if current_file and current_content:
+            improved_files[current_file] = '\n'.join(current_content)
+            self.save_file(current_file, improved_files[current_file], "improved")
+        return improved_files
+
+    def format_content_for_review(self, content):
+        return "\n\n".join([f"File: {file}\nContent:\n{file_content}" for file, file_content in content.items()])
+
+    def update_file_listing(self, content):
+        self.file_list.delete(*self.file_list.get_children())
+        for file in content:
+            self.file_list.insert('', 'end', text=file, values=(file,))
+        self.files = content
 
     def on_file_select(self, event):
         selected_items = self.file_list.selection()
