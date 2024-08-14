@@ -1,18 +1,13 @@
 import os
 import zipfile
-import tempfile
-import webbrowser
-import tkinter as tk
-from tkinter import ttk, scrolledtext
-from tkinter import messagebox
-import datetime
 import logging
 import re
-from src.api_model import EragAPI, create_erag_api
+import datetime
+from src.api_model import EragAPI
 from src.look_and_feel import error, success, warning, info
 from src.settings import settings
 
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class CodeEditor:
     def __init__(self, worker_erag_api: EragAPI, supervisor_erag_api: EragAPI, manager_erag_api: EragAPI = None):
@@ -32,7 +27,6 @@ class CodeEditor:
         print(info(f"CodeEditor initialized with worker API: {self.worker_api.api_type}, supervisor API: {self.supervisor_api.api_type}"))
         if self.manager_api:
             print(info(f"Manager API: {self.manager_api.api_type}"))
-        self.setup_gui()
 
     def clean_api_response(self, response, file_type):
             # Remove any text before and after the code block
@@ -121,13 +115,8 @@ class CodeEditor:
         except IOError as e:
             logging.error(f"Error saving {stage} file: {str(e)}")
 
-    def generate_application(self):
-        request = self.request_entry.get()
-        if not request:
-            messagebox.showwarning("Warning", "Please enter an application request.")
-            return
-
-        self.show_loading()
+    def generate_application(self, request):
+        print(info("Generating application..."))
         try:
             # Step 1: Worker generates initial file structure and content
             file_list, initial_content = self.worker_generate_initial(request)
@@ -144,16 +133,15 @@ class CodeEditor:
             # Step 4: Perform quality checks and rollback if necessary
             best_content = self.perform_quality_checks(initial_content, supervisor_improved_content, final_content)
 
-            # Update file listing and save files
-            self.update_file_listing(best_content)
+            # Update files and create zip
+            self.files = best_content
+            self.create_zip()
 
-            messagebox.showinfo("Success", f"Application generated and improved successfully!\nFiles saved in: {self.output_folder}")
+            print(success(f"Application generated and improved successfully!\nFiles saved in: {self.output_folder}"))
         except Exception as e:
             error_message = f"An error occurred while generating the application: {str(e)}"
             logging.error(error_message)
-            messagebox.showerror("Error", error_message)
-        finally:
-            self.hide_loading()
+            print(error(error_message))
 
     def worker_generate_initial(self, request):
         logging.info("Worker: Generating initial file structure and content...")
@@ -317,24 +305,9 @@ Provide only a single number as your rating, with no explanation."""
     def format_content_for_review(self, content):
         return "\n\n".join([f"File: {file}\nContent:\n{file_content}" for file, file_content in content.items()])
 
-    def update_file_listing(self, content):
-        self.file_list.delete(*self.file_list.get_children())
-        for file in content:
-            self.file_list.insert('', 'end', text=file, values=(file,))
-        self.files = content
-
-    def on_file_select(self, event):
-        selected_items = self.file_list.selection()
-        if not selected_items:
-            return  # No file selected, do nothing
-        selected_item = selected_items[0]
-        file_name = self.file_list.item(selected_item)['text']
-        self.code_display.delete('1.0', tk.END)
-        self.code_display.insert(tk.END, self.files[file_name])
-
-    def download_zip(self):
+    def create_zip(self):
         if not self.files:
-            messagebox.showwarning("Warning", "No files to download. Generate an application first.")
+            print(warning("No files to zip. Application generation might have failed."))
             return
 
         if self.output_folder:
@@ -342,28 +315,13 @@ Provide only a single number as your rating, with no explanation."""
             with zipfile.ZipFile(zip_path, 'w') as zipf:
                 for filename, content in self.files.items():
                     zipf.writestr(filename, content)
-            webbrowser.open('file://' + os.path.dirname(zip_path))
-            messagebox.showinfo("Success", f"ZIP file created: {zip_path}")
+            print(success(f"ZIP file created: {zip_path}"))
         else:
-            messagebox.showwarning("Warning", "No output folder found. Please generate the application first.")
+            print(warning("No output folder found. ZIP file could not be created."))
 
-    def preview_app(self):
-        if 'index.html' in self.files:
-            if self.output_folder:
-                file_path = os.path.join(self.output_folder, "index.html")
-                webbrowser.open('file://' + file_path)
-            else:
-                messagebox.showwarning("Warning", "No output folder found. Please generate the application first.")
-        else:
-            messagebox.showinfo("Preview", "No index.html file found to preview.")
 
-    def show_loading(self):
-        self.loading_label.pack()
-        self.root.update()
-
-    def hide_loading(self):
-        self.loading_label.pack_forget()
-        self.root.update()
 
     def run(self):
-        self.root.mainloop()
+        print(info("Welcome to the AI-powered Application Generator"))
+        request = input("Enter your application request: ")
+        self.generate_application(request)
