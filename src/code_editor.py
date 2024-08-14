@@ -27,6 +27,8 @@ class CodeEditor:
             'json': 'JSON',
             'md': 'Markdown'
         }
+        print(info(f"CodeEditor initialized with {self.api.api_type} backend."))
+        print(info(f"Using model: {self.api.model}"))
         self.setup_gui()
 
     def sanitize_filename(self, filename: str) -> str:
@@ -41,7 +43,7 @@ class CodeEditor:
     def setup_gui(self):
         self.root = tk.Toplevel()
         self.root.title("AI-powered Application Generator")
-        self.root.geometry("1200x800")
+        self.root.geometry("1000x600")
 
         # User request input
         request_frame = ttk.Frame(self.root)
@@ -104,6 +106,7 @@ class CodeEditor:
 
         self.show_loading()
         try:
+            logging.info(f"Starting application generation with API type: {self.api.api_type}, Model: {self.api.model}")
             # Step 1: Generate initial file structure
             logging.info("Generating initial file structure...")
             prompt = f"""Create a basic application structure based on this request: {request}
@@ -111,7 +114,8 @@ class CodeEditor:
             Include only the file names with appropriate extensions. 
             Use standard naming conventions (e.g., snake_case for Python, camelCase for JavaScript).
             Allowed file types are: {', '.join(self.allowed_file_types.keys())}"""
-            response = self.api.complete(prompt)
+            messages = [{"role": "user", "content": prompt}]
+            response = self.api.chat(messages)
             if not response:
                 raise ValueError("No response received from the API.")
             file_list = [file.strip() for file in response.split('\n') if file.strip() and '.' in file]
@@ -126,7 +130,8 @@ class CodeEditor:
                 prompt = f"""Generate the initial content for the file '{file}' ({file_type}) for the application: {request}
                 Ensure the code is complete, syntactically correct, and follows best practices for {file_type}.
                 Provide only the code, no explanations."""
-                content = self.api.complete(prompt)
+                messages = [{"role": "user", "content": prompt}]
+                content = self.api.chat(messages)
                 if not content:
                     logging.warning(f"No content generated for {file}")
                     continue
@@ -139,12 +144,13 @@ class CodeEditor:
             file_contents = "\n\n".join([f"File: {file}\nContent:\n{content}" for file, content in self.files.items()])
             prompt = f"""Improve and integrate the following files for the application: {request}
 
-{file_contents}
+    {file_contents}
 
-Ensure all files work together cohesively. Improve error handling, consistency, and best practices across all files.
-Provide the improved content for each file, starting with the file name on a new line, followed by the improved code."""
+    Ensure all files work together cohesively. Improve error handling, consistency, and best practices across all files.
+    Provide the improved content for each file, starting with the file name on a new line, followed by the improved code."""
 
-            improved_content = self.api.complete(prompt)
+            messages = [{"role": "user", "content": prompt}]
+            improved_content = self.api.chat(messages)
             if improved_content:
                 # Parse the improved content and update files
                 current_file = None
