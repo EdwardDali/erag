@@ -497,6 +497,42 @@ class ERAGGUI:
         create_self_knol_button.pack(side="left", padx=5, pady=5)
         ToolTip(create_self_knol_button, "Create a knowledge artifact (Self Knol) using only the model's knowledge")
 
+        # Add the new CodeEditor button
+        code_editor_button = tk.Button(agent_frame, text="CodeEditor", command=self.run_code_editor)
+        code_editor_button.pack(side="left", padx=5, pady=5)
+        ToolTip(code_editor_button, "Open the AI-powered Code Editor")
+
+    def run_code_editor(self):
+        try:
+            api_type = self.api_type_var.get()
+            model = self.model_var.get()
+            embedding_class = self.embedding_class_var.get()
+            embedding_model = self.embedding_model_var.get()
+            
+            print(info(f"Initializing EragAPI with: API type: {api_type}, Model: {model}, Embedding class: {embedding_class}, Embedding model: {embedding_model}"))
+            
+            # Create EragAPI instance
+            erag_api = create_erag_api(api_type, model, embedding_class, embedding_model)
+            
+            # Verify that the API has the necessary methods
+            if not hasattr(erag_api, 'complete') or not callable(erag_api.complete):
+                raise AttributeError("The EragAPI instance does not have a 'complete' method.")
+            
+            print(success("EragAPI initialized successfully"))
+            
+            from src.code_editor import CodeEditor
+            code_editor = CodeEditor(erag_api)
+            
+            # Run CodeEditor
+            code_editor.run()
+            
+            print(info(f"AI-powered Application Generator started with {api_type} API and {model} model."))
+        except Exception as e:
+            error_message = f"An error occurred while starting the AI-powered Application Generator: {str(e)}"
+            print(error(error_message))
+            messagebox.showerror("Error", error_message)
+
+
     def run_talk2model(self):
         try:
             api_type = self.api_type_var.get()
@@ -715,21 +751,20 @@ class ERAGGUI:
 
          # API Settings
         self.create_settings_fields(api_frame, [
-        ("Default Embedding Class", "default_embedding_class"),
-        ("Default Embedding Model", "default_embedding_model"),
-        ("Sentence Transformer Model", "sentence_transformer_model"),
-        ("Ollama Embedding Model", "ollama_embedding_model"),
-        ("Default Ollama Model", "ollama_model"),
-        ("Default Llama Model", "llama_model"),
-        ("Default Groq Model", "groq_model"),
-        ("Default Gemini Model", "gemini_model"),
-        ("Default Manager Model", "default_manager_model"),
-        ("Default Re-ranker Model", "reranker_model"),  # Add this line
-        ("Temperature", "temperature"),
-        ("Max History Length", "max_history_length"),
-        ("Conversation Context Size", "conversation_context_size"),
-        ("Update Threshold", "update_threshold"),
-    ])
+            ("Default Embedding Class", "default_embedding_class"),
+            ("Default Embedding Model", "default_embedding_model"),  # Change this line
+            ("Sentence Transformer Model", "sentence_transformer_model"),
+            ("Ollama Embedding Model", "ollama_embedding_model"),
+            ("Default Ollama Model", "ollama_model"),
+            ("Default Llama Model", "llama_model"),
+            ("Default Groq Model", "groq_model"),
+            ("Default Gemini Model", "gemini_model"),
+            ("Default Manager Model", "default_manager_model"),
+            ("Temperature", "temperature"),
+            ("Max History Length", "max_history_length"),
+            ("Conversation Context Size", "conversation_context_size"),
+            ("Update Threshold", "update_threshold"),
+        ])
 
         self.create_settings_fields(rerank_frame, [
             ("Re-rank Top K", "rerank_top_k"),
@@ -848,8 +883,8 @@ class ERAGGUI:
                     # Convert relative path back to absolute path
                     value = os.path.join(self.project_root, value)
                 
-                # Special handling for default_manager_model and reranker_model
-                if key in ["default_manager_model", "reranker_model"]:
+                # Special handling for default_manager_model
+                if key == "default_manager_model":
                     value = None if value.lower() == 'none' else value
                 
                 settings.update_setting(key, value)
@@ -903,62 +938,14 @@ class ERAGGUI:
     def update_settings_display(self):
         for key in dir(settings):
             if not key.startswith('_') and hasattr(self, f"{key}_var"):
-                value = getattr(settings, key)
-                if key in ["default_manager_model", "reranker_model"]:
-                    value = value if value is not None else "None"
-                elif isinstance(value, str) and value.startswith(str(self.project_root)):
-                    # Convert absolute path to relative path for display
-                    value = os.path.relpath(value, self.project_root)
-                getattr(self, f"{key}_var").set(str(value))
+                getattr(self, f"{key}_var").set(str(getattr(settings, key)))
 
-        # Update dataset generation settings display
+                # Update dataset generation settings display
         for field, var in self.dataset_fields_vars.items():
             var.set(field in settings.dataset_fields)
         for format, var in self.dataset_output_formats_vars.items():
             var.set(format in settings.dataset_output_formats)
         self.dataset_output_file_var.set(os.path.basename(settings.dataset_output_file))
-
-        # Update API key displays
-        self.groq_api_key_var.set(self.groq_api_key)
-        self.gemini_api_key_var.set(self.gemini_api_key)
-        self.github_token_var.set(self.github_token)
-
-        # Update embedding model settings display
-        self.embedding_class_var.set(settings.default_embedding_class)
-        self.update_embedding_model_list()
-        self.embedding_model_var.set(settings.default_embedding_model)
-
-        # Update model selection displays
-        self.api_type_var.set(settings.api_type)
-        self.update_model_list()
-        
-        # Ensure the correct model is selected for each dropdown
-        self.model_var.set(getattr(settings, f"{settings.api_type}_model"))
-        self.supervisor_model_var.set(getattr(settings, f"{settings.api_type}_model"))
-        self.manager_model_var.set(settings.default_manager_model if settings.default_manager_model else 'None')
-        self.reranker_model_var.set(settings.reranker_model)
-
-        # Update Talk2URL settings
-        if hasattr(self, 'talk2url_limit_content_size_var'):
-            self.talk2url_limit_content_size_var.set(settings.talk2url_limit_content_size)
-        if hasattr(self, 'talk2url_content_size_per_url_var'):
-            self.talk2url_content_size_per_url_var.set(str(settings.talk2url_content_size_per_url))
-
-        # Update XDAs settings
-        if hasattr(self, 'save_results_to_txt_var'):
-            self.save_results_to_txt_var.set(settings.save_results_to_txt)
-
-        # Update server settings
-        if hasattr(self, 'enable_var'):
-            self.enable_var.set(self.server_manager.enable_on_start)
-        if hasattr(self, 'exe_var'):
-            self.exe_var.set(self.server_manager.server_executable)
-        if hasattr(self, 'folder_var'):
-            self.folder_var.set(self.server_manager.model_folder)
-        if hasattr(self, 'args_var'):
-            self.args_var.set(self.server_manager.additional_args)
-        if hasattr(self, 'output_mode_var'):
-            self.output_mode_var.set(self.server_manager.output_mode)
 
     def run_route_query(self):
         try:
