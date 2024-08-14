@@ -515,14 +515,16 @@ class ERAGGUI:
             manager_erag_api = create_erag_api(api_type, manager_model) if manager_model != 'None' else None
             
             code_editor = CodeEditor(worker_erag_api, supervisor_erag_api, manager_erag_api)
-            code_editor.run()
             
             print(info(f"AI-powered Application Generator started with {api_type} API."))
             print(info(f"Worker Model: {worker_model}"))
             print(info(f"Supervisor Model: {supervisor_model}"))
             print(info(f"Manager Model: {manager_model if manager_model != 'None' else 'Not used'}"))
+            
+            # Run the CodeEditor in the main thread
+            code_editor.run()
         except Exception as e:
-            error_message = f"An error occurred while starting the AI-powered Application Generator: {str(e)}"
+            error_message = f"An error occurred while running the AI-powered Application Generator: {str(e)}"
             print(error(error_message))
             messagebox.showerror("Error", error_message)
 
