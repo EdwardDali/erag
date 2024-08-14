@@ -7,7 +7,7 @@ from src.api_model import EragAPI
 from src.look_and_feel import error, success, warning, info
 from src.settings import settings
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class CodeEditor:
     def __init__(self, worker_erag_api: EragAPI, supervisor_erag_api: EragAPI, manager_erag_api: EragAPI = None):
@@ -29,24 +29,29 @@ class CodeEditor:
             print(info(f"Manager API: {self.manager_api.api_type}"))
 
     def clean_api_response(self, response, file_type):
-            # Remove any text before and after the code block
-            code_block_pattern = r'```[\w\s]*\n([\s\S]*?)\n```'
-            code_blocks = re.findall(code_block_pattern, response)
-            
-            if code_blocks:
-                # If code blocks are found, use the last one (in case there are multiple)
-                cleaned_code = code_blocks[-1].strip()
-            else:
-                # If no code blocks are found, use the entire response
-                cleaned_code = response.strip()
-            
-            # Remove any remaining markdown code block syntax
-            cleaned_code = cleaned_code.replace('```' + file_type, '').replace('```', '')
-            
-            # Remove any "Here is the improved/polished version of the code:" or similar phrases
-            cleaned_code = re.sub(r'^.*?(Here is|This is|Updated|Improved|Polished).*?\n', '', cleaned_code, flags=re.IGNORECASE | re.MULTILINE)
-            
-            return cleaned_code.strip()
+        logging.debug(f"Cleaning API response for file type: {file_type}")
+        logging.debug(f"Original response: {response}")
+        
+        # Remove any text before and after the code block
+        code_block_pattern = r'```[\w\s]*\n([\s\S]*?)\n```'
+        code_blocks = re.findall(code_block_pattern, response)
+        
+        if code_blocks:
+            # If code blocks are found, use the last one (in case there are multiple)
+            cleaned_code = code_blocks[-1].strip()
+        else:
+            # If no code blocks are found, use the entire response
+            cleaned_code = response.strip()
+        
+        # Remove any remaining markdown code block syntax
+        cleaned_code = cleaned_code.replace('```' + file_type, '').replace('```', '')
+        
+        # Remove any "Here is the improved/polished version of the code:" or similar phrases
+        cleaned_code = re.sub(r'^.*?(Here is|This is|Updated|Improved|Polished).*?\n', '', cleaned_code, flags=re.IGNORECASE | re.MULTILINE)
+        
+        cleaned_code = cleaned_code.strip()
+        logging.debug(f"Cleaned response: {cleaned_code}")
+        return cleaned_code
 
     def sanitize_filename(self, filename: str) -> str:
         # Remove any path components (e.g., 'foo/bar')
@@ -57,48 +62,8 @@ class CodeEditor:
         filename = filename[:255]
         return filename
 
-    def setup_gui(self):
-        self.root = tk.Toplevel()
-        self.root.title("AI-powered Application Generator")
-        self.root.geometry("1000x600")
-
-        # User request input
-        request_frame = ttk.Frame(self.root)
-        request_frame.pack(fill=tk.X, padx=10, pady=5)
-        ttk.Label(request_frame, text="Enter your application request:").pack(side=tk.LEFT)
-        self.request_entry = ttk.Entry(request_frame, width=50)
-        self.request_entry.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=5)
-        ttk.Button(request_frame, text="Generate", command=self.generate_application).pack(side=tk.LEFT)
-
-        # Main content area
-        content_frame = ttk.Frame(self.root)
-        content_frame.pack(expand=True, fill=tk.BOTH, padx=10, pady=5)
-        content_frame.grid_columnconfigure(1, weight=1)
-        content_frame.grid_rowconfigure(0, weight=1)
-
-        # File listing
-        self.file_list = ttk.Treeview(content_frame, columns=("name",), show="tree")
-        self.file_list.heading("#0", text="Files")
-        self.file_list.column("#0", width=200)
-        self.file_list.grid(row=0, column=0, sticky="nsew")
-        self.file_list.bind("<<TreeviewSelect>>", self.on_file_select)
-
-        # Code display
-        self.code_display = scrolledtext.ScrolledText(content_frame, wrap=tk.NONE)
-        self.code_display.grid(row=0, column=1, sticky="nsew")
-
-        # Buttons
-        button_frame = ttk.Frame(self.root)
-        button_frame.pack(fill=tk.X, padx=10, pady=5)
-        ttk.Button(button_frame, text="Download ZIP", command=self.download_zip).pack(side=tk.LEFT)
-        ttk.Button(button_frame, text="Preview App", command=self.preview_app).pack(side=tk.LEFT)
-
-        # Loading indicator
-        self.loading_label = ttk.Label(self.root, text="Generating application...", foreground="blue")
-        self.loading_label.pack(side=tk.BOTTOM)
-        self.loading_label.pack_forget()
-
-    def save_file(self, filename, content, stage):
+    
+    def save_file(self, filename, content):
         if self.output_folder is None:
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             self.output_folder = os.path.join(settings.output_folder, f"generated_app_{timestamp}")
@@ -106,35 +71,33 @@ class CodeEditor:
             logging.info(f"Created output folder: {self.output_folder}")
 
         safe_filename = self.sanitize_filename(filename)
-        file_path = os.path.join(self.output_folder, f"{stage}_{safe_filename}")
-        logging.debug(f"Attempting to save file: {file_path}")
+        file_path = os.path.join(self.output_folder, safe_filename)
+        logging.debug(f"Saving file: {file_path}")
         try:
             with open(file_path, "w", encoding="utf-8") as f:
                 f.write(content)
-            logging.info(f"Saved {stage} file: {file_path}")
+            logging.info(f"Saved file: {file_path}")
         except IOError as e:
-            logging.error(f"Error saving {stage} file: {str(e)}")
+            logging.error(f"Error saving file: {str(e)}")
+
 
     def generate_application(self, request):
         print(info("Generating application..."))
         try:
             # Step 1: Worker generates initial file structure and content
-            file_list, initial_content = self.worker_generate_initial(request)
+            self.worker_generate_initial(request)
+
+            if not self.files:
+                raise Exception("No files were generated by the worker.")
 
             # Step 2: Supervisor improves the files
-            supervisor_improved_content = self.supervisor_improve(request, initial_content)
+            self.supervisor_improve(request)
 
             # Step 3: Manager further improves the files (if available)
             if self.manager_api:
-                final_content = self.manager_improve(request, supervisor_improved_content)
-            else:
-                final_content = supervisor_improved_content
+                self.manager_improve(request)
 
-            # Step 4: Perform quality checks and rollback if necessary
-            best_content = self.perform_quality_checks(initial_content, supervisor_improved_content, final_content)
-
-            # Update files and create zip
-            self.files = best_content
+            # Create zip
             self.create_zip()
 
             print(success(f"Application generated and improved successfully!\nFiles saved in: {self.output_folder}"))
@@ -142,6 +105,8 @@ class CodeEditor:
             error_message = f"An error occurred while generating the application: {str(e)}"
             logging.error(error_message)
             print(error(error_message))
+            import traceback
+            logging.error(traceback.format_exc())
 
     def worker_generate_initial(self, request):
         logging.info("Worker: Generating initial file structure and content...")
@@ -152,25 +117,32 @@ class CodeEditor:
         Allowed file types are: {', '.join(self.allowed_file_types.keys())}"""
         
         file_list_response = self.worker_api.chat([{"role": "user", "content": file_structure_prompt}])
+        logging.debug(f"File list response: {file_list_response}")
         file_list = [file.strip() for file in file_list_response.split('\n') if file.strip() and '.' in file]
         file_list = [file for file in file_list if file.split('.')[-1] in self.allowed_file_types]
+        logging.info(f"Files to be created: {file_list}")
 
-        initial_content = {}
+        if not file_list:
+            logging.warning("No valid files were listed by the worker.")
+            return
+
         for file in file_list:
             file_type = self.allowed_file_types.get(file.split('.')[-1], "Unknown")
             content_prompt = f"""Generate the initial content for the file '{file}' ({file_type}) for the application: {request}
             Ensure the code is complete, syntactically correct, and follows best practices for {file_type}.
             Provide only the code, no explanations."""
             content = self.worker_api.chat([{"role": "user", "content": content_prompt}])
-            initial_content[file] = content
-            self.save_file(file, content, "initial")
+            logging.debug(f"Raw content for {file}: {content}")
+            cleaned_content = self.clean_api_response(content, file_type)
+            logging.debug(f"Cleaned content for {file}: {cleaned_content}")
+            self.files[file] = cleaned_content
+            self.save_file(file, cleaned_content)
 
-        return file_list, initial_content
+        logging.info(f"Worker generated {len(self.files)} files.")
 
-    def supervisor_improve(self, request, content):
-        logging.info("Supervisor: Improving and integrating files...")
-        improved_content = {}
-        for file, file_content in content.items():
+    def supervisor_improve(self, request):
+        logging.info("Supervisor: Improving files...")
+        for file, file_content in self.files.items():
             file_type = self.allowed_file_types.get(file.split('.')[-1], "Unknown")
             improve_prompt = f"""Improve the following {file_type} code for the file '{file}' in the application: {request}
 
@@ -188,20 +160,18 @@ IMPORTANT:
 - Ensure that your improvements do not break existing functionality or reduce the quality of the code.
 - If you cannot meaningfully improve the code without risking its functionality, return the original code unchanged.
 - Provide ONLY the improved code, without any explanations or markdown formatting.
-
 """
 
             improved_file_content = self.supervisor_api.chat([{"role": "user", "content": improve_prompt}])
             cleaned_content = self.clean_api_response(improved_file_content, file_type)
-            improved_content[file] = cleaned_content
-            self.save_file(file, cleaned_content, "supervisor_improved")
+            self.files[file] = cleaned_content
+            self.save_file(file, cleaned_content)
 
-        return improved_content
+        logging.info(f"Supervisor improved {len(self.files)} files.")
     
-    def manager_improve(self, request, content):
+    def manager_improve(self, request):
         logging.info("Manager: Further improving the application...")
-        final_content = {}
-        for file, file_content in content.items():
+        for file, file_content in self.files.items():
             file_type = self.allowed_file_types.get(file.split('.')[-1], "Unknown")
             improve_prompt = f"""Further improve the following {file_type} code for the file '{file}' in the application: {request}
 
@@ -220,91 +190,13 @@ IMPORTANT:
 - Ensure that your improvements do not break existing functionality or reduce the quality of the code.
 - If you cannot meaningfully improve the code without risking its functionality, return the original code unchanged.
 - Provide ONLY the improved code, without any explanations or markdown formatting.
-
 """
 
             final_file_content = self.manager_api.chat([{"role": "user", "content": improve_prompt}])
             cleaned_content = self.clean_api_response(final_file_content, file_type)
-            final_content[file] = cleaned_content
-            self.save_file(file, cleaned_content, "manager_improved")
-
-        return final_content
+            self.files[file] = cleaned_content
+            self.save_file(file, cleaned_content)
     
-    def perform_quality_checks(self, initial_content, supervisor_content, manager_content):
-        logging.info("Performing quality checks...")
-        best_content = {}
-        for file in initial_content.keys():
-            initial = initial_content[file]
-            supervisor = supervisor_content[file]
-            manager = manager_content[file] if manager_content else supervisor
-
-            # Perform quality checks
-            initial_score = self.evaluate_code_quality(file, initial)
-            supervisor_score = self.evaluate_code_quality(file, supervisor)
-            manager_score = self.evaluate_code_quality(file, manager)
-
-            logging.info(f"Quality scores for {file}: Initial: {initial_score}, Supervisor: {supervisor_score}, Manager: {manager_score}")
-
-            # Choose the best version
-            if manager_score >= supervisor_score and manager_score >= initial_score:
-                best_content[file] = manager
-                stage = "manager"
-            elif supervisor_score >= initial_score:
-                best_content[file] = supervisor
-                stage = "supervisor"
-            else:
-                best_content[file] = initial
-                stage = "initial"
-
-            logging.info(f"Chosen version for {file}: {stage}")
-            self.save_file(file, best_content[file], f"final_{stage}")
-
-        return best_content
-    
-    def evaluate_code_quality(self, filename, content):
-        file_type = filename.split('.')[-1]
-        evaluate_prompt = f"""Evaluate the quality of the following {file_type} code:
-
-{content}
-
-Please rate the code on a scale from 1 to 10 (10 being the highest quality) based on the following criteria:
-1. Functionality (Does it work as intended?)
-2. Code structure and organization
-3. Adherence to best practices
-4. Performance and efficiency
-5. Error handling and security
-6. Readability and maintainability
-
-Provide only a single number as your rating, with no explanation."""
-
-        try:
-            rating = float(self.worker_api.chat([{"role": "user", "content": evaluate_prompt}]))
-            return rating
-        except ValueError:
-            logging.error(f"Failed to get a numerical rating for {filename}. Defaulting to 5.")
-            return 5.0
-
-    def parse_improved_content(self, content):
-        improved_files = {}
-        current_file = None
-        current_content = []
-        for line in content.split('\n'):
-            if line.startswith("File: "):
-                if current_file and current_content:
-                    improved_files[current_file] = '\n'.join(current_content)
-                    self.save_file(current_file, improved_files[current_file], "improved")
-                current_file = line[6:].strip()
-                current_content = []
-            else:
-                current_content.append(line)
-        if current_file and current_content:
-            improved_files[current_file] = '\n'.join(current_content)
-            self.save_file(current_file, improved_files[current_file], "improved")
-        return improved_files
-
-    def format_content_for_review(self, content):
-        return "\n\n".join([f"File: {file}\nContent:\n{file_content}" for file, file_content in content.items()])
-
     def create_zip(self):
         if not self.files:
             print(warning("No files to zip. Application generation might have failed."))
@@ -318,8 +210,6 @@ Provide only a single number as your rating, with no explanation."""
             print(success(f"ZIP file created: {zip_path}"))
         else:
             print(warning("No output folder found. ZIP file could not be created."))
-
-
 
     def run(self):
         print(info("Welcome to the AI-powered Application Generator"))
