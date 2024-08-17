@@ -8,6 +8,8 @@ sys.path.append(str(project_root))
 import warnings
 warnings.filterwarnings("ignore", category=FutureWarning, module="huggingface_hub.file_download")
 
+import threading
+from src.api_model import create_erag_api
 import tkinter as tk
 from tkinter import messagebox, ttk, filedialog, simpledialog
 import threading
@@ -489,6 +491,11 @@ class ERAGGUI:
         talk2model_button.pack(side="left", padx=5, pady=5)
         ToolTip(talk2model_button, "Start a conversation with the selected model")
 
+         # Add the new MxAgents button
+        mx_agents_button = tk.Button(agent_frame, text="MxAgents", command=self.run_mx_agents)
+        mx_agents_button.pack(side="left", padx=5, pady=5)
+        ToolTip(mx_agents_button, "Run a mixture of agents for more comprehensive responses")
+
         route_query_button = tk.Button(agent_frame, text="Route Query", command=self.run_route_query)
         route_query_button.pack(side="left", padx=5, pady=5)
         ToolTip(route_query_button, "Route a query to the appropriate system or model")
@@ -502,6 +509,8 @@ class ERAGGUI:
         code_editor_button = tk.Button(agent_frame, text="CodeEditor", command=self.run_code_editor)
         code_editor_button.pack(side="left", padx=5, pady=5)
         ToolTip(code_editor_button, "Open the AI-powered Code Editor")
+
+       
 
     def run_code_editor(self):
         try:
@@ -2153,7 +2162,43 @@ class ERAGGUI:
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred while merging the structured data files: {str(e)}")
 
-
+    def run_mx_agents(self):
+        try:
+            api_type = self.api_type_var.get()
+            worker_model = self.model_var.get()
+            supervisor_model = self.supervisor_model_var.get()
+            manager_model = self.manager_model_var.get()
+            
+            # Create separate EragAPI instances for worker, supervisor, and manager
+            worker_erag_api = create_erag_api(api_type, worker_model)
+            supervisor_erag_api = create_erag_api(api_type, supervisor_model)
+            manager_erag_api = create_erag_api(api_type, manager_model) if manager_model != 'None' else None
+            
+            from src.mix_agents import run_mix_agents
+            
+            # Apply settings
+            settings.apply_settings()
+            
+            # Create an informative message about the Mixture of Agents architecture
+            architecture_info = (
+                "This Mixture of Agents module uses multiple models for comprehensive responses:\n\n"
+                f"Worker Model: {worker_model}\n"
+                f"Supervisor Model: {supervisor_model}\n"
+                f"Manager Model: {manager_model if manager_model != 'None' else 'Not used'}\n\n"
+                "The Worker and Supervisor models (and Manager, if available) will process each query. "
+                "The Supervisor model will then aggregate the responses for a final output."
+            )
+            
+            messagebox.showinfo("Mixture of Agents Process Started", 
+                                f"{architecture_info}\n\n"
+                                f"Mixture of Agents process started with {api_type} API.\n"
+                                "Check the console for interaction and progress updates.")
+            
+            # Run the mixture of agents in a separate thread
+            threading.Thread(target=run_mix_agents, args=(worker_erag_api, supervisor_erag_api, manager_erag_api), daemon=True).start()
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"An error occurred while starting the Mixture of Agents process: {str(e)}")
             
 
     def create_server_tab(self):
