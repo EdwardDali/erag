@@ -1,22 +1,26 @@
 # -*- coding: utf-8 -*-
 
+# Standard library imports
 import sys
 import os
 import re
+import logging
+from collections import deque
+from typing import List, Dict, Tuple
+
+# Third-party imports
 import torch
 import numpy as np
 from sentence_transformers import SentenceTransformer
-from typing import List, Dict, Tuple
-import logging
-from collections import deque
 import networkx as nx
 import json
+
+# Local imports
 from src.search_utils import SearchUtils
 from src.settings import settings
 from src.api_model import EragAPI, create_erag_api
 from src.embeddings_utils import load_or_compute_embeddings
 from src.look_and_feel import success, info, warning, error, colorize, MAGENTA, RESET, user_input as color_user_input, llm_response as color_llm_response
-
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 

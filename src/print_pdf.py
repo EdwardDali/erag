@@ -1,6 +1,10 @@
 # -*- coding: utf-8 -*-
+# Standard library imports
 import os
 from datetime import datetime
+import re
+
+# Third-party imports
 from reportlab.lib.pagesizes import A4
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Image, Frame, PageTemplate
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -8,7 +12,6 @@ from reportlab.lib import colors
 from reportlab.lib.units import inch
 from reportlab.lib.enums import TA_JUSTIFY, TA_CENTER
 from reportlab.platypus.paragraph import ParaLines
-import re
 
 # Define RGB values for custom colors
 DARK_BLUE_RGB = (34/255, 34/255, 59/255)

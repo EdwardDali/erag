@@ -1,16 +1,21 @@
-﻿import sqlite3
+﻿# Standard library imports
+import os
+import sqlite3
+
+# Third-party imports
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 from scipy.stats import pearsonr
-import os
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend
+
+# Local imports
 from src.api_model import EragAPI
 from src.settings import settings
 from src.look_and_feel import error, success, warning, info, highlight
 from src.print_pdf import PDFReportGenerator
-import matplotlib
-matplotlib.use('Agg')  # Use non-interactive backend
 
 class FinancialExploratoryDataAnalysis:
     def __init__(self, worker_erag_api, supervisor_erag_api, db_path):

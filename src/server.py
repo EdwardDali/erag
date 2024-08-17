@@ -1,11 +1,14 @@
+# Standard library imports
 import subprocess
 import json
 import os
-from pathlib import Path
-import tkinter as tk
-from tkinter import scrolledtext
 import threading
 import glob
+from pathlib import Path
+
+# Third-party imports
+import tkinter as tk
+from tkinter import scrolledtext
 
 class ServerManager:
     def __init__(self):

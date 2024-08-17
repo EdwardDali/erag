@@ -1,29 +1,32 @@
+# Standard library imports
+import os
 import sqlite3
+import threading
+import time
+from functools import wraps
+
+# Third-party imports
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 from scipy.stats import norm
-import os
-from src.api_model import EragAPI
-from src.settings import settings
-from src.look_and_feel import error, success, warning, info, highlight
-from src.print_pdf import PDFReportGenerator
-import matplotlib
-matplotlib.use('Agg')  # Use non-interactive backend
-import threading
-import time
-from functools import wraps
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from sklearn.cluster import DBSCAN
 from sklearn.ensemble import IsolationForest
-from sklearn.metrics import silhouette_score
+from sklearn.metrics import silhouette_score, mean_squared_error
 from statsmodels.tsa.arima.model import ARIMA
-from sklearn.metrics import mean_squared_error
-from scipy.stats import rankdata
-from statsmodels.tsa.seasonal import seasonal_decompose
 from statsmodels.tsa.stattools import adfuller
+from statsmodels.tsa.seasonal import seasonal_decompose
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend
+
+# Local imports
+from src.api_model import EragAPI
+from src.settings import settings
+from src.look_and_feel import error, success, warning, info, highlight
+from src.print_pdf import PDFReportGenerator
 from src.helper_da import get_technique_info
 
 class TimeoutException(Exception):

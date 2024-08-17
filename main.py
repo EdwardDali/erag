@@ -1,25 +1,23 @@
+# Standard library imports
 import sys
 from pathlib import Path
-
-# Add the project root directory to the Python path
-project_root = Path(__file__).parent
-sys.path.append(str(project_root))
-
-import warnings
-warnings.filterwarnings("ignore", category=FutureWarning, module="huggingface_hub.file_download")
-
-import threading
-from src.api_model import create_erag_api
-import tkinter as tk
-from tkinter import messagebox, ttk, filedialog, simpledialog
+import os
 import threading
 import asyncio
-import os
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Suppress TensorFlow logging
-from dotenv import load_dotenv, set_key  # Add set_key here
+import logging
+import tkinter as tk
+from tkinter import messagebox, ttk, filedialog, simpledialog
+
+# Third-party imports
+import warnings
+warnings.filterwarnings("ignore", category=FutureWarning, module="huggingface_hub.file_download")
+from dotenv import load_dotenv, set_key
+from sentence_transformers import SentenceTransformer
+
+# Local imports
+from src.api_model import create_erag_api, get_available_models, update_settings, EragAPI
 from src.talk2doc import RAGSystem
 from src.embeddings_utils import compute_and_save_embeddings, load_or_compute_embeddings
-from sentence_transformers import SentenceTransformer
 from src.create_graph import create_knowledge_graph, create_knowledge_graph_from_raw
 from src.settings import settings
 from src.search_utils import SearchUtils
@@ -27,7 +25,6 @@ from src.create_knol import KnolCreator
 from src.web_sum import WebSum
 from src.web_rag import WebRAG
 from src.route_query import RouteQuery
-from src.api_model import get_available_models, update_settings, EragAPI, create_erag_api
 from src.talk2model import Talk2Model
 from src.create_sum import run_create_sum
 from src.talk2url import Talk2URL
@@ -40,8 +37,8 @@ from src.talk2sd import Talk2SD
 from src.x_da import ExploratoryDataAnalysis
 from src.file_processing import upload_multiple_files, FileProcessor
 from src.self_knol import SelfKnolCreator
-from src.ax_da_b1 import AdvancedExploratoryDataAnalysisB1  
-from src.ax_da_b2 import AdvancedExploratoryDataAnalysisB2  
+from src.ax_da_b1 import AdvancedExploratoryDataAnalysisB1
+from src.ax_da_b2 import AdvancedExploratoryDataAnalysisB2
 from src.i_da import InnovativeDataAnalysis
 from src.ax_da_b3 import AdvancedExploratoryDataAnalysisB3
 from src.ax_da_b4 import AdvancedExploratoryDataAnalysisB4
@@ -52,6 +49,11 @@ from src.ax_da_b6 import AdvancedExploratoryDataAnalysisB6
 from src.ax_da_b7 import AdvancedExploratoryDataAnalysisB7
 from src.merge_sd import merge_structured_data
 from src.code_editor import CodeEditor
+
+
+# Add the project root directory to the Python path
+project_root = Path(__file__).parent
+sys.path.append(str(project_root))
 
 # Set up logging
 import logging

@@ -1,6 +1,11 @@
+# Standard library imports
 import os
-import fitz  # PyMuPDF
 from typing import List
+
+# Third-party imports
+import fitz  # PyMuPDF
+
+# Local imports
 from src.settings import settings
 from src.api_model import EragAPI
 from src.look_and_feel import success, info, warning, error

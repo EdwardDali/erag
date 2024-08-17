@@ -1,16 +1,20 @@
+# Standard library imports
+import logging
+import os
+import re
+import sys
+import time
+import random
+from urllib.parse import urljoin, quote_plus
+
+# Third-party imports
 import requests
 from bs4 import BeautifulSoup
-import json
-import os
-import sys
-import logging
-import re
-from urllib.parse import urljoin, quote_plus
+from duckduckgo_search import DDGS
+
+# Local imports
 from src.settings import settings
 from src.look_and_feel import success, info, warning, error
-import random
-import time
-from duckduckgo_search import DDGS
 from src.api_model import EragAPI, create_erag_api
 
 # Set up logging

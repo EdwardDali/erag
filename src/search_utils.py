@@ -1,14 +1,19 @@
+# Standard library imports
 import re
-import torch
-from sentence_transformers import util
-import logging
-from typing import List, Tuple
-import networkx as nx
-import spacy
-from src.settings import settings
 import os
 import json
+import logging
+from typing import List, Tuple
+
+# Third-party imports
+import torch
+from sentence_transformers import util
+import networkx as nx
+import spacy
 import numpy as np
+
+# Local imports
+from src.settings import settings
 from src.look_and_feel import success, info, warning, error
 
 class SearchUtils:

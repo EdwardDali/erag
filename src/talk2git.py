@@ -1,13 +1,18 @@
+# Standard library imports
 import logging
 import os
-import requests
+import time
+import base64
 from urllib.parse import urlparse
+
+# Third-party imports
+import requests
+from dotenv import load_dotenv
+
+# Local imports
 from src.settings import settings
 from src.api_model import EragAPI, create_erag_api
 from src.look_and_feel import success, info, warning, error
-import base64
-import time
-from dotenv import load_dotenv
 from src.print_pdf import PDFReportGenerator
 
 class Talk2Git:

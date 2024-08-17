@@ -1,12 +1,17 @@
+# Standard library imports
 import json
 import csv
+import time
+from typing import List, Dict, Any
+
+# Third-party imports
 import pyarrow as pa
 import pyarrow.parquet as pq
-from typing import List, Dict, Any
+
+# Local imports
 from src.settings import settings
 from src.look_and_feel import error, success, warning, info
-import time
-from src.api_model import create_erag_api  # Add this import
+from src.api_model import create_erag_api
 
 def read_qa_file(file_path: str) -> List[Dict[str, str]]:
     qa_pairs = []

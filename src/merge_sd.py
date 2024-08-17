@@ -1,3 +1,11 @@
+# Standard library imports
+import os
+import time
+import tkinter as tk
+from tkinter import messagebox
+from pathlib import Path
+
+# Third-party imports
 import pandas as pd
 import numpy as np
 from fuzzywuzzy import fuzz, process
@@ -5,11 +13,6 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from dateutil.parser import parse
 import jellyfish
-import os
-import tkinter as tk
-from tkinter import messagebox
-from pathlib import Path
-import time
 
 
 def load_file(file_path):

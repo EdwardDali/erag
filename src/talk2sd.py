@@ -1,9 +1,14 @@
+# Standard library imports
 import sqlite3
 import os
 from collections import deque
+
+# Third-party imports
+from sentence_transformers import SentenceTransformer
+
+# Local imports
 from src.settings import settings
 from src.look_and_feel import error, success, warning, info, highlight
-from sentence_transformers import SentenceTransformer
 
 class Talk2SD:
     def __init__(self, erag_api):

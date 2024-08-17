@@ -1,4 +1,14 @@
+# Standard library imports
+import os
 import sqlite3
+import threading
+import time
+from functools import wraps
+from datetime import datetime, timedelta
+import warnings
+import concurrent.futures
+
+# Third-party imports
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -10,25 +20,19 @@ from sklearn.ensemble import GradientBoostingRegressor
 from scipy.signal import periodogram
 from statsmodels.tsa.filters.hp_filter import hpfilter
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_squared_error
+from sklearn.metrics import mean_squared_error, mean_absolute_error
 from sklearn.linear_model import LinearRegression
-import os
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend
+from pmdarima import auto_arima
+import statsmodels.tsa.stattools
+
+# Local imports
 from src.api_model import EragAPI
 from src.settings import settings
 from src.look_and_feel import error, success, warning, info, highlight
 from src.print_pdf import PDFReportGenerator
-import matplotlib
-matplotlib.use('Agg')  # Use non-interactive backend
-import threading
-import time
-from functools import wraps
 from src.helper_da import get_technique_info
-from pmdarima import auto_arima
-from sklearn.metrics import mean_squared_error, mean_absolute_error
-import statsmodels.tsa.stattools
-import warnings
-import concurrent.futures
-from datetime import datetime, timedelta
 
 class TimeoutException(Exception):
     pass

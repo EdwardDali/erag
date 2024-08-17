@@ -1,3 +1,11 @@
+# Standard library imports
+import os
+import logging
+import threading
+import time
+from functools import wraps
+
+# Third-party imports
 import sqlite3
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -14,16 +22,14 @@ from statsmodels.graphics.tsaplots import plot_acf
 from statsmodels.tsa.statespace.tools import diff
 from scipy.stats import t, chi2, norm, jarque_bera
 from statsmodels.stats.diagnostic import lilliefors
-import os
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend
+
+# Local imports
 from src.api_model import EragAPI
 from src.settings import settings
 from src.look_and_feel import error, success, warning, info, highlight
 from src.print_pdf import PDFReportGenerator
-import matplotlib
-matplotlib.use('Agg')  # Use non-interactive backend
-import threading
-import time
-from functools import wraps
 from src.helper_da import get_technique_info
 
 class TimeoutException(Exception):

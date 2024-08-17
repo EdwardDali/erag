@@ -1,7 +1,12 @@
+# Standard library imports
 import os
 import re
-from src.settings import settings
+
+# Third-party imports
 from PyPDF2 import PdfReader
+
+# Local imports
+from src.settings import settings
 from src.api_model import EragAPI
 from src.look_and_feel import success, info, warning, error
 

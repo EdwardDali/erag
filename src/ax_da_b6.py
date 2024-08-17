@@ -1,4 +1,13 @@
+# Standard library imports
+import os
 import sqlite3
+import threading
+import time
+from functools import wraps
+import re
+from datetime import datetime, timedelta
+
+# Third-party imports
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -8,24 +17,20 @@ from statsmodels.tsa.seasonal import seasonal_decompose
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from scipy.stats import t
-import os
-from src.api_model import EragAPI
-from src.settings import settings
-from src.look_and_feel import error, success, warning, info, highlight
-from src.print_pdf import PDFReportGenerator
-import matplotlib
-matplotlib.use('Agg')  # Use non-interactive backend
-import threading
-import time
-from functools import wraps
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
 from scipy.spatial.distance import pdist, squareform
 from scipy.cluster.hierarchy import dendrogram, linkage
 from fuzzywuzzy import fuzz
 import itertools
-import re
-from datetime import datetime
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend
+
+# Local imports
+from src.api_model import EragAPI
+from src.settings import settings
+from src.look_and_feel import error, success, warning, info, highlight
+from src.print_pdf import PDFReportGenerator
 from src.helper_da import get_technique_info
 
 class TimeoutException(Exception):

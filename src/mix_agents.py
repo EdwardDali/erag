@@ -1,5 +1,8 @@
+# Standard library imports
 import asyncio
 from typing import List, Dict
+
+# Local imports
 from src.api_model import EragAPI, create_erag_api
 from src.settings import settings
 from src.look_and_feel import error, success, info, llm_response, user_input

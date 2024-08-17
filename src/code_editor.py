@@ -1,8 +1,11 @@
+# Standard library imports
 import os
 import zipfile
 import logging
 import re
 import datetime
+
+# Local imports
 from src.api_model import EragAPI
 from src.look_and_feel import error, success, warning, info
 from src.settings import settings

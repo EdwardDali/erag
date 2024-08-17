@@ -1,7 +1,12 @@
-import pandas as pd
-import sqlite3
+# Standard library imports
 import os
 import re
+
+# Third-party imports
+import pandas as pd
+import sqlite3
+
+# Local imports
 from src.settings import settings
 
 def sanitize_table_name(name):

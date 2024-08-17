@@ -1,17 +1,21 @@
-
-from src.settings import settings
+# Standard library imports
 import logging
+import os
+import re
+from collections import deque
+
+# Third-party imports
 from bs4 import BeautifulSoup
 import requests
 from duckduckgo_search import DDGS
-import re
-from sentence_transformers import SentenceTransformer
 import numpy as np
-from collections import deque
+from sentence_transformers import SentenceTransformer
+
+# Local imports
+from src.settings import settings
 from src.search_utils import SearchUtils
 from src.look_and_feel import success, info, warning, error
 from src.api_model import EragAPI, create_erag_api
-import os
 
 class WebRAG:
     def __init__(self, erag_api: EragAPI):

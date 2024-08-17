@@ -1,4 +1,11 @@
+# Standard library imports
+import os
 import sqlite3
+import threading
+import time
+from functools import wraps
+
+# Third-party imports
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -8,16 +15,14 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from sklearn.cluster import KMeans
 from sklearn.ensemble import RandomForestRegressor
-import os
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend
+
+# Local imports
 from src.api_model import EragAPI
 from src.settings import settings
 from src.look_and_feel import error, success, warning, info, highlight
 from src.print_pdf import PDFReportGenerator
-import matplotlib
-matplotlib.use('Agg')  # Use non-interactive backend
-import threading
-import time
-from functools import wraps
 from src.helper_da import get_technique_info
 
 class TimeoutException(Exception):

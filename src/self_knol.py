@@ -1,7 +1,10 @@
+# Standard library imports
 import os
 import logging
 import re
 from typing import List, Tuple
+
+# Local imports
 from src.settings import settings
 from src.api_model import EragAPI, create_erag_api
 from src.look_and_feel import success, info, warning, error, colorize, MAGENTA, RESET, user_input as color_user_input, llm_response as color_llm_response

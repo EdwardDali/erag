@@ -1,11 +1,15 @@
+# Standard library imports
 import os
+
+# Third-party imports
 from tqdm import tqdm
+
+# Local imports
 from src.settings import settings
 from src.api_model import EragAPI, create_erag_api
 from src.talk2doc import RAGSystem
 from src.web_rag import WebRAG
 from src.look_and_feel import success, info, warning, error
-from tqdm import tqdm
 
 def read_questions(file_path):
     with open(file_path, 'r', encoding='utf-8') as file:

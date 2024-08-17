@@ -1,9 +1,12 @@
+# Standard library imports
 import sys
 import logging
-from enum import Enum
-from src.settings import settings
 import re
 import os
+from enum import Enum
+
+# Local imports
+from src.settings import settings
 from src.api_model import EragAPI, create_erag_api
 from src.look_and_feel import success, info, warning, error, highlight
 

@@ -1,12 +1,17 @@
+# Standard library imports
 import logging
-from bs4 import BeautifulSoup
-import requests
-from src.settings import settings
-from src.api_model import EragAPI, create_erag_api
-from src.look_and_feel import success, info, warning, error
 import os
 import re
 import unicodedata
+
+# Third-party imports
+from bs4 import BeautifulSoup
+import requests
+
+# Local imports
+from src.settings import settings
+from src.api_model import EragAPI, create_erag_api
+from src.look_and_feel import success, info, warning, error
 
 class Talk2URL:
     def __init__(self, erag_api: EragAPI):

@@ -1,14 +1,18 @@
+# Standard library imports
 import sys
 import os
+import logging
+from typing import List, Dict
+from collections import deque
+
+# Third-party imports
 import torch
 import numpy as np
 from sentence_transformers import SentenceTransformer
-from typing import List, Dict
-import logging
-from collections import deque
-from src.embeddings_utils import load_embeddings_and_data
 import networkx as nx
-import json
+
+# Local imports
+from src.embeddings_utils import load_embeddings_and_data
 from src.search_utils import SearchUtils
 from src.settings import settings
 from src.api_model import EragAPI
