@@ -2171,37 +2171,32 @@ class ERAGGUI:
             supervisor_model = self.supervisor_model_var.get()
             manager_model = self.manager_model_var.get()
             
-            # Create separate EragAPI instances for worker, supervisor, and manager
             worker_erag_api = create_erag_api(api_type, worker_model)
             supervisor_erag_api = create_erag_api(api_type, supervisor_model)
             manager_erag_api = create_erag_api(api_type, manager_model) if manager_model != 'None' else None
             
             from src.mix_agents import run_mix_agents
             
-            # Apply settings
             settings.apply_settings()
             
-            # Create an informative message about the Mixture of Agents architecture
             architecture_info = (
-                "This Mixture of Agents module uses multiple models for comprehensive responses:\n\n"
+                "This enhanced Mixture of Agents module uses multiple models for comprehensive responses:\n\n"
                 f"Worker Model: {worker_model}\n"
                 f"Supervisor Model: {supervisor_model}\n"
                 f"Manager Model: {manager_model if manager_model != 'None' else 'Not used'}\n\n"
-                "The Worker and Supervisor models (and Manager, if available) will process each query. "
-                "The Supervisor model will then aggregate the responses for a final output."
+                "The models will process each query, with the Supervisor performing a critical analysis and synthesis of all responses. "
+                "The entire session will be logged and saved in the output folder upon completion."
             )
             
-            messagebox.showinfo("Mixture of Agents Process Started", 
+            messagebox.showinfo("Enhanced Mixture of Agents Process Started", 
                                 f"{architecture_info}\n\n"
                                 f"Mixture of Agents process started with {api_type} API.\n"
                                 "Check the console for interaction and progress updates.")
             
-            # Run the mixture of agents in a separate thread
             threading.Thread(target=run_mix_agents, args=(worker_erag_api, supervisor_erag_api, manager_erag_api), daemon=True).start()
             
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred while starting the Mixture of Agents process: {str(e)}")
-            
 
     def create_server_tab(self):
         # Enable/Disable on start
