@@ -2231,11 +2231,14 @@ class ERAGGUI:
             generator.generate_textbook()
             
             textbook_file = generator.textbook_file
+            output_folder = generator.output_folder
             print(success(f"Textbook on {subject} generated successfully."))
-            print(success(f"Textbook saved as: {textbook_file}"))
+            print(success(f"Main textbook file saved as: {textbook_file}"))
+            print(success(f"Individual chapter files saved in: {output_folder}"))
             
             messagebox.showinfo("Success", f"Textbook on {subject} generated successfully.\n"
-                                           f"Textbook saved as: {textbook_file}")
+                                        f"Main textbook file saved as: {textbook_file}\n"
+                                        f"Individual chapter files saved in: {output_folder}")
         except Exception as e:
             error_message = f"An error occurred during textbook generation: {str(e)}"
             print(error(error_message))
