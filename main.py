@@ -7,6 +7,7 @@ import asyncio
 import logging
 import tkinter as tk
 from tkinter import messagebox, ttk, filedialog, simpledialog
+import traceback
 
 # Third-party imports
 import warnings
@@ -49,6 +50,7 @@ from src.ax_da_b6 import AdvancedExploratoryDataAnalysisB6
 from src.ax_da_b7 import AdvancedExploratoryDataAnalysisB7
 from src.merge_sd import merge_structured_data
 from src.code_editor import CodeEditor
+from src.textbook_generator import TextbookGenerator
 
 
 # Add the project root directory to the Python path
@@ -507,10 +509,17 @@ class ERAGGUI:
         create_self_knol_button.pack(side="left", padx=5, pady=5)
         ToolTip(create_self_knol_button, "Create a knowledge artifact (Self Knol) using only the model's knowledge")
 
+        # Add the new CreateTextbook button
+        create_textbook_button = tk.Button(agent_frame, text="CreateTextbook", command=self.run_create_textbook)
+        create_textbook_button.pack(side="left", padx=5, pady=5)
+        ToolTip(create_textbook_button, "Generate a full-length, structured textbook")
+
         # Add the new CodeEditor button
         code_editor_button = tk.Button(agent_frame, text="CodeEditor", command=self.run_code_editor)
         code_editor_button.pack(side="left", padx=5, pady=5)
         ToolTip(code_editor_button, "Open the AI-powered Code Editor")
+
+
 
        
 
@@ -2197,6 +2206,41 @@ class ERAGGUI:
             
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred while starting the Mixture of Agents process: {str(e)}")
+
+    def run_create_textbook(self):
+        try:
+            api_type = self.api_type_var.get()
+            model = self.model_var.get()
+
+            # Get subject from console input
+            subject = input("Enter the subject for the textbook: ")
+            if not subject:
+                print(error("No subject entered. Exiting textbook generation."))
+                return
+
+            # Run the textbook generator in a separate thread
+            threading.Thread(target=self._create_textbook_thread, args=(subject, api_type, model), daemon=True).start()
+
+            print(info(f"Textbook generation started for '{subject}'. Check the console for progress."))
+        except Exception as e:
+            print(error(f"An error occurred while starting the textbook generation process: {str(e)}"))
+
+    def _create_textbook_thread(self, subject, api_type, model):
+        try:
+            generator = TextbookGenerator(api_type, model, subject)
+            generator.generate_textbook()
+            
+            textbook_file = generator.textbook_file
+            print(success(f"Textbook on {subject} generated successfully."))
+            print(success(f"Textbook saved as: {textbook_file}"))
+            
+            messagebox.showinfo("Success", f"Textbook on {subject} generated successfully.\n"
+                                           f"Textbook saved as: {textbook_file}")
+        except Exception as e:
+            error_message = f"An error occurred during textbook generation: {str(e)}"
+            print(error(error_message))
+            logging.error(f"Traceback: {traceback.format_exc()}")
+            messagebox.showerror("Error", error_message)
 
     def create_server_tab(self):
         # Enable/Disable on start
