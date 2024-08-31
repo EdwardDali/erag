@@ -15,6 +15,13 @@ class TextbookGenerator:
         os.makedirs(self.output_folder, exist_ok=True)
         self.textbook_file = os.path.join(self.output_folder, f"{subject.replace(' ', '_').lower()}_textbook.txt")
 
+    def save_chapter(self, chapter_number: int, chapter_name: str, content: str) -> str:
+        filename = f"chapter_{chapter_number:02d}_{chapter_name.replace(' ', '_').lower()}.txt"
+        filepath = os.path.join(self.output_folder, filename)
+        with open(filepath, 'w', encoding='utf-8') as f:
+            f.write(content)
+        return filepath
+
     def generate_chapter_names(self) -> List[str]:
         prompt = f"""Generate a concise table of contents for a textbook on {self.subject}.
         Please provide a list of 8-15 chapter titles, adhering to these strict guidelines:
@@ -98,6 +105,7 @@ class TextbookGenerator:
         print(info(f"Generating chapter names for {self.subject}..."))
         chapter_names = self.generate_chapter_names()
         
+        # Save table of contents
         with open(self.textbook_file, 'w', encoding='utf-8') as f:
             f.write(f"Textbook: {self.subject}\n\n")
             f.write("Table of Contents\n\n")
@@ -107,23 +115,24 @@ class TextbookGenerator:
 
         print(success(f"Table of Contents saved to {self.textbook_file}"))
 
+        # Generate and save each chapter
         for i, chapter in enumerate(tqdm(chapter_names, desc="Generating chapters"), 1):
             print(info(f"Generating content for {chapter}..."))
-            try:
-                chapter_content = self.generate_chapter_content(chapter, i)
-                
-                with open(self.textbook_file, 'a', encoding='utf-8') as f:
-                    f.write(chapter_content)
-                    f.write("=" * 50 + "\n\n")
+            chapter_content = self.generate_chapter_content(chapter, i)
+            
+            # Save chapter to individual file
+            chapter_file = self.save_chapter(i, chapter.split('. ', 1)[1], chapter_content)
+            print(success(f"Chapter {i} saved to {chapter_file}"))
+            
+            # Append chapter to main textbook file
+            with open(self.textbook_file, 'a', encoding='utf-8') as f:
+                f.write(chapter_content)
+                f.write("=" * 50 + "\n\n")
 
-                print(success(f"Chapter {i} appended to {self.textbook_file}"))
-            except Exception as e:
-                print(error(f"Failed to generate content for Chapter {i}: {str(e)}"))
-                with open(self.textbook_file, 'a', encoding='utf-8') as f:
-                    f.write(f"Chapter {i}: {chapter}\n\nContent generation failed. Please refer to the table of contents for this chapter's topic.\n\n")
-                    f.write("=" * 50 + "\n\n")
+            print(success(f"Chapter {i} appended to {self.textbook_file}"))
 
-        print(success(f"Textbook generation completed. File saved as {self.textbook_file}"))
+        print(success(f"Textbook generation completed. Main file saved as {self.textbook_file}"))
+        print(success(f"Individual chapter files saved in {self.output_folder}"))
 
 def run_create_textbook(self):
     try:
