@@ -50,7 +50,7 @@ from src.ax_da_b6 import AdvancedExploratoryDataAnalysisB6
 from src.ax_da_b7 import AdvancedExploratoryDataAnalysisB7
 from src.merge_sd import merge_structured_data
 from src.code_editor import CodeEditor
-from src.textbook_generator import TextbookGenerator
+from src.textbook_generator import TextbookGenerator, SupervisorTextbookGenerator
 
 
 # Add the project root directory to the Python path
@@ -2210,7 +2210,9 @@ class ERAGGUI:
     def run_create_textbook(self):
         try:
             api_type = self.api_type_var.get()
-            model = self.model_var.get()
+            worker_model = self.model_var.get()
+            supervisor_model = self.supervisor_model_var.get()
+            manager_model = self.manager_model_var.get()
 
             # Get subject from console input
             subject = input("Enter the subject for the textbook: ")
@@ -2218,31 +2220,30 @@ class ERAGGUI:
                 print(error("No subject entered. Exiting textbook generation."))
                 return
 
+            worker_erag_api = create_erag_api(api_type, worker_model)
+            supervisor_erag_api = create_erag_api(api_type, supervisor_model)
+            manager_erag_api = create_erag_api(api_type, manager_model) if manager_model != 'None' else None
+            
+            # Always use SupervisorTextbookGenerator, even if manager_erag_api is None
+            generator = SupervisorTextbookGenerator(worker_erag_api, supervisor_erag_api, manager_erag_api, subject)
+            
             # Run the textbook generator in a separate thread
-            threading.Thread(target=self._create_textbook_thread, args=(subject, api_type, model), daemon=True).start()
+            threading.Thread(target=self._create_textbook_thread, args=(generator,), daemon=True).start()
 
             print(info(f"Textbook generation started for '{subject}'. Check the console for progress."))
         except Exception as e:
-            print(error(f"An error occurred while starting the textbook generation process: {str(e)}"))
-
-    def _create_textbook_thread(self, subject, api_type, model):
-        try:
-            generator = TextbookGenerator(api_type, model, subject)
-            generator.generate_textbook()
-            
-            textbook_file = generator.textbook_file
-            output_folder = generator.output_folder
-            print(success(f"Textbook on {subject} generated successfully."))
-            print(success(f"Main textbook file saved as: {textbook_file}"))
-            print(success(f"Individual chapter files saved in: {output_folder}"))
-            
-            messagebox.showinfo("Success", f"Textbook on {subject} generated successfully.\n"
-                                        f"Main textbook file saved as: {textbook_file}\n"
-                                        f"Individual chapter files saved in: {output_folder}")
-        except Exception as e:
-            error_message = f"An error occurred during textbook generation: {str(e)}"
+            error_message = f"An error occurred while starting the textbook generation process: {str(e)}"
             print(error(error_message))
-            logging.error(f"Traceback: {traceback.format_exc()}")
+            messagebox.showerror("Error", error_message)
+
+    def _create_textbook_thread(self, generator):
+        try:
+            generator.generate_textbook()
+            print(success(f"Textbook generation completed for '{generator.subject}'. Check the output folder for results."))
+            messagebox.showinfo("Success", f"Textbook generation completed for '{generator.subject}'.\nOriginal textbook and improved version are saved in the output folder.")
+        except Exception as e:
+            error_message = f"An error occurred during the textbook generation process: {str(e)}"
+            print(error(error_message))
             messagebox.showerror("Error", error_message)
 
     def create_server_tab(self):
