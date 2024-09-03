@@ -25,6 +25,10 @@ tested on Windows 10
 ![ERAG GUI 1](https://github.com/EdwardDali/e-rag/blob/main/docs/gui1.PNG)
 ![ERAG GUI 2](https://github.com/EdwardDali/e-rag/blob/main/docs/gui2.PNG)
 ![ERAG GUI 3](https://github.com/EdwardDali/e-rag/blob/main/docs/gui3.PNG)
+![ERAG GUI 3](https://github.com/EdwardDali/e-rag/blob/main/docs/da1.PNG)
+![ERAG GUI 3](https://github.com/EdwardDali/e-rag/blob/main/docs/da2.PNG)
+![ERAG GUI 3](https://github.com/EdwardDali/e-rag/blob/main/docs/da3.PNG)
+![ERAG GUI 3](https://github.com/EdwardDali/e-rag/blob/main/docs/da4.PNG)
 
 ## Key Features
 
