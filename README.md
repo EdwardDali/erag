@@ -167,105 +167,316 @@ Customize ERAG's behavior through the Settings tab in the GUI or by modifying `s
 
 # Comprehensive List of Data Analytics Techniques
 
-1. Basic Statistics
-2. Data Types and Missing Values Analysis
-3. Numerical Features Distribution
-4. Correlation Analysis
-5. Categorical Features Analysis
-6. Outlier Detection
-7. Data Quality Report
-8. Hypothesis Testing Suggestions
-9. Value Counts Analysis
-10. Grouped Summary Statistics
-11. Frequency Distribution Analysis
-12. KDE Plot Analysis
-13. Violin Plot Analysis
-14. Pair Plot Analysis
-15. Box Plot Analysis
-16. Scatter Plot Analysis
-17. Time Series Analysis
-18. Feature Importance Analysis
-19. Principal Component Analysis (PCA)
-20. Cluster Analysis
-21. Correlation Network Analysis
-22. Q-Q Plot Analysis
-23. Parallel Coordinates Plot
-24. Andrews Curves
-25. Radar Charts
-26. Sankey Diagrams
-27. Bubble Charts
-28. Geographical Plots
-29. Word Clouds
-30. Hierarchical Clustering Dendrogram
-31. Empirical Cumulative Distribution Function (ECDF) Plots
-32. Ridgeline Plots
-33. Hexbin Plots
-34. Mosaic Plots
-35. Lag Plots
-36. Shapley Value Analysis
-37. Partial Dependence Plots
-38. Factor Analysis
-39. Multidimensional Scaling (MDS)
-40. t-Distributed Stochastic Neighbor Embedding (t-SNE)
-41. Conditional Plots
-42. Individual Conditional Expectation (ICE) Plots
-43. Time Series Decomposition
-44. Autocorrelation Plots
-45. Bayesian Networks
-46. Isolation Forest
-47. One-Class SVM
-48. Local Outlier Factor (LOF)
-49. Robust Principal Component Analysis (RPCA)
-50. Bayesian Change Point Detection
-51. Hidden Markov Models (HMMs)
-52. Dynamic Time Warping (DTW)
-53. Matrix Profile
-54. Ensemble Anomaly Detection
-55. Gaussian Mixture Models (GMM)
-56. Expectation-Maximization Algorithm
-57. Statistical Process Control (SPC) Charts
-58. Z-Score and Modified Z-Score Analysis
-59. Mahalanobis Distance
-60. Box-Cox Transformation
-61. Grubbs' Test
-62. Chauvenet's Criterion
-63. Benford's Law Analysis
-64. Forensic Accounting Techniques
-65. Network Analysis for Fraud Detection
-66. Sequence Alignment and Matching
-67. Conformal Anomaly Detection
-68. Cook's Distance Analysis
-69. STL Decomposition Analysis
-70. Hampel Filter Analysis
-71. GESD Test Analysis
-72. Dixon's Q Test Analysis
-73. Peirce's Criterion Analysis
-74. Thompson Tau Test Analysis
-75. Control Charts Analysis (CUSUM, EWMA)
-76. KDE Anomaly Detection Analysis
-77. Hotelling's T-squared Analysis
-78. Breakdown Point Analysis
-79. Chi-Square Test Analysis
-80. Simple Thresholding Analysis
-81. Lilliefors Test Analysis
-82. Jarque-Bera Test Analysis
-83. Adaptive Multi-dimensional Pattern Recognition (AMPR)
-84. Enhanced Time Series Forecasting (ETSF)
-85. Trend Analysis
-86. Variance Analysis
-87. Regression Analysis (simple and multiple)
-88. Stratification Analysis
-89. Gap Analysis
-90. Duplicate Detection
-91. Process Mining
-92. Data Validation Techniques
-93. Risk Scoring Models
-94. Fuzzy Matching
-95. Continuous Auditing Techniques
-96. Sensitivity Analysis
-97. Scenario Analysis
-98. Monte Carlo Simulation
-99. Key Performance Indicator (KPI) Analysis
+1. **Overall Table Analysis**
+   - Row and column count
+   - Data type distribution
+   - Memory usage calculation
+   - Missing value analysis
+   - Unique value counts
+
+2. **Statistical Analysis**
+   - Descriptive statistics (mean, median, standard deviation, min, max)
+   - Skewness and kurtosis calculation
+   - Visualization of statistical measures
+
+3. **Correlation Analysis**
+   - Correlation matrix computation
+   - Heatmap visualization of correlations
+   - Identification of high correlations
+   - Analysis of top positive and negative correlations
+
+4. **Categorical Features Analysis**
+   - Value counts for categorical variables
+   - Bar plots and pie charts for category distribution
+   - Analysis of top categories
+
+5. **Distribution Analysis**
+   - Histogram with Kernel Density Estimation (KDE)
+   - Q-Q (Quantile-Quantile) plots
+   - Normality assessment
+
+6. **Outlier Detection**
+   - Interquartile Range (IQR) method
+   - Box plots for visualizing outliers
+   - Calculation of outlier percentages
+
+7. **Time Series Analysis**
+   - Identification of date columns
+   - Time series plotting
+   - Trend visualization over time
+
+8. **Feature Importance Analysis**
+   - Random Forest Regressor for feature importance
+   - Visualization of feature importance
+
+9. **Dimensionality Reduction Analysis**
+   - Principal Component Analysis (PCA)
+   - Scree plot for explained variance
+   - Cumulative explained variance plot
+
+10. **Cluster Analysis**
+    - K-means clustering
+    - Elbow method for optimal cluster number
+    - 2D projection of clusters using PCA
+
+11. **Adaptive Multi-dimensional Pattern Recognition (AMPR)**
+    - Standardization of numeric data
+    - Principal Component Analysis (PCA) for dimensionality reduction
+    - DBSCAN clustering with adaptive epsilon selection
+    - Silhouette score optimization for clustering
+    - Isolation Forest for anomaly detection
+    - Visualization of clusters and anomalies in reduced dimensional space
+    - Feature correlation analysis in the transformed space
+
+12. **Enhanced Time Series Forecasting (ETSF)**
+    - Augmented Dickey-Fuller test for stationarity
+    - Seasonal decomposition of time series
+    - ARIMA modeling with exogenous variables
+    - Incorporation of lag features and Fourier terms for seasonality
+    - Time series cross-validation
+    - Forecast evaluation using Mean Squared Error (MSE) and Root Mean Squared Error (RMSE)
+    - Visualization of observed data, trend, seasonality, residuals, and forecasts
+
+13. **Value Counts Analysis**
+    - Pie chart visualization of categorical variable distributions
+
+14. **Grouped Summary Statistics**
+    - Calculation of summary statistics grouped by categorical variables
+
+15. **Frequency Distribution Analysis**
+    - Histogram plots with Kernel Density Estimation (KDE)
+
+16. **KDE Plot Analysis**
+    - Kernel Density Estimation plots for continuous variables
+
+17. **Violin Plot Analysis**
+    - Visualization of data distribution across categories
+
+18. **Pair Plot Analysis**
+    - Scatter plots for all pairs of numerical variables
+
+19. **Box Plot Analysis**
+    - Visualization of data distribution and outliers
+
+20. **Scatter Plot Analysis**
+    - Visualization of relationships between pairs of variables
+
+21. **Correlation Network Analysis**
+    - Network graph of correlations between variables
+
+22. **Q-Q Plot Analysis**
+    - Quantile-Quantile plots for assessing normality
+
+23. **Factor Analysis**
+    - Identification of underlying factors in the data
+
+24. **Multidimensional Scaling (MDS)**
+    - Visualization of high-dimensional data in lower dimensions
+
+25. **t-Distributed Stochastic Neighbor Embedding (t-SNE)**
+    - Non-linear dimensionality reduction for data visualization
+
+26. **Conditional Plots**
+    - Visualization of relationships between variables conditioned on categories
+
+27. **Individual Conditional Expectation (ICE) Plots**
+    - Visualization of model predictions for individual instances
+
+28. **STL Decomposition Analysis**
+    - Seasonal and Trend decomposition using Loess
+
+29. **Autocorrelation Plots**
+    - Visualization of serial correlation in time series data
+
+30. **Bayesian Networks**
+    - Probabilistic graphical models for representing dependencies
+
+31. **Isolation Forest**
+    - Anomaly detection using isolation trees
+
+32. **One-Class SVM**
+    - Anomaly detection using support vector machines
+
+33. **Local Outlier Factor (LOF)**
+    - Anomaly detection based on local density deviation
+
+34. **Robust PCA**
+    - Principal Component Analysis robust to outliers
+
+35. **Bayesian Change Point Detection**
+    - Detection of changes in time series data
+
+36. **Hidden Markov Models (HMMs)**
+    - Modeling of sequential data with hidden states
+
+37. **Dynamic Time Warping (DTW)**
+    - Measurement of similarity between temporal sequences
+
+38. **Matrix Profile**
+    - Time series motif discovery and anomaly detection
+
+39. **Ensemble Anomaly Detection**
+    - Combination of multiple anomaly detection methods
+
+40. **Gaussian Mixture Models (GMM)**
+    - Probabilistic model for representing normally distributed subpopulations
+
+41. **Expectation-Maximization Algorithm**
+    - Iterative method for finding maximum likelihood estimates
+
+42. **Statistical Process Control (SPC) Charts**
+    - CUSUM (Cumulative Sum) and EWMA (Exponentially Weighted Moving Average) charts
+
+43. **KDE Anomaly Detection**
+    - Anomaly detection using Kernel Density Estimation
+
+44. **Hotelling's T-squared Analysis**
+    - Multivariate statistical process control
+
+45. **Breakdown Point Analysis**
+    - Assessment of the robustness of statistical estimators
+
+46. **Chi-Square Test Analysis**
+    - Test for independence between categorical variables
+
+47. **Simple Thresholding Analysis**
+    - Basic method for anomaly detection
+
+48. **Lilliefors Test Analysis**
+    - Test for normality of the data
+
+49. **Jarque-Bera Test Analysis**
+    - Test for normality based on skewness and kurtosis
+
+50. **Cook's Distance Analysis**
+    - Identification of influential data points in regression analysis
+
+51. **Hampel Filter Analysis**
+    - Robust outlier detection in time series data
+
+52. **GESD Test Analysis**
+    - Generalized Extreme Studentized Deviate Test for outliers
+
+53. **Dixon's Q Test Analysis**
+    - Identification of outliers in small sample sizes
+
+54. **Peirce's Criterion Analysis**
+    - Method for eliminating outliers from data samples
+
+55. **Thompson Tau Test Analysis**
+    - Statistical technique for detecting a single outlier in a dataset
+
+56. **Sequence Alignment and Matching**
+    - Techniques for comparing and aligning sequences (e.g., in text data)
+
+57. **Conformal Anomaly Detection**
+    - Anomaly detection with statistical guarantees
+
+58. **Trend Analysis**
+    - Time series plotting
+    - Trend visualization over time
+    - Calculation of trend statistics (start, end, change, percent change)
+
+59. **Variance Analysis**
+    - Calculation of variance for numeric columns
+    - Visualization of variance across different variables
+
+60. **Regression Analysis**
+    - Simple linear regression for pairs of numeric columns
+    - Calculation of R-squared, coefficients, and intercepts
+
+61. **Stratification Analysis**
+    - Data grouping and aggregation
+    - Box plot visualization of stratified data
+
+62. **Gap Analysis**
+    - Comparison of current values to target values
+    - Calculation of gaps and gap percentages
+
+63. **Duplicate Detection**
+    - Identification of duplicate rows
+    - Calculation of duplicate percentages
+
+64. **Process Mining**
+    - Analysis of process sequences
+    - Visualization of top process flows
+
+65. **Data Validation Techniques**
+    - Checking for missing values, negative values, and out-of-range values
+
+66. **Risk Scoring Models**
+    - Development of simple risk scoring models
+    - Visualization of risk distributions
+
+67. **Fuzzy Matching**
+    - Identification of similar text entries
+    - Calculation of string similarity ratios
+
+68. **Continuous Auditing Techniques**
+    - Ongoing analysis of data for anomalies and outliers
+
+69. **Sensitivity Analysis**
+    - Assessment of impact of variable changes on outcomes
+
+70. **Scenario Analysis**
+    - Creation and comparison of different business scenarios
+
+71. **Monte Carlo Simulation**
+    - Generation of multiple simulated scenarios
+    - Analysis of probabilistic outcomes
+
+72. **KPI Analysis**
+    - Definition and calculation of Key Performance Indicators
+
+73. **ARIMA (AutoRegressive Integrated Moving Average) Analysis**
+    - Time series forecasting
+    - Model parameter optimization
+
+74. **Auto ARIMAX Analysis**
+    - ARIMA with exogenous variables
+    - Automatic model selection
+
+75. **Exponential Smoothing**
+    - Time series smoothing and forecasting
+    - Handling of trends and seasonality
+
+76. **Holt-Winters Method**
+    - Triple exponential smoothing
+    - Handling of level, trend, and seasonal components
+
+77. **SARIMAX (Seasonal AutoRegressive Integrated Moving Average with eXogenous factors) Analysis**
+    - Seasonal time series forecasting
+    - Incorporation of external factors
+
+78. **Gradient Boosting for Time Series**
+    - Machine learning approach to time series forecasting
+    - Feature importance analysis in time series context
+
+79. **Fourier Analysis**
+    - Frequency domain analysis of time series
+    - Identification of dominant frequencies
+
+80. **Trend Extraction**
+    - Separation of trend and cyclical components
+    - Use of Hodrick-Prescott filter
+
+81. **Cross-Sectional Regression**
+    - Analysis of relationships between variables at a single point in time
+
+82. **Ensemble Time Series**
+    - Combination of multiple time series models
+    - Improved forecast accuracy through model averaging
+
+83. **Bootstrapping Time Series**
+    - Resampling techniques for time series data
+    - Estimation of forecast uncertainty
+
+84. **Theta Method**
+    - Decomposition-based forecasting method
+    - Combination of linear regression and Simple Exponential Smoothing
+
+This comprehensive list covers a wide range of data analytics techniques, from basic statistical analysis to advanced machine learning and time series forecasting methods, demonstrating a thorough approach to exploratory and innovative data analysis.
+
 
 ## Troubleshooting
 
