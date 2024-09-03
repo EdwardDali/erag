@@ -165,6 +165,32 @@ Customize ERAG's behavior through the Settings tab in the GUI or by modifying `s
 - **Self Knol Creation**: Utilizes a multi-model approach to create, refine, and evaluate comprehensive knowledge entries on specific subjects.
 - **Iterative Knowledge Improvement**: Implements an iterative process with AI-driven feedback and improvement cycles to enhance the quality and depth of knowledge entries.
 
+# Data Analytics with LLM used in this aplication
+
+**Data Preprocessing Techniques**
+- Data type conversion (e.g., string to datetime)
+- Sorting data (for time series analysis)
+- Standardization of numerical features
+
+**Visualization Techniques**
+- Various plot types: bar plots, pie charts, line plots, scatter plots, heatmaps
+- Use of libraries like Matplotlib and Seaborn for visualization
+
+**Performance Optimization**
+- Use of timeouts to handle long-running operations
+
+**Automated Reporting**
+- Generation of text reports
+- Creation of PDF reports with embedded visualizations
+
+**Natural Language Processing (NLP)**
+- Use of language models for interpreting analysis results
+- Generating human-readable insights from data analysis
+
+**Business Intelligence**
+- Extraction of key findings and insights
+- Formulation of business implications and recommendations based on data analysis
+
 # Comprehensive List of Data Analytics Techniques
 
 1. **Overall Table Analysis**
