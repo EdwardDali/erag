@@ -66,7 +66,9 @@ class RagTextbookGenerator:
 
     def generate_subchapter_names(self, chapter_name: str, num_subchapters: int = 10) -> List[str]:
         system_message = "You are an expert in creating detailed outlines for textbook chapters."
-        query = f"Generate a list of {num_subchapters} subchapter titles for the chapter '{chapter_name}'. Each line should contain only the subchapter title, numbered from 1 to {num_subchapters}."
+        query = f"""Generate a list of {num_subchapters} subchapter titles for the chapter '{chapter_name}'. 
+        Ensure these subchapters expand on the main chapter topic without repeating the chapter's title or main content.
+        Each line should contain only the subchapter title, numbered from 1 to {num_subchapters}."""
 
         response = self.get_rag_response(query, system_message, self.worker_erag_api)
         subchapter_names = [line.strip() for line in response.split('\n') if line.strip()]
@@ -141,7 +143,19 @@ class RagTextbookGenerator:
             f.write(f"Expanded RAG Textbook: {subject}\n\n")
             f.write("Table of Contents\n\n")
 
-        # Improve and expand each chapter
+        # First, copy the original table of contents
+        with open(self.textbook_file, 'r', encoding='utf-8') as original, open(self.improved_textbook_file, 'a', encoding='utf-8') as improved:
+            for line in original:
+                if line.strip() == "Table of Contents":
+                    improved.write(line)
+                    break
+            for line in original:
+                if line.strip().startswith("Chapter 1:"):
+                    break
+                improved.write(line)
+            improved.write("\n" + "=" * 50 + "\n\n")
+
+        # Now expand each chapter
         for chapter_num in tqdm(range(1, 11), desc="Expanding chapters"):
             chapter_file = os.path.join(self.output_folder, f"chapter_{chapter_num:02d}_*.txt")
             chapter_files = glob.glob(chapter_file)
@@ -152,24 +166,33 @@ class RagTextbookGenerator:
             with open(chapter_files[0], 'r', encoding='utf-8') as f:
                 original_content = f.read()
 
-            chapter_name = original_content.split('\n')[0].split(': ', 1)[1]
-            print(info(f"Expanding content for Chapter {chapter_num}: {chapter_name}"))
+            # More robust chapter name extraction
+            chapter_name = f"Chapter {chapter_num}"
+            for line in original_content.split('\n'):
+                if line.strip().startswith(f"Chapter {chapter_num}:"):
+                    chapter_name = line.strip()
+                    break
+            
+            print(info(f"Expanding content for {chapter_name}"))
 
+            # Keep the original chapter content
+            improved_content = original_content + "\n\n"
+
+            # Generate and add subchapters
             subchapter_names = self.generate_subchapter_names(chapter_name, num_subchapters=10)
-            improved_content = f"Chapter {chapter_num}: {chapter_name}\n\n"
-
-            for subchapter_num, subchapter_name in enumerate(tqdm(subchapter_names, desc=f"Generating subchapters for Chapter {chapter_num}"), 1):
+            
+            for subchapter_num, subchapter_name in enumerate(tqdm(subchapter_names, desc=f"Generating subchapters for {chapter_name}"), 1):
                 subchapter_content = self.generate_content(subchapter_name, is_subchapter=True)
-                improved_content += f"{subchapter_num}. {subchapter_name}\n\n{subchapter_content}\n\n"
+                improved_content += f"{chapter_num}.{subchapter_num}. {subchapter_name}\n\n{subchapter_content}\n\n"
 
             # Final review by manager (if available)
             if self.manager_erag_api:
                 system_message = "You are a senior textbook editor reviewing and finalizing expanded chapter content."
-                query = f"Review and finalize the following expanded chapter content for our textbook on {subject}. Ensure quality, accuracy, and alignment with the overall textbook structure."
+                query = f"Review and finalize the following expanded chapter content for our textbook on {subject}. Ensure quality, accuracy, and alignment with the overall textbook structure. Preserve the original high-level structure and introductory content."
                 improved_content = self.get_rag_response(query + "\n\n" + improved_content, system_message, self.manager_erag_api)
 
             # Save improved chapter
-            self.save_content(improved_content, f"improved_chapter_{chapter_num:02d}_{chapter_name}.txt", is_improved=True)
+            self.save_content(improved_content, f"improved_{chapter_name.replace(':', '')}.txt", is_improved=True)
             
             # Append improved chapter to the new main textbook file
             with open(self.improved_textbook_file, 'a', encoding='utf-8') as f:
