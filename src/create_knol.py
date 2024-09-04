@@ -30,17 +30,20 @@ class KnolCreator:
         self.supervisor_erag_api = supervisor_erag_api
         self.manager_erag_api = manager_erag_api
         self.embedding_model = SentenceTransformer(settings.sentence_transformer_model)
-        self.db_embeddings, _, self.db_content = self.load_embeddings()
+        self.db_embeddings, self.db_indexes, self.db_content = self.load_embeddings()
         self.conversation_history = []
         self.new_entries = []
         self.conversation_context = deque(maxlen=settings.conversation_context_size * 2)
         self.knowledge_graph = self.load_knowledge_graph()
-        self.search_utils = SearchUtils(self.embedding_model, self.db_embeddings, self.db_content, self.knowledge_graph)
+        self.search_utils = SearchUtils(self.worker_erag_api, self.embedding_model, self.db_embeddings, self.db_content, self.knowledge_graph)
         self.output_folder = None
         os.makedirs(settings.output_folder, exist_ok=True)
 
     def load_embeddings(self):
-        return load_or_compute_embeddings(self.worker_erag_api, settings.db_file_path, settings.embeddings_file_path)
+        embeddings, indexes, content = load_or_compute_embeddings(self.worker_erag_api, settings.db_file_path, settings.embeddings_file_path)
+        if isinstance(embeddings, list):
+            embeddings = torch.tensor(embeddings)
+        return embeddings, indexes, content
 
     def load_knowledge_graph(self):
         try:
@@ -59,21 +62,24 @@ class KnolCreator:
             return nx.Graph()
 
     def get_response(self, query: str, system_message: str, api: EragAPI) -> str:
+        if isinstance(self.db_embeddings, list):
+            self.db_embeddings = torch.tensor(self.db_embeddings)
+        
         lexical_context, semantic_context, graph_context, text_context = self.search_utils.get_relevant_context(query, list(self.conversation_context))
         
         combined_context = f"""Conversation Context:\n{' '.join(self.conversation_context)}
 
-Lexical Search Results:
-{' '.join(lexical_context)}
+    Lexical Search Results:
+    {' '.join(lexical_context)}
 
-Semantic Search Results:
-{' '.join(semantic_context)}
+    Semantic Search Results:
+    {' '.join(semantic_context)}
 
-Knowledge Graph Context:
-{' '.join(graph_context)}
+    Knowledge Graph Context:
+    {' '.join(graph_context)}
 
-Text Search Results:
-{' '.join(text_context)}"""
+    Text Search Results:
+    {' '.join(text_context)}"""
 
         messages = [
             {"role": "system", "content": system_message},

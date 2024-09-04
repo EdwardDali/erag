@@ -78,7 +78,13 @@ def extract_questions(input_file, output_file):
     return len(extracted_questions)
 
 def run_create_q(file_path, api_type, client):
-    erag_api = EragAPI(api_type)
+    # Get the embedding class and model from settings
+    embedding_class = settings.get_default_embedding_class()
+    embedding_model = settings.get_default_embedding_model(embedding_class)
+
+    # Create the EragAPI instance with the correct parameters
+    erag_api = EragAPI(api_type, embedding_class=embedding_class, embedding_model=embedding_model)
+
 
 
     # Get the base name of the input file
