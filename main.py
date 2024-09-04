@@ -51,6 +51,7 @@ from src.ax_da_b7 import AdvancedExploratoryDataAnalysisB7
 from src.merge_sd import merge_structured_data
 from src.code_editor import CodeEditor
 from src.textbook_generator import TextbookGenerator, SupervisorTextbookGenerator
+from src.textbook_rag import RagTextbookGenerator
 
 
 # Add the project root directory to the Python path
@@ -613,6 +614,11 @@ class ERAGGUI:
         create_knol_button = tk.Button(rag_frame, text="Create Knol", command=self.create_knol)              
         create_knol_button.pack(side="left", padx=5, pady=5)
         ToolTip(create_knol_button, "Create a knowledge artifact (Knol) from processed documents")
+
+        # New Rag Textbook button
+        rag_textbook_button = tk.Button(rag_frame, text="Rag Textbook", command=self.run_rag_textbook)
+        rag_textbook_button.pack(side="left", padx=5, pady=5)
+        ToolTip(rag_textbook_button, "Generate a textbook using RAG for each chapter and sub-chapter")
 
         create_sum_button = tk.Button(rag_frame, text="Create Sum", command=self.run_create_sum)
         create_sum_button.pack(side="left", padx=5, pady=5)
@@ -2245,6 +2251,44 @@ class ERAGGUI:
             error_message = f"An error occurred during the textbook generation process: {str(e)}"
             print(error(error_message))
             messagebox.showerror("Error", error_message)
+
+    def run_rag_textbook(self):
+        try:
+            api_type = self.api_type_var.get()
+            worker_model = self.model_var.get()
+            supervisor_model = self.supervisor_model_var.get()
+            manager_model = self.manager_model_var.get()
+            
+            # Get subject from console input
+            subject = input("Enter the subject for the RAG textbook: ")
+            if not subject:
+                print(error("No subject entered. Exiting RAG textbook generation."))
+                return
+
+            # Create separate EragAPI instances for worker, supervisor, and manager
+            worker_erag_api = create_erag_api(api_type, worker_model)
+            supervisor_erag_api = create_erag_api(api_type, supervisor_model)
+            manager_erag_api = create_erag_api(api_type, manager_model) if manager_model != 'None' else None
+            
+            from src.textbook_rag import RagTextbookGenerator
+            generator = RagTextbookGenerator(worker_erag_api, supervisor_erag_api, manager_erag_api)
+            
+            # Apply settings to RagTextbookGenerator
+            settings.apply_settings()
+            
+            # Run the RAG textbook generator in a separate thread
+            threading.Thread(target=generator.run_rag_textbook_generator, args=(subject,), daemon=True).start()
+            
+            print(info(f"RAG Textbook generation started for '{subject}'. Check the console for progress."))
+            messagebox.showinfo("RAG Textbook Generation Started", 
+                                f"RAG Textbook generation process started for '{subject}' with {api_type} API.\n"
+                                "Check the console for interaction and progress updates.")
+            
+        except Exception as e:
+            error_message = f"An error occurred while starting the RAG textbook generation process: {str(e)}"
+            print(error(error_message))
+            messagebox.showerror("Error", error_message)
+
 
     def create_server_tab(self):
         # Enable/Disable on start
