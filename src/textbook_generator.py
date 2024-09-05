@@ -147,32 +147,18 @@ class SupervisorTextbookGenerator(TextbookGenerator):
         os.makedirs(self.improved_output_folder, exist_ok=True)
         self.improved_textbook_file = os.path.join(self.improved_output_folder, f"{subject.replace(' ', '_').lower()}_improved_textbook.txt")
 
-    def generate_subchapter_names(self, chapter_content: str) -> List[str]:
-        prompt = f"""Based on the following chapter content for our {self.subject} textbook, generate 10 subchapter titles that would expand on this content.
-        Each subchapter should explore a specific aspect of the main chapter in more depth.
-
-        Chapter content:
-        {chapter_content}
-
-        Please provide a list of 10 subchapter titles, following these guidelines:
-        1. Each line should contain only one subchapter title.
-        2. Start each line with a number, followed by a period and a space.
-        3. Ensure the subchapters cover the chapter's topic comprehensively and in a logical order.
-        4. Keep subchapter titles concise and descriptive.
-
-        Generate the list of 10 subchapter titles now:"""
+    def generate_subchapter_names(self, chapter_name: str, num_subchapters: int = 10) -> List[str]:
+        prompt = f"""Generate a list of {num_subchapters} subchapter titles for the chapter '{chapter_name}'. 
+        Ensure these subchapters expand on the main chapter topic without repeating the chapter's title or main content.
+        Each line should contain only the subchapter title, numbered from 1 to {num_subchapters}."""
 
         response = self.supervisor_erag_api.chat([{"role": "user", "content": prompt}])
-        subchapter_names = [line.strip() for line in response.split('\n') if line.strip() and '. ' in line]
-        
-        # Ensure we have exactly 10 subchapters
-        while len(subchapter_names) < 10:
-            subchapter_names.append(f"{len(subchapter_names) + 1}. Additional Subtopic on {self.subject}")
-        return subchapter_names[:10]
+        subchapter_names = [line.strip() for line in response.split('\n') if line.strip()]
+        return subchapter_names[:num_subchapters]
 
-    def generate_subchapter_content(self, chapter_number: int, subchapter_name: str, original_content: str) -> str:
+    def generate_subchapter_content(self, chapter_name: str, subchapter_name: str, original_content: str) -> str:
         prompt = f"""Expand on the following subchapter for our improved textbook on {self.subject}.
-        Chapter {chapter_number}, Subchapter: {subchapter_name}
+        Chapter: {chapter_name}, Subchapter: {subchapter_name}
 
         Use the original chapter content as inspiration, but significantly expand and deepen the coverage of this specific subtopic.
         Your task is to:
@@ -190,42 +176,27 @@ class SupervisorTextbookGenerator(TextbookGenerator):
 
         return self.supervisor_erag_api.chat([{"role": "user", "content": prompt}])
 
-    def improve_chapter(self, chapter_number: int, original_content: str) -> str:
-        print(info(f"Expanding Chapter {chapter_number}..."))
+    def expand_chapter(self, chapter_num: int, chapter_name: str, original_content: str) -> str:
+        print(info(f"Expanding content for {chapter_name}"))
 
-        # Generate subchapter names
-        subchapter_names = self.generate_subchapter_names(original_content)
+        # Keep the original chapter content
+        improved_content = original_content + "\n\n"
 
-        # Generate content for each subchapter
-        improved_content = f"Chapter {chapter_number}\n\n"
-        for i, subchapter_name in enumerate(tqdm(subchapter_names, desc=f"Expanding subchapters for Chapter {chapter_number}")):
-            subchapter_content = self.generate_subchapter_content(chapter_number, subchapter_name, original_content)
-            improved_content += f"{i+1}. {subchapter_name}\n\n{subchapter_content}\n\n"
+        # Generate and add subchapters
+        subchapter_names = self.generate_subchapter_names(chapter_name, num_subchapters=10)
+        
+        for subchapter_num, subchapter_name in enumerate(tqdm(subchapter_names, desc=f"Generating subchapters for {chapter_name}"), 1):
+            subchapter_content = self.generate_subchapter_content(chapter_name, subchapter_name, original_content)
+            improved_content += f"{chapter_num}.{subchapter_num}. {subchapter_name}\n\n{subchapter_content}\n\n"
 
         # Final review by manager (if available)
         if self.manager_erag_api:
-            manager_prompt = f"""Review and finalize the following expanded chapter content for our textbook on {self.subject}.
-            Your task is to:
-            1. Ensure the content meets the highest standards of quality and accuracy.
-            2. Make any final improvements or adjustments.
-            3. Verify that the chapter aligns well with the overall textbook structure.
-            4. Ensure smooth transitions between subchapters.
-
-            Expanded content:
-            {improved_content}
-
-            Please provide the final, manager-approved version of the chapter:"""
-            
-            improved_content = self.manager_erag_api.chat([{"role": "user", "content": manager_prompt}])
+            manager_prompt = f"""Review and finalize the following expanded chapter content for our textbook on {self.subject}. 
+            Ensure quality, accuracy, and alignment with the overall textbook structure. 
+            Preserve the original high-level structure and introductory content."""
+            improved_content = self.manager_erag_api.chat([{"role": "user", "content": manager_prompt + "\n\n" + improved_content}])
 
         return improved_content
-
-    def save_improved_chapter(self, chapter_number: int, content: str) -> str:
-        filename = f"improved_chapter_{chapter_number:02d}.txt"
-        filepath = os.path.join(self.improved_output_folder, filename)
-        with open(filepath, 'w', encoding='utf-8') as f:
-            f.write(content)
-        return filepath
 
     def generate_textbook(self) -> None:
         # First, generate the original textbook using the worker model
@@ -233,33 +204,48 @@ class SupervisorTextbookGenerator(TextbookGenerator):
 
         print(info(f"Original textbook generation completed. Now expanding each chapter..."))
 
-        # Find all chapter files
-        chapter_files = sorted(glob.glob(os.path.join(self.output_folder, "chapter_*.txt")))
-        
         # Create a new table of contents for the improved version
         with open(self.improved_textbook_file, 'w', encoding='utf-8') as f:
             f.write(f"Expanded Textbook: {self.subject}\n\n")
             f.write("Table of Contents\n\n")
 
-        # Improve and expand each chapter
-        for i, chapter_file in enumerate(tqdm(chapter_files, desc="Expanding chapters"), 1):
+        # First, copy the original table of contents
+        with open(self.textbook_file, 'r', encoding='utf-8') as original, open(self.improved_textbook_file, 'a', encoding='utf-8') as improved:
+            for line in original:
+                if line.strip() == "Table of Contents":
+                    improved.write(line)
+                    break
+            for line in original:
+                if line.strip().startswith("Chapter 1:"):
+                    break
+                improved.write(line)
+            improved.write("\n" + "=" * 50 + "\n\n")
+
+        # Now expand each chapter
+        chapter_files = sorted(glob.glob(os.path.join(self.output_folder, "chapter_*.txt")))
+        for chapter_num, chapter_file in enumerate(tqdm(chapter_files, desc="Expanding chapters"), 1):
             with open(chapter_file, 'r', encoding='utf-8') as f:
                 original_content = f.read()
 
-            print(info(f"Expanding content for Chapter {i}..."))
-            improved_content = self.improve_chapter(i, original_content)
+            # Extract chapter name
+            chapter_name = f"Chapter {chapter_num}"
+            for line in original_content.split('\n'):
+                if line.strip().startswith(f"Chapter {chapter_num}:"):
+                    chapter_name = line.strip()
+                    break
             
-            # Save improved chapter to a new file
-            improved_chapter_file = self.save_improved_chapter(i, improved_content)
-            print(success(f"Expanded Chapter {i} saved to {improved_chapter_file}"))
+            improved_content = self.expand_chapter(chapter_num, chapter_name, original_content)
+
+            # Save improved chapter
+            improved_chapter_file = os.path.join(self.improved_output_folder, f"improved_{chapter_name.replace(':', '')}.txt")
+            with open(improved_chapter_file, 'w', encoding='utf-8') as f:
+                f.write(improved_content)
+            print(success(f"Expanded Chapter {chapter_num} saved to {improved_chapter_file}"))
             
             # Append improved chapter to the new main textbook file
             with open(self.improved_textbook_file, 'a', encoding='utf-8') as f:
-                f.write(f"Chapter {i}\n\n")
                 f.write(improved_content)
                 f.write("\n" + "=" * 50 + "\n\n")
-
-            print(success(f"Expanded Chapter {i} appended to {self.improved_textbook_file}"))
 
         print(success(f"Expanded textbook generation completed. Improved file saved as {self.improved_textbook_file}"))
         print(success(f"Individual expanded chapter files saved in {self.improved_output_folder}"))
