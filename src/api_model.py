@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 from groq import Groq
 from openai import OpenAI
 from sentence_transformers import SentenceTransformer
+import google.generativeai as genai
 
 # Local imports
 from src.look_and_feel import error, success, warning, info
@@ -48,7 +49,32 @@ class EragAPI:
 
     def chat(self, messages, temperature=0.7, max_tokens=None, stream=False):
         try:
-            if self.api_type in ["llama", "groq", "gemini"]:
+            if self.api_type == "gemini":
+                model = genai.GenerativeModel(self.model)
+                
+                # Format messages for Gemini API
+                formatted_messages = []
+                for message in messages:
+                    if message['role'] == 'system':
+                        # Prepend system messages to the user's first message
+                        formatted_messages.append({"role": "user", "parts": [{"text": f"System: {message['content']}"}]})
+                    elif message['role'] in ['user', 'assistant']:
+                        formatted_messages.append({"role": message['role'], "parts": [{"text": message['content']}]})
+                
+                # If there are no user messages, add an empty one to avoid API errors
+                if not any(msg['role'] == 'user' for msg in formatted_messages):
+                    formatted_messages.append({"role": "user", "parts": [{"text": " "}]})
+                
+                response = model.generate_content(
+                    formatted_messages,
+                    generation_config=genai.types.GenerationConfig(
+                        temperature=temperature,
+                        max_output_tokens=max_tokens,
+                    ),
+                    stream=stream
+                )
+                return response if stream else response.text
+            elif self.api_type in ["llama", "groq"]:
                 return self.client.chat(messages, temperature=temperature, max_tokens=max_tokens, stream=stream)
             response = self.client.chat.completions.create(
                 model=self.model, messages=messages, temperature=temperature, max_tokens=max_tokens, stream=stream

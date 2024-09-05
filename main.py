@@ -14,6 +14,7 @@ import warnings
 warnings.filterwarnings("ignore", category=FutureWarning, module="huggingface_hub.file_download")
 from dotenv import load_dotenv, set_key
 from sentence_transformers import SentenceTransformer
+import google.generativeai as genai
 
 # Local imports
 from src.api_model import create_erag_api, get_available_models, update_settings, EragAPI
@@ -395,6 +396,13 @@ class ERAGGUI:
         
         if api_type == "llama":
             models = self.server_manager.get_gguf_models()
+        elif api_type == "gemini":
+            try:
+                genai.configure(api_key=self.gemini_api_key)
+                models = [model.name for model in genai.list_models() if 'generateContent' in model.supported_generation_methods]
+            except Exception as e:
+                print(f"Error fetching Gemini models: {str(e)}")
+                models = []
         else:
             models = get_available_models(api_type)
 
@@ -404,7 +412,7 @@ class ERAGGUI:
         self.model_menu['values'] = models
         self.supervisor_model_menu['values'] = models
         self.manager_model_menu['values'] = manager_models
-        self.reranker_model_menu['values'] = models  # Add this line for re-ranker model
+        self.reranker_model_menu['values'] = models
 
         if models:
             # Set worker model
@@ -2406,8 +2414,10 @@ class ERAGGUI:
                     raise Exception("Failed to start the llama.cpp server.")
             elif api_type == "groq" and not self.groq_api_key:
                 raise Exception("Groq API Key is not set. Please set it in the settings.")
-            elif api_type == "gemini" and not self.gemini_api_key:
-                raise Exception("Gemini API Key is not set. Please set it in the settings.")
+            elif api_type == "gemini":
+                if not self.gemini_api_key:
+                    raise Exception("Gemini API Key is not set. Please set it in the .env file or settings.")
+                genai.configure(api_key=self.gemini_api_key)
             
             # Create and run the RAG system
             from src.talk2doc import RAGSystem
