@@ -982,9 +982,8 @@ class ERAGGUI:
             api_type = self.api_type_var.get()
             model = self.model_var.get()
             
-            # Create the RouteQuery instance with EragAPI
-            erag_api = EragAPI(api_type)
-            route_query = RouteQuery(erag_api)
+            # Create and run the RouteQuery instance
+            route_query = RouteQuery(api_type, model)
             
             # Apply settings to RouteQuery
             settings.apply_settings()

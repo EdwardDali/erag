@@ -14,10 +14,11 @@ from src.look_and_feel import success, info, warning, error, highlight
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class RouteQuery:
-    def __init__(self, erag_api: EragAPI):
-        self.erag_api = erag_api
-        # Ensure output folder exists
-        os.makedirs(settings.output_folder, exist_ok=True)
+    def __init__(self, api_type: str, model: str = None):
+        embedding_class = settings.get_default_embedding_class()
+        embedding_model = settings.get_default_embedding_model(embedding_class)
+        reranker_model = settings.reranker_model
+        self.erag_api = create_erag_api(api_type, model, embedding_class, embedding_model, reranker_model)
 
 
     def load_db_content(self):
@@ -218,9 +219,8 @@ class RouteQuery:
 
             self.route_query(user_input, evaluation)
 
-def main(api_type: str):
-    erag_api = create_erag_api(api_type)
-    route_query = RouteQuery(erag_api)
+def main(api_type: str, model: str = None):
+    route_query = RouteQuery(api_type, model)
     route_query.run()
 
 if __name__ == "__main__":
