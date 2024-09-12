@@ -5,7 +5,7 @@
 You can use this application to:
 
 1. Talk **privately** with your documents using Ollama or talk **fast** using Groq and others.
-2. Perform Retrieval-Augmented Generation activities (**RAG**) using various APIs (Ollama, LLaMA, Groq, Gemini). 
+2. Perform Retrieval-Augmented Generation activities (**RAG**) using various APIs (Ollama, LLaMA, Groq, Gemini, Cohere). 
 3. Perform AI powered **web search**.
 4. Talk with a **specific url**.
 5. Analyze and summarize **GitHub** repositories.
