@@ -46,6 +46,7 @@ class Settings:
         self.llama_model: str = "llama-default"
         self.groq_model: str = "llama3-groq-8b-8192-tool-use-preview"
         self.gemini_model: str = "gemini-pro"
+        self.cohere_model: str = "command-r-plus"
         self.temperature: float = 0.1
         self.model_name: str = "all-MiniLM-L6-v2"
         self.default_manager_model: Optional[str] = None
@@ -163,7 +164,8 @@ class Settings:
             "ollama": self.ollama_model,
             "llama": self.llama_model,
             "groq": self.groq_model,
-            "gemini": self.gemini_model
+            "gemini": self.gemini_model,
+            "cohere": self.cohere_model 
         }
         if api_type not in api_models:
             raise ValueError(f"Unknown API type: {api_type}")

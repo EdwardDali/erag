@@ -8,6 +8,7 @@ import logging
 import tkinter as tk
 from tkinter import messagebox, ttk, filedialog, simpledialog
 import traceback
+import cohere
 
 # Third-party imports
 import warnings
@@ -115,6 +116,7 @@ class ERAGGUI:
         self.groq_api_key = os.getenv("GROQ_API_KEY", "")
         self.github_token = os.getenv("GITHUB_TOKEN", "")
         self.gemini_api_key = os.getenv("GEMINI_API_KEY", "")
+        self.cohere_api_key = os.getenv("CO_API_KEY", "")
         self.file_processor = FileProcessor()
         self.supervisor_model_var = tk.StringVar(master)
         self.manager_model_var = tk.StringVar(master)
@@ -293,7 +295,7 @@ class ERAGGUI:
 
         #  API Type selection
         tk.Label(model_frame, text="API Type:").grid(row=0, column=0, padx=5, pady=5, sticky="e")
-        api_options = ["ollama", "llama", "groq", "gemini"]
+        api_options = ["ollama", "llama", "groq", "gemini", "cohere"]
         api_menu = ttk.Combobox(model_frame, textvariable=self.api_type_var, values=api_options, state="readonly", width=15)
         api_menu.grid(row=0, column=1, padx=5, pady=5)
         api_menu.bind("<<ComboboxSelected>>", self.update_model_list)
@@ -412,10 +414,8 @@ class ERAGGUI:
         self.model_menu['values'] = models
         self.supervisor_model_menu['values'] = models
         self.manager_model_menu['values'] = manager_models
-        self.reranker_model_menu['values'] = models
 
         if models:
-            # Set worker model
             if api_type == "ollama":
                 if settings.ollama_model in models:
                     self.model_var.set(settings.ollama_model)
@@ -438,6 +438,13 @@ class ERAGGUI:
                     new_default = models[0]
                     self.model_var.set(new_default)
                     settings.update_setting("gemini_model", new_default)
+            elif api_type == "cohere":
+                if settings.cohere_model in models:
+                    self.model_var.set(settings.cohere_model)
+                else:
+                    new_default = models[0]
+                    self.model_var.set(new_default)
+                    settings.update_setting("cohere_model", new_default)
             else:
                 self.model_var.set(models[0])
 
@@ -451,20 +458,12 @@ class ERAGGUI:
             else:
                 self.manager_model_var.set('None')
 
-            # Set re-ranker model
-            if settings.reranker_model in models:
-                self.reranker_model_var.set(settings.reranker_model)
-            else:
-                self.reranker_model_var.set(models[0])
-                settings.update_setting("reranker_model", models[0])
-
             if not self.is_initializing:
                 self.update_model_setting()
         else:
             self.model_var.set("")
             self.supervisor_model_var.set("")
             self.manager_model_var.set('None')
-            self.reranker_model_var.set("")
         
         if self.is_initializing:
             self.is_initializing = False
@@ -478,7 +477,6 @@ class ERAGGUI:
         print(success(f"Selected worker model: {self.model_var.get()}"))
         print(success(f"Selected supervisor model: {self.supervisor_model_var.get()}"))
         print(success(f"Selected manager model: {self.manager_model_var.get()}"))
-        print(success(f"Selected re-ranker model: {self.reranker_model_var.get()}"))
 
     def update_embedding_model_setting(self, event=None):
         embedding_class = self.embedding_class_var.get()
@@ -814,6 +812,11 @@ class ERAGGUI:
         self.gemini_api_key_var = tk.StringVar(value=self.gemini_api_key)
         ttk.Entry(api_frame, textvariable=self.gemini_api_key_var, show="*").grid(row=len(api_frame.grid_slaves())-1, column=1, sticky="w", padx=5, pady=2)
 
+        # Cohere API Key field
+        ttk.Label(api_frame, text="Cohere API Key:").grid(row=len(api_frame.grid_slaves()), column=0, sticky="e", padx=5, pady=2)
+        self.cohere_api_key_var = tk.StringVar(value=self.cohere_api_key)
+        ttk.Entry(api_frame, textvariable=self.cohere_api_key_var, show="*").grid(row=len(api_frame.grid_slaves())-1, column=1, sticky="w", padx=5, pady=2)
+
 
         # GitHub Token field
         ttk.Label(github_frame, text="GitHub Token:").grid(row=0, column=0, sticky="e", padx=5, pady=2)
@@ -920,9 +923,10 @@ class ERAGGUI:
                 settings.update_setting(key, value)
 
         
-        # Update Groq API Key and GitHub Token in .env file
+        # Update API Keys in .env file
         self.update_env_file("GROQ_API_KEY", self.groq_api_key_var.get())
         self.update_env_file("GEMINI_API_KEY", self.gemini_api_key_var.get())
+        self.update_env_file("CO_API_KEY", self.cohere_api_key_var.get())
         self.update_env_file("GITHUB_TOKEN", self.github_token_var.get())
 
         # Apply dataset generation settings
@@ -2417,6 +2421,8 @@ class ERAGGUI:
                 if not self.gemini_api_key:
                     raise Exception("Gemini API Key is not set. Please set it in the .env file or settings.")
                 genai.configure(api_key=self.gemini_api_key)
+            elif api_type == "cohere" and not self.cohere_api_key:
+                raise Exception("Cohere API Key is not set. Please set it in the .env file or settings.")
             
             # Create and run the RAG system
             from src.talk2doc import RAGSystem
@@ -2444,9 +2450,20 @@ class ERAGGUI:
             self.gemini_api_key = simpledialog.askstring("Gemini API Key", "Please enter your Gemini API Key:", show='*')
             if self.gemini_api_key:
                 self.update_env_file("GEMINI_API_KEY", self.gemini_api_key)
-                messagebox.showinfo("Success", "Gemini API Key has been saved.")
+                os.environ["GEMINI_API_KEY"] = self.gemini_api_key
+                genai.configure(api_key=self.gemini_api_key)
+                messagebox.showinfo("Success", "Gemini API Key has been saved and configured.")
             else:
                 messagebox.showwarning("Warning", "Gemini API Key is required to use the Gemini API.")
+        elif self.api_type_var.get() == "cohere" and not self.cohere_api_key:
+            self.cohere_api_key = simpledialog.askstring("Cohere API Key", "Please enter your Cohere API Key:", show='*')
+            if self.cohere_api_key:
+                self.update_env_file("CO_API_KEY", self.cohere_api_key)
+                messagebox.showinfo("Success", "Cohere API Key has been saved.")
+            else:
+                messagebox.showwarning("Warning", "Cohere API Key is required to use the Cohere API.")
+
+        
 
 
 def main():

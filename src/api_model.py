@@ -11,6 +11,10 @@ from groq import Groq
 from openai import OpenAI
 from sentence_transformers import SentenceTransformer
 import google.generativeai as genai
+import cohere
+import cohere
+
+
 
 # Local imports
 from src.look_and_feel import error, success, warning, info
@@ -30,9 +34,11 @@ class EragAPI:
             "ollama": lambda: OpenAI(base_url='http://localhost:11434/v1', api_key='ollama'),
             "llama": LlamaClient,
             "groq": lambda: GroqClient(self.model),
-            "gemini": lambda: GeminiClient(self.model)
+            "gemini": lambda: GeminiClient(self.model),
+            "cohere": lambda: CohereClient(self.model)
         }
         self.client = clients.get(api_type, lambda: ValueError(error("Invalid API type")))()
+
 
         embedding_clients = {
             "ollama": lambda: OpenAI(base_url='http://localhost:11434/v1', api_key='ollama'),
@@ -56,12 +62,10 @@ class EragAPI:
                 formatted_messages = []
                 for message in messages:
                     if message['role'] == 'system':
-                        # Prepend system messages to the user's first message
                         formatted_messages.append({"role": "user", "parts": [{"text": f"System: {message['content']}"}]})
                     elif message['role'] in ['user', 'assistant']:
                         formatted_messages.append({"role": message['role'], "parts": [{"text": message['content']}]})
                 
-                # If there are no user messages, add an empty one to avoid API errors
                 if not any(msg['role'] == 'user' for msg in formatted_messages):
                     formatted_messages.append({"role": "user", "parts": [{"text": " "}]})
                 
@@ -74,7 +78,7 @@ class EragAPI:
                     stream=stream
                 )
                 return response if stream else response.text
-            elif self.api_type in ["llama", "groq"]:
+            elif self.api_type in ["llama", "groq", "cohere"]:
                 return self.client.chat(messages, temperature=temperature, max_tokens=max_tokens, stream=stream)
             response = self.client.chat.completions.create(
                 model=self.model, messages=messages, temperature=temperature, max_tokens=max_tokens, stream=stream
@@ -85,7 +89,7 @@ class EragAPI:
 
     def complete(self, prompt, temperature=0.7, max_tokens=None, stream=False):
         try:
-            if self.api_type in ["llama", "groq", "gemini"]:
+            if self.api_type in ["llama", "groq", "gemini", "cohere"]:
                 return self.client.complete(prompt, temperature=temperature, max_tokens=max_tokens, stream=stream)
             response = self.client.completions.create(
                 model=self.model, prompt=prompt, temperature=temperature, max_tokens=max_tokens, stream=stream
@@ -94,8 +98,14 @@ class EragAPI:
         except Exception as e:
             return error(f"An error occurred: {str(e)}")
 
+    def _stream_cohere_response(self, response):
+        for event in response:
+            if event.event_type == "text-generation":
+                yield event.text
+
+    
 def update_settings(settings, api_type, model):
-    setting_map = {"ollama": "ollama_model", "llama": "llama_model", "groq": "groq_model", "gemini": "gemini_model"}
+    setting_map = {"ollama": "ollama_model", "llama": "llama_model", "groq": "groq_model", "gemini": "gemini_model", "cohere": "cohere_model"}
     if api_type in setting_map:
         settings.update_setting(setting_map[api_type], model)
         settings.apply_settings()
@@ -191,16 +201,85 @@ class GeminiClient:
         for chunk in response:
             yield chunk.text
 
+class CohereClient:
+    def __init__(self, model):
+        self.client = cohere.Client(api_key=os.getenv("CO_API_KEY"))
+        self.model = model
+
+    def chat(self, messages, temperature=0.7, max_tokens=None, stream=False):
+        try:
+            # Convert messages to Cohere format
+            cohere_messages = []
+            for message in messages:
+                if message['role'] == 'system':
+                    cohere_messages.append({"role": "USER", "message": f"System: {message['content']}"})
+                elif message['role'] in ['user', 'assistant']:
+                    cohere_messages.append({"role": "USER" if message['role'] == 'user' else "CHATBOT", "message": message['content']})
+
+            if stream:
+                response = self.client.chat_stream(
+                    model=self.model,
+                    message=cohere_messages[-1]['message'] if cohere_messages else "",
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    chat_history=cohere_messages[:-1] if len(cohere_messages) > 1 else None,
+                )
+                return response  # This will be an iterator for streaming
+            else:
+                response = self.client.chat(
+                    model=self.model,
+                    message=cohere_messages[-1]['message'] if cohere_messages else "",
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    chat_history=cohere_messages[:-1] if len(cohere_messages) > 1 else None,
+                )
+                return response.text
+        except Exception as e:
+            return error(f"An error occurred with Cohere API: {str(e)}")
+
+    def complete(self, prompt, temperature=0.7, max_tokens=None, stream=False):
+        try:
+            response = self.client.generate(
+                model=self.model,
+                prompt=prompt,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                stream=stream
+            )
+            return response.generations[0].text if not stream else response
+        except Exception as e:
+            return error(f"An error occurred with Cohere API: {str(e)}")
+
+    def get_default_model(self):
+        try:
+            models = self.list_models()
+            return models[0] if models else None
+        except Exception:
+            return None
+
+    def list_models(self):
+        try:
+            response = self.client.models.list()
+            # The response is now a GetModelResponse object, not a dict
+            return [model.name for model in response.models if 'chat' in model.endpoints]
+        except Exception as e:
+            print(error(f"Error listing Cohere models: {str(e)}"))
+            return []
+
 def get_available_models(api_type, server_manager=None):
     model_fetchers = {
         "ollama": lambda: [model.split()[0] for model in subprocess.run(["ollama", "list"], capture_output=True, text=True).stdout.strip().split('\n')[1:] if model.split()[0] not in ['failed', 'NAME']],
         "llama": lambda: server_manager.get_gguf_models() if server_manager else [],
         "groq": lambda: [model.id for model in Groq(api_key=os.getenv("GROQ_API_KEY")).models.list().data],
-        "gemini": lambda: [model.name for model in genai.list_models() if 'generateContent' in model.supported_generation_methods]
+        "gemini": lambda: [model.name for model in genai.list_models() if 'generateContent' in model.supported_generation_methods],
+        "cohere": lambda: CohereClient(None).list_models()
     }
     
     try:
-        return model_fetchers.get(api_type, lambda: [])()
+        models = model_fetchers.get(api_type, lambda: [])()
+        if not models:
+            print(warning(f"No models found for {api_type}. Please check your API key and internet connection."))
+        return models
     except Exception as e:
         print(error(f"Error fetching models for {api_type}: {str(e)}"))
         return []
