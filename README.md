@@ -114,9 +114,10 @@ pip install torch==2.3.1 torchvision==0.18.1 torchaudio==2.3.1 --index-url https
    - Create a `.env` file in the project root
    - Add the following variables (if applicable):
      ```
-     GROQ_API_KEY=your_groq_api_key
-     GITHUB_TOKEN=your_github_token
-     GEMINI_API_KEY=your_gemini_api_key
+      GROQ_API_KEY='your_groq_api_key_here'
+      GEMINI_API_KEY='your_gemini_api_key_here'
+      CO_API_KEY='your_cohere_api_key_here'
+      GITHUB_TOKEN='your_github_token_here'
      ```
 
 ## Usage
