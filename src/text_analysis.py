@@ -1,26 +1,19 @@
-# Standard library imports
 import os
 import re
 from collections import defaultdict
-
-# Third-party imports
 import spacy
 import matplotlib.pyplot as plt
 import networkx as nx
 from PyPDF2 import PdfReader
-from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image
-from reportlab.lib.styles import getSampleStyleSheet
 from wordcloud import WordCloud
 from tqdm import tqdm
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.cluster import AgglomerativeClustering
+from sklearn.decomposition import LatentDirichletAllocation
 import numpy as np
-
-# Local imports
 from src.settings import settings
 from src.api_model import EragAPI
 from src.look_and_feel import success, info, warning, error
+from src.print_pdf import PDFReportGenerator
 
 # Load spaCy model
 nlp = spacy.load("en_core_web_sm")
@@ -40,8 +33,41 @@ def read_pdf(file_path):
         text += page.extract_text() + "\n"
     return text
 
+def clean_text(text):
+    # Remove Project Gutenberg license and metadata
+    start_marker = "*** START OF THE PROJECT GUTENBERG EBOOK"
+    end_marker = "*** END OF THE PROJECT GUTENBERG EBOOK"
+    start = text.find(start_marker)
+    end = text.find(end_marker)
+    if start != -1 and end != -1:
+        text = text[start + len(start_marker):end]
+    
+    # Remove extra whitespace and newlines
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text
+
 def chunk_text(text, chunk_size):
-    return [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]
+    sentences = nlp(text).sents
+    chunks = []
+    current_chunk = []
+    current_size = 0
+    
+    for sentence in sentences:
+        sentence_text = sentence.text.strip()
+        sentence_size = len(sentence_text.split())
+        
+        if current_size + sentence_size > chunk_size and current_chunk:
+            chunks.append(' '.join(current_chunk))
+            current_chunk = []
+            current_size = 0
+        
+        current_chunk.append(sentence_text)
+        current_size += sentence_size
+    
+    if current_chunk:
+        chunks.append(' '.join(current_chunk))
+    
+    return chunks
 
 def generate_summary(erag_api, chunk):
     prompt = f"""Summarize the following text, focusing on key concepts and main ideas:
@@ -58,66 +84,72 @@ Summary:"""
     response = erag_api.chat(messages, temperature=settings.temperature)
     return response.strip()
 
-def generate_key_concepts(doc):
-    return [token.text for token in doc if token.pos_ in ['NOUN', 'PROPN', 'VERB'] and not token.is_stop]
+def extract_key_concepts(doc, n=30):
+    concept_freq = defaultdict(int)
+    for token in doc:
+        if token.pos_ in ['NOUN', 'PROPN', 'VERB'] and not token.is_stop:
+            concept_freq[token.lemma_] += 1
+    
+    return sorted(concept_freq.items(), key=lambda x: x[1], reverse=True)[:n]
 
-def create_concept_graph(text):
+def create_concept_graph(text, n=20):
     doc = nlp(text)
-    concepts = generate_key_concepts(doc)
+    concepts = extract_key_concepts(doc, n)
     
     G = nx.Graph()
-    for i, concept in enumerate(concepts[:-1]):
-        G.add_edge(concept, concepts[i+1])
+    for concept, freq in concepts:
+        G.add_node(concept, weight=freq)
+    
+    window_size = 5
+    for i in range(len(doc) - window_size):
+        window = doc[i:i+window_size]
+        window_concepts = [token.lemma_ for token in window if token.lemma_ in dict(concepts)]
+        for j in range(len(window_concepts)):
+            for k in range(j+1, len(window_concepts)):
+                if G.has_edge(window_concepts[j], window_concepts[k]):
+                    G[window_concepts[j]][window_concepts[k]]['weight'] += 1
+                else:
+                    G.add_edge(window_concepts[j], window_concepts[k], weight=1)
     
     return G
 
 def visualize_concept_graph(G, output_path):
     plt.figure(figsize=(12, 8))
-    pos = nx.spring_layout(G)
-    nx.draw(G, pos, with_labels=True, node_color='lightblue', node_size=500, font_size=8, font_weight='bold')
+    pos = nx.spring_layout(G, k=0.5, iterations=50)
+    node_sizes = [G.nodes[node]['weight'] * 100 for node in G.nodes()]
+    edge_weights = [G[u][v]['weight'] for u, v in G.edges()]
+    
+    nx.draw(G, pos, with_labels=True, node_color='lightblue', node_size=node_sizes,
+            font_size=8, font_weight='bold', edge_color='gray', width=edge_weights)
+    
     plt.title("Concept Relationship Graph")
-    plt.savefig(output_path)
+    plt.savefig(output_path, dpi=300, bbox_inches='tight')
     plt.close()
 
 def generate_word_cloud(text, output_path):
-    wordcloud = WordCloud(width=800, height=400, background_color='white').generate(text)
+    wordcloud = WordCloud(width=800, height=400, background_color='white',
+                          colormap='viridis', max_font_size=100, min_font_size=10).generate(text)
     plt.figure(figsize=(10, 5))
     plt.imshow(wordcloud, interpolation='bilinear')
     plt.axis('off')
     plt.title("Word Cloud")
-    plt.savefig(output_path)
+    plt.savefig(output_path, dpi=300, bbox_inches='tight')
     plt.close()
 
-def generate_taxonomy(text_chunks):
-    vectorizer = TfidfVectorizer(max_features=1000)
+def perform_topic_modeling(text_chunks, num_topics=5):
+    vectorizer = TfidfVectorizer(max_features=1000, stop_words='english')
     tfidf_matrix = vectorizer.fit_transform(text_chunks)
     
-    clustering = AgglomerativeClustering(n_clusters=None, distance_threshold=0.5)
-    clustering.fit(tfidf_matrix.toarray())
+    lda = LatentDirichletAllocation(n_components=num_topics, random_state=42)
+    lda.fit(tfidf_matrix)
     
-    taxonomy = {}
-    for i, label in enumerate(clustering.labels_):
-        if label not in taxonomy:
-            taxonomy[label] = []
-        taxonomy[label].append(text_chunks[i])
+    feature_names = vectorizer.get_feature_names_out()
+    topics = []
+    for topic_idx, topic in enumerate(lda.components_):
+        top_words = [feature_names[i] for i in topic.argsort()[:-10 - 1:-1]]
+        topics.append((topic_idx, top_words))
     
-    return taxonomy
-
-def visualize_taxonomy(taxonomy, output_path):
-    G = nx.Graph()
-    for label, chunks in taxonomy.items():
-        G.add_node(f"Topic {label}")
-        for i, chunk in enumerate(chunks):
-            subtopic = f"Subtopic {label}.{i}"
-            G.add_node(subtopic)
-            G.add_edge(f"Topic {label}", subtopic)
-    
-    plt.figure(figsize=(12, 8))
-    pos = nx.spring_layout(G)
-    nx.draw(G, pos, with_labels=True, node_color='lightgreen', node_size=3000, font_size=8, font_weight='bold')
-    plt.title("Content Taxonomy")
-    plt.savefig(output_path)
-    plt.close()
+    return topics
 
 def extract_definitions(text):
     patterns = [
@@ -136,49 +168,9 @@ def extract_definitions(text):
     
     return glossary
 
-def generate_pdf_report(output_folder, file_name, summary, glossary, taxonomy):
-    pdf_path = os.path.join(output_folder, f"{file_name}_analysis_report.pdf")
-    doc = SimpleDocTemplate(pdf_path, pagesize=letter)
-    styles = getSampleStyleSheet()
-    story = []
-
-    # Title
-    story.append(Paragraph("Text Analysis Report", styles['Title']))
-    story.append(Spacer(1, 12))
-
-    # Summary
-    story.append(Paragraph("Summary:", styles['Heading2']))
-    story.append(Paragraph(summary, styles['BodyText']))
-    story.append(Spacer(1, 12))
-
-    # Glossary
-    story.append(Paragraph("Glossary:", styles['Heading2']))
-    for term, definitions in glossary.items():
-        story.append(Paragraph(f"<b>{term}</b>: {'; '.join(definitions)}", styles['BodyText']))
-    story.append(Spacer(1, 12))
-
-    # Taxonomy
-    story.append(Paragraph("Content Taxonomy:", styles['Heading2']))
-    for label, chunks in taxonomy.items():
-        story.append(Paragraph(f"Topic {label}:", styles['Heading3']))
-        for i, chunk in enumerate(chunks):
-            story.append(Paragraph(f"Subtopic {label}.{i}: {chunk[:100]}...", styles['BodyText']))
-    story.append(Spacer(1, 12))
-
-    # Concept Graph
-    story.append(Paragraph("Concept Relationship Graph:", styles['Heading2']))
-    story.append(Image(os.path.join(output_folder, "concept_graph.png"), width=400, height=300))
-    story.append(Spacer(1, 12))
-
-    # Word Cloud
-    story.append(Paragraph("Word Cloud:", styles['Heading2']))
-    story.append(Image(os.path.join(output_folder, "word_cloud.png"), width=400, height=200))
-
-    doc.build(story)
-    return pdf_path
-
 def run_text_analysis(file_path, erag_api):
     content = read_file_content(file_path)
+    content = clean_text(content)
     chunks = chunk_text(content, settings.file_chunk_size)
     
     output_folder = os.path.join(settings.output_folder, "text_analysis_output")
@@ -201,18 +193,57 @@ def run_text_analysis(file_path, erag_api):
     word_cloud_output = os.path.join(output_folder, "word_cloud.png")
     generate_word_cloud(content, word_cloud_output)
     
-    print(info("Generating taxonomy..."))
-    taxonomy = generate_taxonomy(chunks)
-    taxonomy_output = os.path.join(output_folder, "taxonomy.png")
-    visualize_taxonomy(taxonomy, taxonomy_output)
+    print(info("Performing topic modeling..."))
+    topics = perform_topic_modeling(chunks)
     
     print(info("Extracting glossary..."))
     glossary = extract_definitions(content)
     
-    print(info("Generating PDF report..."))
-    pdf_path = generate_pdf_report(output_folder, os.path.basename(file_path), combined_summary, glossary, taxonomy)
+    # Prepare results for PDF report
+    results = {
+        "summary": combined_summary,
+        "concept_graph": graph_output,
+        "word_cloud": word_cloud_output,
+        "topics": topics,
+        "glossary": glossary
+    }
     
-    return success(f"Text analysis completed. PDF report saved at: {pdf_path}")
+    # Generate PDF report
+    pdf_generator = PDFReportGenerator(output_folder, erag_api.model, os.path.basename(file_path))
+    pdf_content = []
+    
+    # Summary
+    pdf_content.append(("Summary", [], combined_summary))
+    
+    # Concept Graph
+    pdf_content.append(("Concept Graph", [("Concept Relationship Graph", graph_output)], "The concept graph shows the relationships between key concepts in the text."))
+    
+    # Word Cloud
+    pdf_content.append(("Word Cloud", [("Word Cloud", word_cloud_output)], "The word cloud visualizes the most frequent words in the text."))
+    
+    # Topics
+    topics_text = "\n".join([f"Topic {idx}: " + ", ".join(words) for idx, words in topics])
+    pdf_content.append(("Topic Modeling", [], f"The following topics were identified in the text:\n\n{topics_text}"))
+    
+    # Glossary
+    glossary_text = "\n".join([f"{term}: {'; '.join(definitions)}" for term, definitions in glossary.items()])
+    pdf_content.append(("Glossary", [], f"The following terms and definitions were extracted from the text:\n\n{glossary_text}"))
+    
+    # Generate the PDF report
+    pdf_file = pdf_generator.create_enhanced_pdf_report(
+        [],  # No specific findings for text analysis
+        pdf_content,
+        [],  # No additional image data
+        filename="text_analysis_report",
+        report_title=f"Text Analysis Report for {os.path.basename(file_path)}"
+    )
+    
+    if pdf_file:
+        print(success(f"PDF report generated successfully: {pdf_file}"))
+    else:
+        print(error("Failed to generate PDF report"))
+    
+    return success(f"Text analysis completed. PDF report saved at: {pdf_file}")
 
 if __name__ == "__main__":
     print(warning("This module is not meant to be run directly. Import and use run_text_analysis function in your main script."))
