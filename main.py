@@ -54,6 +54,7 @@ from src.merge_sd import merge_structured_data
 from src.code_editor import CodeEditor
 from src.textbook_generator import TextbookGenerator, SupervisorTextbookGenerator
 from src.textbook_rag import RagTextbookGenerator
+from src.text_analysis import run_text_analysis
 
 
 # Add the project root directory to the Python path
@@ -621,7 +622,10 @@ class ERAGGUI:
         create_knol_button.pack(side="left", padx=5, pady=5)
         ToolTip(create_knol_button, "Create a knowledge artifact (Knol) from processed documents")
 
-        # New Rag Textbook button
+        text_analysis_button = tk.Button(rag_frame, text="TextAnalysis", command=self.run_text_analysis)
+        text_analysis_button.pack(side="left", padx=5, pady=5)
+        ToolTip(text_analysis_button, "Perform text analysis on an uploaded document")
+
         rag_textbook_button = tk.Button(rag_frame, text="Rag Textbook", command=self.run_rag_textbook)
         rag_textbook_button.pack(side="left", padx=5, pady=5)
         ToolTip(rag_textbook_button, "Generate a textbook using RAG for each chapter and sub-chapter")
@@ -2299,7 +2303,62 @@ class ERAGGUI:
             error_message = f"An error occurred while starting the RAG textbook generation process: {str(e)}"
             print(error(error_message))
             messagebox.showerror("Error", error_message)
+    
+    def run_text_analysis(self):
+            try:
+                file_path = filedialog.askopenfilename(
+                    title="Select a document for text analysis",
+                    filetypes=[("Text files", "*.txt"), ("PDF files", "*.pdf"), ("All files", "*.*")]
+                )
+                if not file_path:
+                    messagebox.showwarning("Warning", "No file selected.")
+                    return
 
+                api_type = self.api_type_var.get()
+                model = self.model_var.get()
+                embedding_class = self.embedding_class_var.get()
+                embedding_model = self.embedding_model_var.get()
+
+                # Check API keys before proceeding
+                self.check_api_keys()
+
+                # Create EragAPI instance
+                erag_api = create_erag_api(api_type, model, embedding_class, embedding_model)
+
+                # Apply settings before running the text analysis
+                self.apply_settings()
+
+                # Run the text analysis in a separate thread
+                threading.Thread(
+                    target=self._text_analysis_thread,
+                    args=(file_path, erag_api),
+                    daemon=True
+                ).start()
+
+                messagebox.showinfo(
+                    "Info",
+                    f"Text analysis started for {os.path.basename(file_path)}. "
+                    f"Check the console for progress updates."
+                )
+            except Exception as e:
+                error_message = f"An error occurred while starting the text analysis process: {str(e)}"
+                print(error(error_message))
+                messagebox.showerror("Error", error_message)
+
+    def _text_analysis_thread(self, file_path, erag_api):
+        try:
+            from src.text_analysis import run_text_analysis
+            result = run_text_analysis(file_path, erag_api)
+            print(result)
+            messagebox.showinfo(
+                "Success",
+                "Text analysis completed successfully. "
+                "Check the output folder for the PDF report."
+            )
+        except Exception as e:
+            error_message = f"An error occurred during text analysis: {str(e)}"
+            print(error(error_message))
+            messagebox.showerror("Error", error_message)
 
     def create_server_tab(self):
         # Enable/Disable on start
