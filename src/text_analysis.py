@@ -10,10 +10,15 @@ from tqdm import tqdm
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.decomposition import LatentDirichletAllocation
 import numpy as np
+from PIL import Image 
 from src.settings import settings
 from src.api_model import EragAPI
 from src.look_and_feel import success, info, warning, error
 from src.print_pdf import PDFReportGenerator
+import seaborn as sns
+from textblob import TextBlob
+from nltk.tokenize import sent_tokenize
+from collections import Counter
 
 # Load spaCy model
 nlp = spacy.load("en_core_web_sm")
@@ -84,7 +89,7 @@ Summary:"""
     response = erag_api.chat(messages, temperature=settings.temperature)
     return response.strip()
 
-def extract_key_concepts(doc, n=30):
+def extract_key_concepts(doc, n=50):
     concept_freq = defaultdict(int)
     for token in doc:
         if token.pos_ in ['NOUN', 'PROPN', 'VERB'] and not token.is_stop:
@@ -92,7 +97,7 @@ def extract_key_concepts(doc, n=30):
     
     return sorted(concept_freq.items(), key=lambda x: x[1], reverse=True)[:n]
 
-def create_concept_graph(text, n=20):
+def create_concept_graph(text, n=40):  # Increased from 20 to 40
     doc = nlp(text)
     concepts = extract_key_concepts(doc, n)
     
@@ -114,29 +119,44 @@ def create_concept_graph(text, n=20):
     return G
 
 def visualize_concept_graph(G, output_path):
-    plt.figure(figsize=(12, 8))
+    plt.figure(figsize=(16, 12))  # Increased size
     pos = nx.spring_layout(G, k=0.5, iterations=50)
-    node_sizes = [G.nodes[node]['weight'] * 100 for node in G.nodes()]
+    node_sizes = [G.nodes[node]['weight'] * 200 for node in G.nodes()]  # Increased size
     edge_weights = [G[u][v]['weight'] for u, v in G.edges()]
     
     nx.draw(G, pos, with_labels=True, node_color='lightblue', node_size=node_sizes,
-            font_size=8, font_weight='bold', edge_color='gray', width=edge_weights)
+            font_size=10, font_weight='bold', edge_color='gray', width=edge_weights, alpha=0.7)
     
-    plt.title("Concept Relationship Graph")
+    # Add edge labels
+    edge_labels = nx.get_edge_attributes(G, 'weight')
+    nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels, font_size=8)
+    
+    plt.title("Concept Relationship Graph", fontsize=20)
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
     plt.close()
 
 def generate_word_cloud(text, output_path):
+    try:
+        # Try to open the rabbit silhouette image
+        mask = np.array(Image.open("rabbit_silhouette.png"))
+    except FileNotFoundError:
+        print(warning("Rabbit silhouette image not found. Using default shape."))
+        # Create a default circular mask
+        x, y = np.ogrid[:300, :300]
+        mask = (x - 150) ** 2 + (y - 150) ** 2 > 130 ** 2
+        mask = 255 * mask.astype(int)
+    
     wordcloud = WordCloud(width=800, height=400, background_color='white',
-                          colormap='viridis', max_font_size=100, min_font_size=10).generate(text)
+                          colormap='viridis', max_font_size=100, min_font_size=10,
+                          mask=mask, contour_width=3, contour_color='steelblue').generate(text)
     plt.figure(figsize=(10, 5))
     plt.imshow(wordcloud, interpolation='bilinear')
     plt.axis('off')
-    plt.title("Word Cloud")
+    plt.title("Word Cloud", fontsize=20)
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
     plt.close()
 
-def perform_topic_modeling(text_chunks, num_topics=5):
+def perform_topic_modeling(text_chunks, num_topics=8):  # Increased from 5 to 8
     vectorizer = TfidfVectorizer(max_features=1000, stop_words='english')
     tfidf_matrix = vectorizer.fit_transform(text_chunks)
     
@@ -146,7 +166,7 @@ def perform_topic_modeling(text_chunks, num_topics=5):
     feature_names = vectorizer.get_feature_names_out()
     topics = []
     for topic_idx, topic in enumerate(lda.components_):
-        top_words = [feature_names[i] for i in topic.argsort()[:-10 - 1:-1]]
+        top_words = [feature_names[i] for i in topic.argsort()[:-15 - 1:-1]]  # Increased from 10 to 15
         topics.append((topic_idx, top_words))
     
     return topics
@@ -167,6 +187,58 @@ def extract_definitions(text):
             glossary[term].append(definition)
     
     return glossary
+
+def perform_sentiment_analysis(text):
+    sentences = sent_tokenize(text)
+    sentiments = [TextBlob(sentence).sentiment.polarity for sentence in sentences]
+    return sentiments
+
+def visualize_sentiment_analysis(sentiments, output_path):
+    plt.figure(figsize=(12, 6))
+    plt.plot(sentiments, marker='o', linestyle='-', markersize=4)
+    plt.title("Sentiment Analysis Throughout the Story", fontsize=16)
+    plt.xlabel("Sentence Number", fontsize=12)
+    plt.ylabel("Sentiment Polarity", fontsize=12)
+    plt.axhline(y=0, color='r', linestyle='--')
+    plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    plt.close()
+
+def extract_characters(text):
+    doc = nlp(text)
+    characters = [ent.text for ent in doc.ents if ent.label_ == "PERSON"]
+    return Counter(characters).most_common(10)
+
+def visualize_character_network(text, output_path):
+    doc = nlp(text)
+    characters = [ent.text for ent in doc.ents if ent.label_ == "PERSON"]
+    char_counter = Counter(characters)
+    
+    G = nx.Graph()
+    for char, count in char_counter.most_common(10):
+        G.add_node(char, size=count)
+    
+    window_size = 50
+    for i in range(0, len(doc), window_size):
+        window = doc[i:i+window_size]
+        window_chars = [ent.text for ent in window.ents if ent.label_ == "PERSON" and ent.text in G.nodes()]
+        for j in range(len(window_chars)):
+            for k in range(j+1, len(window_chars)):
+                if G.has_edge(window_chars[j], window_chars[k]):
+                    G[window_chars[j]][window_chars[k]]['weight'] += 1
+                else:
+                    G.add_edge(window_chars[j], window_chars[k], weight=1)
+    
+    plt.figure(figsize=(12, 8))
+    pos = nx.spring_layout(G)
+    node_sizes = [G.nodes[node]['size'] * 100 for node in G.nodes()]
+    edge_weights = [G[u][v]['weight'] for u, v in G.edges()]
+    
+    nx.draw(G, pos, with_labels=True, node_color='lightgreen', node_size=node_sizes,
+            font_size=10, font_weight='bold', edge_color='gray', width=edge_weights, alpha=0.7)
+    
+    plt.title("Character Network", fontsize=20)
+    plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    plt.close()
 
 def run_text_analysis(file_path, erag_api):
     content = read_file_content(file_path)
@@ -199,13 +271,26 @@ def run_text_analysis(file_path, erag_api):
     print(info("Extracting glossary..."))
     glossary = extract_definitions(content)
     
+    print(info("Performing sentiment analysis..."))
+    sentiments = perform_sentiment_analysis(content)
+    sentiment_output = os.path.join(output_folder, "sentiment_analysis.png")
+    visualize_sentiment_analysis(sentiments, sentiment_output)
+    
+    print(info("Extracting characters and creating character network..."))
+    characters = extract_characters(content)
+    character_network_output = os.path.join(output_folder, "character_network.png")
+    visualize_character_network(content, character_network_output)
+    
     # Prepare results for PDF report
     results = {
         "summary": combined_summary,
         "concept_graph": graph_output,
         "word_cloud": word_cloud_output,
         "topics": topics,
-        "glossary": glossary
+        "glossary": glossary,
+        "sentiment_analysis": sentiment_output,
+        "character_network": character_network_output,
+        "characters": characters
     }
     
     # Generate PDF report
@@ -226,8 +311,18 @@ def run_text_analysis(file_path, erag_api):
     pdf_content.append(("Topic Modeling", [], f"The following topics were identified in the text:\n\n{topics_text}"))
     
     # Glossary
-    glossary_text = "\n".join([f"{term}: {'; '.join(definitions)}" for term, definitions in glossary.items()])
+    glossary_text = "\n".join([f"{term}: {'; '.join(definitions)}" for term, definitions in list(glossary.items())[:30]])  # Limit to top 30
     pdf_content.append(("Glossary", [], f"The following terms and definitions were extracted from the text:\n\n{glossary_text}"))
+    
+    # Sentiment Analysis
+    pdf_content.append(("Sentiment Analysis", [("Sentiment Analysis Throughout the Story", sentiment_output)], "This graph shows how the sentiment changes throughout the story."))
+    
+    # Character Network
+    pdf_content.append(("Character Network", [("Character Interaction Network", character_network_output)], "This network shows the main characters and their interactions in the story."))
+    
+    # Main Characters
+    characters_text = "\n".join([f"{char}: {count} mentions" for char, count in characters])
+    pdf_content.append(("Main Characters", [], f"The following main characters were identified:\n\n{characters_text}"))
     
     # Generate the PDF report
     pdf_file = pdf_generator.create_enhanced_pdf_report(
