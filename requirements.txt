@@ -1,48 +1,92 @@
+# Core dependencies
 python-dotenv
-sentence_transformers
-networkx
-huggingface_hub
-asyncio
-ollama
 requests
-beautifulsoup4
-PyPDF2
-docx2txt
-openai
-google-generativeai
-groq
-reportlab
-matplotlib
-seaborn
-pandas
+tqdm
+
+# Data processing and analysis
 numpy
-scikit-learn
-sqlalchemy
+pandas
 scipy
+scikit-learn
 statsmodels
-wordcloud
-joypy
-shap
-pgmpy
-hmmlearn
-dtaidistance
-stumpy
-biopython
-folium
-pyinstaller
-pmdarima
+
+# Natural Language Processing
+nltk
+spacy
+textblob
+sentence_transformers
+en_core_web_sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.5.0/en_core_web_sm-3.5.0-py3-none-any.whl
+
+# Machine Learning and AI
 tensorflow
 vertexai
-spacy
-tqdm
-fuzzywuzzy
+pmdarima
+shap
+
+# Data visualization
+matplotlib
+seaborn
+wordcloud
+
+# Web scraping and parsing
+beautifulsoup4
+duckduckgo-search
+lxml
+
+# File handling
+PyPDF2
+docx2txt
 PyMuPDF
 python-docx
 pyarrow
+
+# API clients
+openai
+google-generativeai
+groq
+cohere
+ollama
+
+# Networking and async
+asyncio
+huggingface_hub
+
+# Graph processing
+networkx
+
+# Time series analysis
+stumpy
+hmmlearn
+
+# Specialized libraries
+biopython
+folium
+joypy
+pgmpy
+dtaidistance
+
+# Image processing
+Pillow
+
+# GUI
+tkinter
+
+# Utilities
+fuzzywuzzy
 jellyfish
 python-dateutil
-tkinter
-duckduckgo-search
-lxml
-ntlk
-en_core_web_sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.5.0/en_core_web_sm-3.5.0-py3-none-any.whl
+glob2
+
+# Report generation
+reportlab
+
+# Deployment
+pyinstaller
+
+# SQL
+sqlalchemy
+
+# PyTorch and related packages should be installed separately as per README instructions
+# torch==2.3.1
+# torchvision==0.18.1
+# torchaudio==2.3.1
