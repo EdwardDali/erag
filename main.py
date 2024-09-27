@@ -2381,18 +2381,31 @@ class ERAGGUI:
             # Create EragAPI instance
             erag_api = create_erag_api(api_type, model)
             
-            from src.check_dq import DataQualityChecker
             dq_checker = DataQualityChecker(erag_api, db_path)
             
             # Apply settings to DataQualityChecker
             settings.apply_settings()
             
             # Run DataQualityChecker in a separate thread to keep the GUI responsive
-            threading.Thread(target=dq_checker.run, daemon=True).start()
+            threading.Thread(target=self.run_data_quality_thread, args=(dq_checker,), daemon=True).start()
             
-            messagebox.showinfo("Info", f"Data Quality Check started on {os.path.basename(db_path)}. Check the console for progress.")
+            output_folder = os.path.join(os.path.dirname(db_path), "data_quality_output")
+            messagebox.showinfo("Info", f"Data Quality Check started on {os.path.basename(db_path)}.\n\n"
+                                        f"Results will be saved in:\n{output_folder}\n\n"
+                                        "Check the console for progress updates.")
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred while starting the Data Quality Check: {str(e)}")
+
+    def run_data_quality_thread(self, dq_checker):
+        try:
+            dq_checker.run()
+            messagebox.showinfo("Success", f"Data Quality Check completed successfully.\n\n"
+                                        f"Results are saved in:\n{dq_checker.output_folder}\n\n"
+                                        f"Marked database: {dq_checker.marked_db_path}\n\n"
+                                        "Please check the output folder for CSV files with error summaries, "
+                                        "marked data, and AI interpretations.")
+        except Exception as e:
+            messagebox.showerror("Error", f"An error occurred during the Data Quality Check: {str(e)}")
 
     def create_server_tab(self):
         # Enable/Disable on start

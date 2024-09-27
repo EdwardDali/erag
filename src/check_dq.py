@@ -1,6 +1,7 @@
 import sqlite3
 import csv
 import os
+import shutil
 from src.settings import settings
 from src.look_and_feel import error, success, warning, info, highlight
 
@@ -11,6 +12,7 @@ class DataQualityChecker:
         self.schema = self.fetch_schema()
         self.output_folder = os.path.join(os.path.dirname(db_path), "data_quality_output")
         os.makedirs(self.output_folder, exist_ok=True)
+        self.marked_db_path = None
 
     def fetch_schema(self):
         try:
@@ -36,24 +38,46 @@ class DataQualityChecker:
             print(error(f"Error fetching schema: {str(e)}"))
             return {}
 
+    def create_marked_database(self):
+        marked_db_path = os.path.join(self.output_folder, "marked_" + os.path.basename(self.db_path))
+        shutil.copy(self.db_path, marked_db_path)
+        
+        conn = sqlite3.connect(marked_db_path)
+        cursor = conn.cursor()
+
+        for table_name, columns in self.schema.items():
+            # Add error marking columns
+            for column in columns:
+                cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {column['name']}_error TEXT;")
+
+        conn.commit()
+        conn.close()
+
+        return marked_db_path
+
     def run(self):
         print(info("Starting Data Quality Check..."))
+        self.marked_db_path = self.create_marked_database()
         for table_name, columns in self.schema.items():
             print(highlight(f"Checking table: {table_name}"))
             self.check_table(table_name, columns)
-        print(success("Data Quality Check completed. Results saved in CSV files."))
+        self.export_marked_data_to_csv()
+        print(success(f"Data Quality Check completed. Results saved in CSV files, marked database: {self.marked_db_path}, and exported to CSV files."))
 
     def check_table(self, table_name, columns):
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
+        original_conn = sqlite3.connect(self.db_path)
+        marked_conn = sqlite3.connect(self.marked_db_path)
+        original_cursor = original_conn.cursor()
+        marked_cursor = marked_conn.cursor()
 
         errors = []
 
         # Check for missing values
         for column in columns:
-            query = f"SELECT COUNT(*) FROM {table_name} WHERE {column['name']} IS NULL OR {column['name']} = '';"
-            cursor.execute(query)
-            null_count = cursor.fetchone()[0]
+            query = f"SELECT rowid, {column['name']} FROM {table_name} WHERE {column['name']} IS NULL OR {column['name']} = '';"
+            original_cursor.execute(query)
+            null_rows = original_cursor.fetchall()
+            null_count = len(null_rows)
             if null_count > 0:
                 errors.append({
                     "table": table_name,
@@ -61,13 +85,16 @@ class DataQualityChecker:
                     "error_type": "Missing Values",
                     "count": null_count
                 })
+                for row in null_rows:
+                    marked_cursor.execute(f"UPDATE {table_name} SET {column['name']}_error = 'Missing Value' WHERE rowid = ?", (row[0],))
 
         # Check for data type mismatches (for numeric columns)
         for column in columns:
             if column['type'].lower() in ['integer', 'real', 'float', 'double']:
-                query = f"SELECT COUNT(*) FROM {table_name} WHERE typeof({column['name']}) != '{column['type'].lower()}';"
-                cursor.execute(query)
-                mismatch_count = cursor.fetchone()[0]
+                query = f"SELECT rowid, {column['name']} FROM {table_name} WHERE typeof({column['name']}) != '{column['type'].lower()}';"
+                original_cursor.execute(query)
+                mismatch_rows = original_cursor.fetchall()
+                mismatch_count = len(mismatch_rows)
                 if mismatch_count > 0:
                     errors.append({
                         "table": table_name,
@@ -75,13 +102,17 @@ class DataQualityChecker:
                         "error_type": "Data Type Mismatch",
                         "count": mismatch_count
                     })
+                    for row in mismatch_rows:
+                        marked_cursor.execute(f"UPDATE {table_name} SET {column['name']}_error = 'Type Mismatch' WHERE rowid = ?", (row[0],))
 
-        conn.close()
+        marked_conn.commit()
+        original_conn.close()
+        marked_conn.close()
 
-        # Save errors to CSV
+        # Save errors summary to CSV
         if errors:
             output_file = os.path.join(self.output_folder, f"{table_name}_data_quality_errors.csv")
-            with open(output_file, 'w', newline='') as csvfile:
+            with open(output_file, 'w', newline='', encoding='utf-8') as csvfile:
                 writer = csv.DictWriter(csvfile, fieldnames=["table", "column", "error_type", "count"])
                 writer.writeheader()
                 writer.writerows(errors)
@@ -106,7 +137,29 @@ class DataQualityChecker:
                                        {"role": "user", "content": prompt}])
 
         interpretation_file = os.path.join(self.output_folder, f"{table_name}_ai_interpretation.txt")
-        with open(interpretation_file, 'w') as f:
+        with open(interpretation_file, 'w', encoding='utf-8') as f:
             f.write(response)
         
         print(info(f"AI interpretation for {table_name} saved to {interpretation_file}"))
+
+    def export_marked_data_to_csv(self):
+        conn = sqlite3.connect(self.marked_db_path)
+        cursor = conn.cursor()
+
+        for table_name in self.schema.keys():
+            cursor.execute(f"SELECT * FROM {table_name}")
+            rows = cursor.fetchall()
+            
+            if rows:
+                headers = [description[0] for description in cursor.description]
+                output_file = os.path.join(self.output_folder, f"{table_name}_marked_data.csv")
+                
+                with open(output_file, 'w', newline='', encoding='utf-8') as csvfile:
+                    writer = csv.writer(csvfile)
+                    writer.writerow(headers)
+                    for row in rows:
+                        writer.writerow([str(cell) if cell is not None else '' for cell in row])
+                
+                print(info(f"Marked data for {table_name} exported to {output_file}"))
+
+        conn.close()
