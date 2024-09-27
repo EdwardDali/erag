@@ -55,6 +55,7 @@ from src.code_editor import CodeEditor
 from src.textbook_generator import TextbookGenerator, SupervisorTextbookGenerator
 from src.textbook_rag import RagTextbookGenerator
 from src.text_analysis import run_text_analysis
+from src.check_dq import DataQualityChecker
 
 
 # Add the project root directory to the Python path
@@ -194,6 +195,10 @@ class ERAGGUI:
         talk2sd_button = tk.Button(rag_frame, text="Talk2SD", command=self.run_talk2sd)
         talk2sd_button.pack(side="left", padx=5, pady=5)
         ToolTip(talk2sd_button, "Start a conversation with the structured data using SQL queries")
+
+        data_quality_button = tk.Button(rag_frame, text="Data Quality", command=self.run_data_quality)
+        data_quality_button.pack(side="left", padx=5, pady=5)
+        ToolTip(data_quality_button, "Perform data quality checks on the selected SQLite database")
 
         xda_button = tk.Button(rag_frame, text="XDA", command=self.run_xda)
         xda_button.pack(side="left", padx=5, pady=5)
@@ -2359,6 +2364,35 @@ class ERAGGUI:
             error_message = f"An error occurred during text analysis: {str(e)}"
             print(error(error_message))
             messagebox.showerror("Error", error_message)
+
+    def run_data_quality(self):
+        try:
+            db_path = filedialog.askopenfilename(
+                title="Select SQLite Database for Data Quality Check",
+                filetypes=[("SQLite files", "*.db"), ("All files", "*.*")]
+            )
+            if not db_path:
+                messagebox.showwarning("Warning", "No database selected.")
+                return
+
+            api_type = self.api_type_var.get()
+            model = self.model_var.get()
+            
+            # Create EragAPI instance
+            erag_api = create_erag_api(api_type, model)
+            
+            from src.check_dq import DataQualityChecker
+            dq_checker = DataQualityChecker(erag_api, db_path)
+            
+            # Apply settings to DataQualityChecker
+            settings.apply_settings()
+            
+            # Run DataQualityChecker in a separate thread to keep the GUI responsive
+            threading.Thread(target=dq_checker.run, daemon=True).start()
+            
+            messagebox.showinfo("Info", f"Data Quality Check started on {os.path.basename(db_path)}. Check the console for progress.")
+        except Exception as e:
+            messagebox.showerror("Error", f"An error occurred while starting the Data Quality Check: {str(e)}")
 
     def create_server_tab(self):
         # Enable/Disable on start
