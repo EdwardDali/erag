@@ -4,21 +4,38 @@ import os
 import shutil
 import re
 from datetime import datetime
-from statistics import mean, stdev
 import numpy as np
 from src.settings import settings
 from src.look_and_feel import error, success, warning, info, highlight
+from src.api_model import EragAPI
 
 class DataQualityChecker:
     def __init__(self, erag_api, db_path):
         self.erag_api = erag_api
         self.db_path = db_path
-        self.schema = self.fetch_schema()
         self.output_folder = os.path.join(os.path.dirname(db_path), "data_quality_output")
         os.makedirs(self.output_folder, exist_ok=True)
         self.marked_db_path = None
-        self.total_checks = 10
+        self.marked_conn = None
+        self.marked_cursor = None
+        self.total_checks = 17  # Updated number of checks
         self.current_check = 0
+        self.column_name_changes = {}
+        self.schema = self.fetch_schema()
+        self.error_types = [
+            'Missing Value', 'Type Mismatch', 'Duplicate Record', 'Inconsistent Date Format',
+            'Outlier', 'Whitespace Issue', 'Special Characters', 'Inconsistent Capitalization',
+            'Possible Data Truncation', 'High Frequency Value', 'Suspicious Date Range',
+            'Large Numeric Range', 'Very Short String', 'Very Long String',
+            'Invalid Email Format', 'Non-unique Value', 'Invalid Foreign Key',
+            'Date Inconsistency'
+        ]
+
+    def sanitize_column_name(self, column_name):
+        sanitized_name = re.sub(r'[^a-zA-Z0-9_]', '_', column_name)
+        if sanitized_name[0].isdigit():
+            sanitized_name = 'col_' + sanitized_name
+        return sanitized_name
 
     def fetch_schema(self):
         try:
@@ -31,12 +48,20 @@ class DataQualityChecker:
             schema = {}
             for table in tables:
                 table_name = table[0]
-                cursor.execute(f"PRAGMA table_info({table_name});")
-                columns = cursor.fetchall()
-                schema[table_name] = [
-                    {"name": column[1], "type": column[2]}
-                    for column in columns
-                ]
+                try:
+                    cursor.execute(f"PRAGMA table_info({table_name});")
+                    columns = cursor.fetchall()
+                    schema[table_name] = []
+                    for column in columns:
+                        original_name = column[1]
+                        sanitized_name = self.sanitize_column_name(original_name)
+                        if original_name != sanitized_name:
+                            self.column_name_changes[original_name] = sanitized_name
+                            print(warning(f"Column name '{original_name}' has been changed to '{sanitized_name}'"))
+                        schema[table_name].append({"name": sanitized_name, "type": column[2], "original_name": original_name})
+                except sqlite3.OperationalError as e:
+                    print(warning(f"Error fetching schema for table {table_name}: {str(e)}"))
+                    continue
             
             conn.close()
             return schema
@@ -48,62 +73,28 @@ class DataQualityChecker:
         marked_db_path = os.path.join(self.output_folder, "marked_" + os.path.basename(self.db_path))
         shutil.copy(self.db_path, marked_db_path)
         
-        conn = sqlite3.connect(marked_db_path)
-        cursor = conn.cursor()
+        self.marked_conn = sqlite3.connect(marked_db_path)
+        self.marked_cursor = self.marked_conn.cursor()
 
         for table_name, columns in self.schema.items():
             for column in columns:
-                cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {column['name']}_error TEXT;")
+                try:
+                    self.marked_cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {column['name']}_errors TEXT;")
+                except sqlite3.OperationalError as e:
+                    print(warning(f"Error adding error column to {table_name}.{column['name']}: {str(e)}"))
+                    continue
 
-        conn.commit()
-        conn.close()
-
+        self.marked_conn.commit()
         return marked_db_path
 
-    def run(self):
-        print(info("Starting Data Quality Check..."))
-        self.marked_db_path = self.create_marked_database()
-        for table_name, columns in self.schema.items():
-            print(highlight(f"\nAnalyzing table: {table_name}"))
-            self.check_table(table_name, columns)
-        self.export_marked_data_to_csv()
-        print(success(f"Data Quality Check completed. Results saved in {self.output_folder}"))
+    def mark_error(self, table_name, column_name, row_id, error_type):
+        current_errors = self.marked_cursor.execute(f"SELECT {column_name}_errors FROM {table_name} WHERE rowid = ?", (row_id,)).fetchone()[0]
+        errors_set = set(current_errors.split(',')) if current_errors else set()
+        errors_set.add(error_type)
+        new_errors = ','.join(errors_set)
+        self.marked_cursor.execute(f"UPDATE {table_name} SET {column_name}_errors = ? WHERE rowid = ?", (new_errors, row_id))
 
-    def check_table(self, table_name, columns):
-        original_conn = sqlite3.connect(self.db_path)
-        marked_conn = sqlite3.connect(self.marked_db_path)
-        original_cursor = original_conn.cursor()
-        marked_cursor = marked_conn.cursor()
-
-        errors = []
-
-        check_methods = [
-            self.check_missing_values,
-            self.check_data_type_mismatches,
-            self.check_duplicate_records,
-            self.check_inconsistent_formatting,
-            self.check_outliers,
-            self.check_whitespace,
-            self.check_special_characters,
-            self.check_inconsistent_capitalization,
-            self.check_data_truncation,
-            self.check_value_frequency
-        ]
-
-        for method in check_methods:
-            self.current_check += 1
-            progress = (self.current_check / self.total_checks) * 100
-            print(info(f"Progress: {progress:.2f}% - Running {method.__name__}"))
-            method(table_name, columns, original_cursor, marked_cursor, errors)
-
-        marked_conn.commit()
-        original_conn.close()
-        marked_conn.close()
-
-        self.save_errors_to_csv(table_name, errors)
-        self.generate_ai_interpretation(table_name, errors)
-
-    def check_missing_values(self, table_name, columns, original_cursor, marked_cursor, errors):
+    def check_missing_values(self, table_name, columns, original_cursor, errors):
         for column in columns:
             query = f"SELECT rowid, {column['name']} FROM {table_name} WHERE {column['name']} IS NULL OR {column['name']} = '';"
             original_cursor.execute(query)
@@ -117,9 +108,9 @@ class DataQualityChecker:
                     "count": null_count
                 })
                 for row in null_rows:
-                    marked_cursor.execute(f"UPDATE {table_name} SET {column['name']}_error = 'Missing Value' WHERE rowid = ?", (row[0],))
+                    self.mark_error(table_name, column['name'], row[0], 'Missing Value')
 
-    def check_data_type_mismatches(self, table_name, columns, original_cursor, marked_cursor, errors):
+    def check_data_type_mismatches(self, table_name, columns, original_cursor, errors):
         for column in columns:
             if column['type'].lower() in ['integer', 'real', 'float', 'double']:
                 query = f"SELECT rowid, {column['name']} FROM {table_name} WHERE typeof({column['name']}) != '{column['type'].lower()}';"
@@ -134,9 +125,9 @@ class DataQualityChecker:
                         "count": mismatch_count
                     })
                     for row in mismatch_rows:
-                        marked_cursor.execute(f"UPDATE {table_name} SET {column['name']}_error = 'Type Mismatch' WHERE rowid = ?", (row[0],))
+                        self.mark_error(table_name, column['name'], row[0], 'Type Mismatch')
 
-    def check_duplicate_records(self, table_name, columns, original_cursor, marked_cursor, errors):
+    def check_duplicate_records(self, table_name, columns, original_cursor, errors):
         column_names = ', '.join([c['name'] for c in columns])
         query = f"""
         SELECT {column_names}, COUNT(*) as cnt
@@ -155,16 +146,15 @@ class DataQualityChecker:
             })
             for dup in duplicates:
                 conditions = ' AND '.join([f"{c['name']} = ?" for c in columns])
-                marked_cursor.execute(f"UPDATE {table_name} SET error = 'Duplicate Record' WHERE {conditions}", dup[:-1])
+                self.marked_cursor.execute(f"UPDATE {table_name} SET error = 'Duplicate Record' WHERE {conditions}", dup[:-1])
 
-    def check_inconsistent_formatting(self, table_name, columns, original_cursor, marked_cursor, errors):
+    def check_inconsistent_formatting(self, table_name, columns, original_cursor, errors):
         for column in columns:
             if column['type'].lower() == 'text':
                 query = f"SELECT DISTINCT {column['name']} FROM {table_name} WHERE {column['name']} IS NOT NULL AND {column['name']} != '';"
                 original_cursor.execute(query)
                 distinct_values = original_cursor.fetchall()
                 
-                # Check for inconsistent date formats
                 date_formats = set()
                 for value in distinct_values:
                     try:
@@ -184,21 +174,22 @@ class DataQualityChecker:
                         "error_type": "Inconsistent Date Formatting",
                         "count": len(distinct_values)
                     })
-                    marked_cursor.execute(f"UPDATE {table_name} SET {column['name']}_error = 'Inconsistent Date Format' WHERE {column['name']} IS NOT NULL AND {column['name']} != ''")
+                    self.marked_cursor.execute(f"UPDATE {table_name} SET {column['name']}_errors = 'Inconsistent Date Format' WHERE {column['name']} IS NOT NULL AND {column['name']} != ''")
 
-    def check_outliers(self, table_name, columns, original_cursor, marked_cursor, errors):
+    def check_outliers(self, table_name, columns, original_cursor, errors):
         for column in columns:
             if column['type'].lower() in ['integer', 'real', 'float', 'double']:
-                query = f"SELECT {column['name']} FROM {table_name} WHERE {column['name']} IS NOT NULL;"
+                query = f"SELECT rowid, {column['name']} FROM {table_name} WHERE {column['name']} IS NOT NULL;"
                 original_cursor.execute(query)
-                values = [row[0] for row in original_cursor.fetchall()]
+                values = original_cursor.fetchall()
                 if values:
-                    Q1 = np.percentile(values, 25)
-                    Q3 = np.percentile(values, 75)
+                    data = [row[1] for row in values]
+                    Q1 = np.percentile(data, 25)
+                    Q3 = np.percentile(data, 75)
                     IQR = Q3 - Q1
                     lower_bound = Q1 - 1.5 * IQR
                     upper_bound = Q3 + 1.5 * IQR
-                    outliers = [v for v in values if v < lower_bound or v > upper_bound]
+                    outliers = [row for row in values if row[1] < lower_bound or row[1] > upper_bound]
                     if outliers:
                         errors.append({
                             "table": table_name,
@@ -206,9 +197,10 @@ class DataQualityChecker:
                             "error_type": "Outliers",
                             "count": len(outliers)
                         })
-                        marked_cursor.execute(f"UPDATE {table_name} SET {column['name']}_error = 'Outlier' WHERE {column['name']} < ? OR {column['name']} > ?", (lower_bound, upper_bound))
+                        for row in outliers:
+                            self.mark_error(table_name, column['name'], row[0], 'Outlier')
 
-    def check_whitespace(self, table_name, columns, original_cursor, marked_cursor, errors):
+    def check_whitespace(self, table_name, columns, original_cursor, errors):
         for column in columns:
             if column['type'].lower() == 'text':
                 query = f"SELECT rowid, {column['name']} FROM {table_name} WHERE {column['name']} IS NOT NULL AND ({column['name']} LIKE ' %' OR {column['name']} LIKE '% ' OR {column['name']} != TRIM({column['name']}));"
@@ -222,15 +214,15 @@ class DataQualityChecker:
                         "count": len(whitespace_rows)
                     })
                     for row in whitespace_rows:
-                        marked_cursor.execute(f"UPDATE {table_name} SET {column['name']}_error = 'Whitespace Issue' WHERE rowid = ?", (row[0],))
+                        self.mark_error(table_name, column['name'], row[0], 'Whitespace Issue')
 
-    def check_special_characters(self, table_name, columns, original_cursor, marked_cursor, errors):
+    def check_special_characters(self, table_name, columns, original_cursor, errors):
         for column in columns:
             if column['type'].lower() == 'text':
                 query = f"SELECT rowid, {column['name']} FROM {table_name} WHERE {column['name']} IS NOT NULL;"
                 original_cursor.execute(query)
                 rows = original_cursor.fetchall()
-                special_char_rows = [row for row in rows if any(not c.isalnum() and not c.isspace() for c in row[1])]
+                special_char_rows = [row for row in rows if any(not c.isalnum() and not c.isspace() for c in str(row[1]))]
                 if special_char_rows:
                     errors.append({
                         "table": table_name,
@@ -239,9 +231,9 @@ class DataQualityChecker:
                         "count": len(special_char_rows)
                     })
                     for row in special_char_rows:
-                        marked_cursor.execute(f"UPDATE {table_name} SET {column['name']}_error = 'Special Characters' WHERE rowid = ?", (row[0],))
+                        self.mark_error(table_name, column['name'], row[0], 'Special Characters')
 
-    def check_inconsistent_capitalization(self, table_name, columns, original_cursor, marked_cursor, errors):
+    def check_inconsistent_capitalization(self, table_name, columns, original_cursor, errors):
         for column in columns:
             if column['type'].lower() == 'text':
                 query = f"SELECT DISTINCT {column['name']} FROM {table_name} WHERE {column['name']} IS NOT NULL;"
@@ -266,9 +258,9 @@ class DataQualityChecker:
                         "error_type": "Inconsistent Capitalization",
                         "count": len(distinct_values)
                     })
-                    marked_cursor.execute(f"UPDATE {table_name} SET {column['name']}_error = 'Inconsistent Capitalization' WHERE {column['name']} IS NOT NULL")
+                    self.marked_cursor.execute(f"UPDATE {table_name} SET {column['name']}_errors = 'Inconsistent Capitalization' WHERE {column['name']} IS NOT NULL")
 
-    def check_data_truncation(self, table_name, columns, original_cursor, marked_cursor, errors):
+    def check_data_truncation(self, table_name, columns, original_cursor, errors):
         for column in columns:
             if column['type'].lower() == 'text':
                 query = f"SELECT MAX(LENGTH({column['name']})) FROM {table_name};"
@@ -288,9 +280,9 @@ class DataQualityChecker:
                             "count": len(truncated_rows)
                         })
                         for row in truncated_rows:
-                            marked_cursor.execute(f"UPDATE {table_name} SET {column['name']}_error = 'Possible Truncation' WHERE rowid = ?", (row[0],))
+                            self.mark_error(table_name, column['name'], row[0], 'Possible Data Truncation')
 
-    def check_value_frequency(self, table_name, columns, original_cursor, marked_cursor, errors):
+    def check_value_frequency(self, table_name, columns, original_cursor, errors):
         for column in columns:
             query = f"SELECT {column['name']}, COUNT(*) as frequency FROM {table_name} GROUP BY {column['name']} ORDER BY frequency DESC LIMIT 1;"
             original_cursor.execute(query)
@@ -309,7 +301,174 @@ class DataQualityChecker:
                         "count": frequency,
                         "details": f"Value '{value}' appears in {frequency_percentage:.2f}% of rows"
                     })
-                    marked_cursor.execute(f"UPDATE {table_name} SET {column['name']}_error = 'High Frequency Value' WHERE {column['name']} = ?", (value,))
+                    self.marked_cursor.execute(f"UPDATE {table_name} SET {column['name']}_errors = 'High Frequency Value' WHERE {column['name']} = ?", (value,))
+
+    def check_date_range(self, table_name, columns, original_cursor, errors):
+        for column in columns:
+            if column['type'].lower() == 'text':  # Assuming dates are stored as text
+                query = f"SELECT MIN({column['name']}), MAX({column['name']}) FROM {table_name} WHERE {column['name']} IS NOT NULL AND {column['name']} != '';"
+                original_cursor.execute(query)
+                min_date, max_date = original_cursor.fetchone()
+                
+                try:
+                    min_date = datetime.strptime(min_date, '%Y-%m-%d')
+                    max_date = datetime.strptime(max_date, '%Y-%m-%d')
+                    
+                    if min_date.year < 1900 or max_date.year > datetime.now().year + 1:
+                        errors.append({
+                            "table": table_name,
+                            "column": column['name'],
+                            "error_type": "Suspicious Date Range",
+                            "details": f"Dates range from {min_date.date()} to {max_date.date()}"
+                        })
+                        self.marked_cursor.execute(f"UPDATE {table_name} SET {column['name']}_errors = 'Suspicious Date Range' WHERE {column['name']} < '1900-01-01' OR {column['name']} > ?", (datetime.now().replace(year=datetime.now().year + 1).strftime('%Y-%m-%d'),))
+                except ValueError:
+                    pass  # Not a valid date format, skip this column
+
+    def check_numeric_range(self, table_name, columns, original_cursor, errors):
+        for column in columns:
+            if column['type'].lower() in ['integer', 'real', 'float', 'double']:
+                query = f"SELECT MIN({column['name']}), MAX({column['name']}) FROM {table_name} WHERE {column['name']} IS NOT NULL;"
+                original_cursor.execute(query)
+                min_val, max_val = original_cursor.fetchone()
+                
+                if min_val is not None and max_val is not None:
+                    range_size = max_val - min_val
+                    if range_size > 1e9:  # Arbitrary large range, adjust as needed
+                        errors.append({
+                            "table": table_name,
+                            "column": column['name'],
+                            "error_type": "Large Numeric Range",
+                            "details": f"Range from {min_val} to {max_val}"
+                        })
+                        self.marked_cursor.execute(f"UPDATE {table_name} SET {column['name']}_errors = 'Large Numeric Range' WHERE {column['name']} = ? OR {column['name']} = ?", (min_val, max_val))
+
+    def check_string_length(self, table_name, columns, original_cursor, errors):
+        for column in columns:
+            if column['type'].lower() == 'text':
+                query = f"SELECT rowid, {column['name']}, LENGTH({column['name']}) as length FROM {table_name} WHERE {column['name']} IS NOT NULL;"
+                original_cursor.execute(query)
+                rows = original_cursor.fetchall()
+                
+                short_strings = [row for row in rows if row[2] < 2]  # Strings shorter than 2 characters
+                long_strings = [row for row in rows if row[2] > 255]  # Strings longer than 255 characters
+                
+                if short_strings:
+                    errors.append({
+                        "table": table_name,
+                        "column": column['name'],
+                        "error_type": "Very Short Strings",
+                        "count": len(short_strings)
+                    })
+                    for row in short_strings:
+                        self.mark_error(table_name, column['name'], row[0], 'Very Short String')
+                
+                if long_strings:
+                    errors.append({
+                        "table": table_name,
+                        "column": column['name'],
+                        "error_type": "Very Long Strings",
+                        "count": len(long_strings)
+                    })
+                    for row in long_strings:
+                        self.mark_error(table_name, column['name'], row[0], 'Very Long String')
+
+    def check_email_format(self, table_name, columns, original_cursor, errors):
+        email_regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        for column in columns:
+            if column['type'].lower() == 'text' and 'email' in column['name'].lower():
+                query = f"SELECT rowid, {column['name']} FROM {table_name} WHERE {column['name']} IS NOT NULL;"
+                original_cursor.execute(query)
+                rows = original_cursor.fetchall()
+                
+                invalid_emails = [row for row in rows if not re.match(email_regex, row[1])]
+                
+                if invalid_emails:
+                    errors.append({
+                        "table": table_name,
+                        "column": column['name'],
+                        "error_type": "Invalid Email Format",
+                        "count": len(invalid_emails)
+                    })
+                    for row in invalid_emails:
+                        self.mark_error(table_name, column['name'], row[0], 'Invalid Email Format')
+
+    def check_unique_constraints(self, table_name, columns, original_cursor, errors):
+        for column in columns:
+            query = f"SELECT {column['name']}, COUNT(*) as count FROM {table_name} GROUP BY {column['name']} HAVING count > 1;"
+            original_cursor.execute(query)
+            non_unique_values = original_cursor.fetchall()
+            
+            if non_unique_values:
+                errors.append({
+                    "table": table_name,
+                    "column": column['name'],
+                    "error_type": "Non-unique Values",
+                    "count": len(non_unique_values)
+                })
+                for value, count in non_unique_values:
+                    self.marked_cursor.execute(f"UPDATE {table_name} SET {column['name']}_errors = 'Non-unique Value' WHERE {column['name']} = ?", (value,))
+                    
+    def check_foreign_key_integrity(self, table_name, columns, original_cursor, errors):
+        # This method assumes that foreign key relationships are defined in the database
+        query = f"PRAGMA foreign_key_list({table_name});"
+        original_cursor.execute(query)
+        foreign_keys = original_cursor.fetchall()
+        
+        for fk in foreign_keys:
+            fk_column = fk[3]
+            ref_table = fk[2]
+            ref_column = fk[4]
+            
+            query = f"""
+            SELECT {table_name}.rowid, {table_name}.{fk_column}
+            FROM {table_name}
+            LEFT JOIN {ref_table} ON {table_name}.{fk_column} = {ref_table}.{ref_column}
+            WHERE {ref_table}.{ref_column} IS NULL AND {table_name}.{fk_column} IS NOT NULL;
+            """
+            original_cursor.execute(query)
+            invalid_fks = original_cursor.fetchall()
+            
+            if invalid_fks:
+                errors.append({
+                    "table": table_name,
+                    "column": fk_column,
+                    "error_type": "Invalid Foreign Key",
+                    "count": len(invalid_fks),
+                    "details": f"References {ref_table}.{ref_column}"
+                })
+                for row in invalid_fks:
+                    self.mark_error(table_name, fk_column, row[0], 'Invalid Foreign Key')
+
+    def check_data_consistency(self, table_name, columns, original_cursor, errors):
+        # This method checks for logical consistency between related columns
+        # For example, if there's a 'start_date' and 'end_date', ensure start_date is before end_date
+        date_columns = [col for col in columns if 'date' in col['name'].lower()]
+        for i in range(len(date_columns)):
+            for j in range(i+1, len(date_columns)):
+                col1 = date_columns[i]
+                col2 = date_columns[j]
+                query = f"""
+                SELECT rowid, {col1['name']}, {col2['name']}
+                FROM {table_name}
+                WHERE {col1['name']} > {col2['name']}
+                AND {col1['name']} IS NOT NULL
+                AND {col2['name']} IS NOT NULL;
+                """
+                original_cursor.execute(query)
+                inconsistent_dates = original_cursor.fetchall()
+                
+                if inconsistent_dates:
+                    errors.append({
+                        "table": table_name,
+                        "column": f"{col1['name']} and {col2['name']}",
+                        "error_type": "Date Inconsistency",
+                        "count": len(inconsistent_dates),
+                        "details": f"{col1['name']} is after {col2['name']}"
+                    })
+                    for row in inconsistent_dates:
+                        self.mark_error(table_name, col1['name'], row[0], 'Date Inconsistency')
+                        self.mark_error(table_name, col2['name'], row[0], 'Date Inconsistency')
 
     def save_errors_to_csv(self, table_name, errors):
         if errors:
@@ -342,32 +501,128 @@ class DataQualityChecker:
         print(info(f"AI interpretation for {table_name} saved to {interpretation_file}"))
 
     def export_marked_data_to_csv(self):
-        conn = sqlite3.connect(self.marked_db_path)
-        cursor = conn.cursor()
-
         for table_name in self.schema.keys():
-            cursor.execute(f"SELECT * FROM {table_name}")
-            rows = cursor.fetchall()
-            
-            if rows:
-                headers = [description[0] for description in cursor.description]
-                output_file = os.path.join(self.output_folder, f"{table_name}_marked_data.csv")
+            try:
+                self.marked_cursor.execute(f"SELECT * FROM {table_name}")
+                rows = self.marked_cursor.fetchall()
                 
-                with open(output_file, 'w', newline='', encoding='utf-8') as csvfile:
-                    writer = csv.writer(csvfile)
-                    writer.writerow(headers)
-                    for row in rows:
-                        writer.writerow([str(cell) if cell is not None else '' for cell in row])
-                
-                print(info(f"Marked data for {table_name} exported to {output_file}"))
+                if rows:
+                    headers = [description[0] for description in self.marked_cursor.description]
+                    output_file = os.path.join(self.output_folder, f"{table_name}_marked_data.csv")
+                    
+                    with open(output_file, 'w', newline='', encoding='utf-8') as csvfile:
+                        writer = csv.writer(csvfile)
+                        
+                        # Create new headers for each error type
+                        new_headers = []
+                        error_columns = []
+                        for header in headers:
+                            if header.endswith('_errors'):
+                                error_columns.append(header)
+                                new_headers.extend([f"{header}_{error_type}" for error_type in self.error_types])
+                            else:
+                                new_headers.append(header)
+                        
+                        writer.writerow(new_headers)
+                        
+                        for row in rows:
+                            new_row = []
+                            for i, cell in enumerate(row):
+                                if headers[i] in error_columns:
+                                    errors = cell.split(',') if cell else []
+                                    for error_type in self.error_types:
+                                        new_row.append('1' if any(error_type.lower() in e.lower() for e in errors) else '0')
+                                else:
+                                    new_row.append(str(cell) if cell is not None else '')
+                            writer.writerow(new_row)
+                    
+                    print(info(f"Marked data for {table_name} exported to {output_file}"))
+            except sqlite3.OperationalError as e:
+                print(warning(f"Error exporting marked data for table {table_name}: {str(e)}"))
+                print(info("Skipping this table and continuing with others..."))
+                continue
 
-        conn.close()
+    def save_column_name_changes(self):
+        if self.column_name_changes:
+            changes_file = os.path.join(self.output_folder, "column_name_changes.csv")
+            with open(changes_file, 'w', newline='', encoding='utf-8') as csvfile:
+                writer = csv.writer(csvfile)
+                writer.writerow(['Original Name', 'New Name'])
+                for original, new in self.column_name_changes.items():
+                    writer.writerow([original, new])
+            print(info(f"Column name changes saved to {changes_file}"))
+
+    def check_table(self, table_name, columns):
+        original_conn = sqlite3.connect(self.db_path)
+        original_cursor = original_conn.cursor()
+
+        errors = []
+
+        check_methods = [
+            self.check_missing_values,
+            self.check_data_type_mismatches,
+            self.check_duplicate_records,
+            self.check_inconsistent_formatting,
+            self.check_outliers,
+            self.check_whitespace,
+            self.check_special_characters,
+            self.check_inconsistent_capitalization,
+            self.check_data_truncation,
+            self.check_value_frequency,
+            self.check_date_range,
+            self.check_numeric_range,
+            self.check_string_length,
+            self.check_email_format,
+            self.check_unique_constraints,
+            self.check_foreign_key_integrity,
+            self.check_data_consistency
+        ]
+
+        for method in check_methods:
+            self.current_check += 1
+            progress = (self.current_check / self.total_checks) * 100
+            print(info(f"Progress: {progress:.2f}% - Running {method.__name__}"))
+            try:
+                method(table_name, columns, original_cursor, errors)
+            except sqlite3.OperationalError as e:
+                print(warning(f"Error in {method.__name__} for table {table_name}: {str(e)}"))
+                print(info("Skipping this check and continuing with others..."))
+                continue
+
+        self.marked_conn.commit()
+        original_conn.close()
+
+        self.save_errors_to_csv(table_name, errors)
+        self.generate_ai_interpretation(table_name, errors)
+
+    def run(self):
+        print(info("Starting Data Quality Check..."))
+        self.marked_db_path = self.create_marked_database()
+        for table_name, columns in self.schema.items():
+            print(highlight(f"\nAnalyzing table: {table_name}"))
+            try:
+                self.check_table(table_name, columns)
+            except sqlite3.OperationalError as e:
+                print(error(f"Error checking table {table_name}: {str(e)}"))
+                print(info("Skipping this table and continuing with others..."))
+                continue
+        self.export_marked_data_to_csv()
+        self.marked_conn.close()
+        self.save_column_name_changes()
+        print(success(f"Data Quality Check completed. Results saved in {self.output_folder}"))
 
 if __name__ == "__main__":
-    # Example usage
-    from src.api_model import EragAPI  # Ensure this import is correct for your project structure
-
-    db_path = "path/to/your/database.sqlite"
-    erag_api = EragAPI()  # Initialize your API object here
-    checker = DataQualityChecker(erag_api, db_path)
-    checker.run()
+    try:
+        db_path = "path/to/your/database.sqlite"  # Update this with your actual database path
+        erag_api = EragAPI()  # Initialize your API object here
+        
+        if erag_api is None or not hasattr(erag_api, 'chat'):
+            print(warning("EragAPI not properly initialized. Proceeding without AI interpretation."))
+            erag_api = None
+        
+        checker = DataQualityChecker(erag_api, db_path)
+        checker.run()
+    except Exception as e:
+        print(error(f"An error occurred: {str(e)}"))
+        import traceback
+        print(traceback.format_exc())
