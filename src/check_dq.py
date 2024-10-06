@@ -88,11 +88,24 @@ class DataQualityChecker:
         return marked_db_path
 
     def mark_error(self, table_name, column_name, row_id, error_type):
-        current_errors = self.marked_cursor.execute(f"SELECT {column_name}_errors FROM {table_name} WHERE rowid = ?", (row_id,)).fetchone()[0]
-        errors_set = set(current_errors.split(',')) if current_errors else set()
-        errors_set.add(error_type)
-        new_errors = ','.join(errors_set)
-        self.marked_cursor.execute(f"UPDATE {table_name} SET {column_name}_errors = ? WHERE rowid = ?", (new_errors, row_id))
+        current_errors = self.marked_cursor.execute(
+            f"SELECT {column_name}_errors FROM {table_name} WHERE rowid = ?",
+            (row_id,)
+        ).fetchone()[0]
+        
+        if current_errors and current_errors.strip():
+            errors_set = set([e.strip().lower() for e in current_errors.split(',')])
+        else:
+            errors_set = set()
+
+        errors_set.add(error_type.lower())
+
+        new_errors = ', '.join(sorted(errors_set))
+        self.marked_cursor.execute(
+            f"UPDATE {table_name} SET {column_name}_errors = ? WHERE rowid = ?",
+            (new_errors, row_id)
+        )
+
 
     def check_missing_values(self, table_name, columns, original_cursor, errors):
         for column in columns:
@@ -127,10 +140,11 @@ class DataQualityChecker:
                     for row in mismatch_rows:
                         self.mark_error(table_name, column['name'], row[0], 'Type Mismatch')
 
+
     def check_duplicate_records(self, table_name, columns, original_cursor, errors):
         column_names = ', '.join([c['name'] for c in columns])
         query = f"""
-        SELECT {column_names}, COUNT(*) as cnt
+        SELECT {column_names}, COUNT(*) as cnt, MIN(rowid) as min_rowid
         FROM {table_name}
         GROUP BY {column_names}
         HAVING cnt > 1
@@ -138,43 +152,53 @@ class DataQualityChecker:
         original_cursor.execute(query)
         duplicates = original_cursor.fetchall()
         if duplicates:
+            duplicate_count = sum(dup[-2] for dup in duplicates)  # Sum of all duplicate counts
             errors.append({
                 "table": table_name,
                 "column": "All",
                 "error_type": "Duplicate Records",
-                "count": len(duplicates)
+                "count": duplicate_count
             })
             for dup in duplicates:
                 conditions = ' AND '.join([f"{c['name']} = ?" for c in columns])
-                self.marked_cursor.execute(f"UPDATE {table_name} SET error = 'Duplicate Record' WHERE {conditions}", dup[:-1])
+                query = f"SELECT rowid FROM {table_name} WHERE {conditions}"
+                original_cursor.execute(query, dup[:-2])
+                duplicate_rows = original_cursor.fetchall()
+                for row in duplicate_rows:
+                    self.mark_error(table_name, "All", row[0], 'Duplicate Record')
 
     def check_inconsistent_formatting(self, table_name, columns, original_cursor, errors):
         for column in columns:
             if column['type'].lower() == 'text':
-                query = f"SELECT DISTINCT {column['name']} FROM {table_name} WHERE {column['name']} IS NOT NULL AND {column['name']} != '';"
+                query = f"SELECT rowid, {column['name']} FROM {table_name} WHERE {column['name']} IS NOT NULL AND {column['name']} != '';"
                 original_cursor.execute(query)
-                distinct_values = original_cursor.fetchall()
+                rows = original_cursor.fetchall()
                 
                 date_formats = set()
-                for value in distinct_values:
+                inconsistent_rows = []
+                for row in rows:
                     try:
-                        datetime.strptime(value[0], '%Y-%m-%d')
+                        datetime.strptime(row[1], '%Y-%m-%d')
                         date_formats.add('%Y-%m-%d')
                     except ValueError:
                         try:
-                            datetime.strptime(value[0], '%d/%m/%Y')
+                            datetime.strptime(row[1], '%d/%m/%Y')
                             date_formats.add('%d/%m/%Y')
                         except ValueError:
                             pass
+                    
+                    if len(date_formats) > 1:
+                        inconsistent_rows.append(row)
                 
-                if len(date_formats) > 1:
+                if inconsistent_rows:
                     errors.append({
                         "table": table_name,
                         "column": column['name'],
                         "error_type": "Inconsistent Date Formatting",
-                        "count": len(distinct_values)
+                        "count": len(inconsistent_rows)
                     })
-                    self.marked_cursor.execute(f"UPDATE {table_name} SET {column['name']}_errors = 'Inconsistent Date Format' WHERE {column['name']} IS NOT NULL AND {column['name']} != ''")
+                    for row in inconsistent_rows:
+                        self.mark_error(table_name, column['name'], row[0], 'Inconsistent Date Format')
 
     def check_outliers(self, table_name, columns, original_cursor, errors):
         for column in columns:
@@ -182,6 +206,7 @@ class DataQualityChecker:
                 query = f"SELECT rowid, {column['name']} FROM {table_name} WHERE {column['name']} IS NOT NULL;"
                 original_cursor.execute(query)
                 values = original_cursor.fetchall()
+
                 if values:
                     data = [row[1] for row in values]
                     Q1 = np.percentile(data, 25)
@@ -189,7 +214,9 @@ class DataQualityChecker:
                     IQR = Q3 - Q1
                     lower_bound = Q1 - 1.5 * IQR
                     upper_bound = Q3 + 1.5 * IQR
+                    
                     outliers = [row for row in values if row[1] < lower_bound or row[1] > upper_bound]
+
                     if outliers:
                         errors.append({
                             "table": table_name,
@@ -236,29 +263,34 @@ class DataQualityChecker:
     def check_inconsistent_capitalization(self, table_name, columns, original_cursor, errors):
         for column in columns:
             if column['type'].lower() == 'text':
-                query = f"SELECT DISTINCT {column['name']} FROM {table_name} WHERE {column['name']} IS NOT NULL;"
+                query = f"SELECT rowid, {column['name']} FROM {table_name} WHERE {column['name']} IS NOT NULL;"
                 original_cursor.execute(query)
-                distinct_values = original_cursor.fetchall()
+                rows = original_cursor.fetchall()
                 
                 case_types = set()
-                for value in distinct_values:
-                    if value[0].islower():
+                inconsistent_rows = []
+                for row in rows:
+                    if row[1].islower():
                         case_types.add('lowercase')
-                    elif value[0].isupper():
+                    elif row[1].isupper():
                         case_types.add('uppercase')
-                    elif value[0].istitle():
+                    elif row[1].istitle():
                         case_types.add('titlecase')
                     else:
                         case_types.add('mixedcase')
+                    
+                    if len(case_types) > 1:
+                        inconsistent_rows.append(row)
                 
-                if len(case_types) > 1:
+                if inconsistent_rows:
                     errors.append({
                         "table": table_name,
                         "column": column['name'],
                         "error_type": "Inconsistent Capitalization",
-                        "count": len(distinct_values)
+                        "count": len(inconsistent_rows)
                     })
-                    self.marked_cursor.execute(f"UPDATE {table_name} SET {column['name']}_errors = 'Inconsistent Capitalization' WHERE {column['name']} IS NOT NULL")
+                    for row in inconsistent_rows:
+                        self.mark_error(table_name, column['name'], row[0], 'Inconsistent Capitalization')
 
     def check_data_truncation(self, table_name, columns, original_cursor, errors):
         for column in columns:
@@ -268,7 +300,7 @@ class DataQualityChecker:
                 max_length = original_cursor.fetchone()[0]
                 
                 if max_length is not None and max_length > 0:
-                    threshold = max_length * 0.9  # Consider as potentially truncated if length is 90% or more of max length
+                    threshold = max_length * 0.9
                     query = f"SELECT rowid, {column['name']} FROM {table_name} WHERE LENGTH({column['name']}) >= ?;"
                     original_cursor.execute(query, (threshold,))
                     truncated_rows = original_cursor.fetchall()
@@ -293,7 +325,7 @@ class DataQualityChecker:
                 total_rows = original_cursor.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()[0]
                 frequency_percentage = (frequency / total_rows) * 100
                 
-                if frequency_percentage > 90:  # If a single value appears in more than 90% of rows
+                if frequency_percentage > 90:
                     errors.append({
                         "table": table_name,
                         "column": column['name'],
@@ -301,47 +333,60 @@ class DataQualityChecker:
                         "count": frequency,
                         "details": f"Value '{value}' appears in {frequency_percentage:.2f}% of rows"
                     })
-                    self.marked_cursor.execute(f"UPDATE {table_name} SET {column['name']}_errors = 'High Frequency Value' WHERE {column['name']} = ?", (value,))
+                    query = f"SELECT rowid FROM {table_name} WHERE {column['name']} = ?;"
+                    original_cursor.execute(query, (value,))
+                    high_frequency_rows = original_cursor.fetchall()
+                    for row in high_frequency_rows:
+                        self.mark_error(table_name, column['name'], row[0], 'High Frequency Value')
 
     def check_date_range(self, table_name, columns, original_cursor, errors):
         for column in columns:
-            if column['type'].lower() == 'text':  # Assuming dates are stored as text
-                query = f"SELECT MIN({column['name']}), MAX({column['name']}) FROM {table_name} WHERE {column['name']} IS NOT NULL AND {column['name']} != '';"
+            if column['type'].lower() == 'text':
+                query = f"SELECT rowid, {column['name']} FROM {table_name} WHERE {column['name']} IS NOT NULL AND {column['name']} != '';"
                 original_cursor.execute(query)
-                min_date, max_date = original_cursor.fetchone()
+                rows = original_cursor.fetchall()
                 
-                try:
-                    min_date = datetime.strptime(min_date, '%Y-%m-%d')
-                    max_date = datetime.strptime(max_date, '%Y-%m-%d')
-                    
-                    if min_date.year < 1900 or max_date.year > datetime.now().year + 1:
-                        errors.append({
-                            "table": table_name,
-                            "column": column['name'],
-                            "error_type": "Suspicious Date Range",
-                            "details": f"Dates range from {min_date.date()} to {max_date.date()}"
-                        })
-                        self.marked_cursor.execute(f"UPDATE {table_name} SET {column['name']}_errors = 'Suspicious Date Range' WHERE {column['name']} < '1900-01-01' OR {column['name']} > ?", (datetime.now().replace(year=datetime.now().year + 1).strftime('%Y-%m-%d'),))
-                except ValueError:
-                    pass  # Not a valid date format, skip this column
+                suspicious_rows = []
+                for row in rows:
+                    try:
+                        date = datetime.strptime(row[1], '%Y-%m-%d')
+                        if date.year < 1900 or date.year > datetime.now().year + 1:
+                            suspicious_rows.append(row)
+                    except ValueError:
+                        pass
+                
+                if suspicious_rows:
+                    errors.append({
+                        "table": table_name,
+                        "column": column['name'],
+                        "error_type": "Suspicious Date Range",
+                        "count": len(suspicious_rows)
+                    })
+                    for row in suspicious_rows:
+                        self.mark_error(table_name, column['name'], row[0], 'Suspicious Date Range')
 
     def check_numeric_range(self, table_name, columns, original_cursor, errors):
         for column in columns:
             if column['type'].lower() in ['integer', 'real', 'float', 'double']:
-                query = f"SELECT MIN({column['name']}), MAX({column['name']}) FROM {table_name} WHERE {column['name']} IS NOT NULL;"
+                query = f"SELECT rowid, {column['name']} FROM {table_name} WHERE {column['name']} IS NOT NULL;"
                 original_cursor.execute(query)
-                min_val, max_val = original_cursor.fetchone()
+                rows = original_cursor.fetchall()
                 
-                if min_val is not None and max_val is not None:
+                if rows:
+                    values = [row[1] for row in rows]
+                    min_val, max_val = min(values), max(values)
                     range_size = max_val - min_val
-                    if range_size > 1e9:  # Arbitrary large range, adjust as needed
+                    if range_size > 1e9:
+                        large_range_rows = [row for row in rows if row[1] in (min_val, max_val)]
                         errors.append({
                             "table": table_name,
                             "column": column['name'],
                             "error_type": "Large Numeric Range",
+                            "count": len(large_range_rows),
                             "details": f"Range from {min_val} to {max_val}"
                         })
-                        self.marked_cursor.execute(f"UPDATE {table_name} SET {column['name']}_errors = 'Large Numeric Range' WHERE {column['name']} = ? OR {column['name']} = ?", (min_val, max_val))
+                        for row in large_range_rows:
+                            self.mark_error(table_name, column['name'], row[0], 'Large Numeric Range')
 
     def check_string_length(self, table_name, columns, original_cursor, errors):
         for column in columns:
@@ -350,8 +395,8 @@ class DataQualityChecker:
                 original_cursor.execute(query)
                 rows = original_cursor.fetchall()
                 
-                short_strings = [row for row in rows if row[2] < 2]  # Strings shorter than 2 characters
-                long_strings = [row for row in rows if row[2] > 255]  # Strings longer than 255 characters
+                short_strings = [row for row in rows if row[2] < 2]
+                long_strings = [row for row in rows if row[2] > 255]
                 
                 if short_strings:
                     errors.append({
@@ -400,17 +445,21 @@ class DataQualityChecker:
             non_unique_values = original_cursor.fetchall()
             
             if non_unique_values:
+                total_non_unique = sum(row[1] for row in non_unique_values)
                 errors.append({
                     "table": table_name,
                     "column": column['name'],
                     "error_type": "Non-unique Values",
-                    "count": len(non_unique_values)
+                    "count": total_non_unique
                 })
                 for value, count in non_unique_values:
-                    self.marked_cursor.execute(f"UPDATE {table_name} SET {column['name']}_errors = 'Non-unique Value' WHERE {column['name']} = ?", (value,))
-                    
+                    query = f"SELECT rowid FROM {table_name} WHERE {column['name']} = ?;"
+                    original_cursor.execute(query, (value,))
+                    non_unique_rows = original_cursor.fetchall()
+                    for row in non_unique_rows:
+                        self.mark_error(table_name, column['name'], row[0], 'Non-unique Value')
+
     def check_foreign_key_integrity(self, table_name, columns, original_cursor, errors):
-        # This method assumes that foreign key relationships are defined in the database
         query = f"PRAGMA foreign_key_list({table_name});"
         original_cursor.execute(query)
         foreign_keys = original_cursor.fetchall()
@@ -441,8 +490,6 @@ class DataQualityChecker:
                     self.mark_error(table_name, fk_column, row[0], 'Invalid Foreign Key')
 
     def check_data_consistency(self, table_name, columns, original_cursor, errors):
-        # This method checks for logical consistency between related columns
-        # For example, if there's a 'start_date' and 'end_date', ensure start_date is before end_date
         date_columns = [col for col in columns if 'date' in col['name'].lower()]
         for i in range(len(date_columns)):
             for j in range(i+1, len(date_columns)):
@@ -519,6 +566,7 @@ class DataQualityChecker:
                         for header in headers:
                             if header.endswith('_errors'):
                                 error_columns.append(header)
+                                # Add a column for each error type
                                 new_headers.extend([f"{header}_{error_type}" for error_type in self.error_types])
                             else:
                                 new_headers.append(header)
@@ -529,9 +577,9 @@ class DataQualityChecker:
                             new_row = []
                             for i, cell in enumerate(row):
                                 if headers[i] in error_columns:
-                                    errors = cell.split(',') if cell else []
+                                    errors = [e.strip().lower() for e in cell.split(',')] if cell else []  # Standardized error list
                                     for error_type in self.error_types:
-                                        new_row.append('1' if any(error_type.lower() in e.lower() for e in errors) else '0')
+                                        new_row.append('1' if error_type.lower() in errors else '0')
                                 else:
                                     new_row.append(str(cell) if cell is not None else '')
                             writer.writerow(new_row)
@@ -541,6 +589,7 @@ class DataQualityChecker:
                 print(warning(f"Error exporting marked data for table {table_name}: {str(e)}"))
                 print(info("Skipping this table and continuing with others..."))
                 continue
+
 
     def save_column_name_changes(self):
         if self.column_name_changes:
