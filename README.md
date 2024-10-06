@@ -508,26 +508,65 @@ This comprehensive list covers a wide range of data analytics techniques, from b
 
 ## Data Quality Checks in structured data
 
-Missing Values: Checks for null or empty values in columns.
-Data Type Mismatches: Verifies if the data type of values matches the expected column type.
-Duplicate Records: Identifies duplicate entries across all columns in a table.
-Inconsistent Formatting: Detects inconsistent date formats within a column.
-Outliers: Identifies statistical outliers in numeric columns using the Interquartile Range (IQR) method.
-Whitespace Issues: Checks for leading, trailing, or excessive whitespace in text columns.
-Special Characters: Detects the presence of special characters in text columns.
-Inconsistent Capitalization: Identifies inconsistent use of uppercase, lowercase, or title case in text columns.
-Possible Data Truncation: Checks for values that are close to the maximum observed length in a column, which might indicate truncation.
-High Frequency Values: Identifies values that appear with unusually high frequency (>90%) in a column.
-Suspicious Date Range: Checks for dates outside a reasonable range (e.g., before 1900 or far in the future).
-Large Numeric Range: Detects numeric columns with an unusually large range of values.
-Very Short Strings: Identifies strings that are unusually short (less than 2 characters).
-Very Long Strings: Identifies strings that are unusually long (more than 255 characters).
-Invalid Email Format: Checks if email addresses conform to a standard format.
-Non-unique Values: Identifies columns with non-unique values where uniqueness might be expected.
-Invalid Foreign Keys: Checks for foreign key violations in the database.
-Date Inconsistency: Verifies logical relationships between date columns (e.g., start date before end date).
-Logical Relationship Violations: Checks for violations of expected relationships between columns (e.g., a total column should equal the sum of its parts).
-Pattern Mismatch: Verifies if values in certain columns match expected patterns (e.g., phone numbers, zip codes, URLs).
+1. **Missing Values**
+   - Checks for null or empty values in columns.
+
+2. **Data Type Mismatches**
+   - Verifies if the data type of values matches the expected column type.
+
+3. **Duplicate Records**
+   - Identifies duplicate entries across all columns in a table.
+
+4. **Inconsistent Formatting**
+   - Detects inconsistent date formats within a column.
+
+5. **Outliers**
+   - Identifies statistical outliers in numeric columns using the Interquartile Range (IQR) method.
+
+6. **Whitespace Issues**
+   - Checks for leading, trailing, or excessive whitespace in text columns.
+
+7. **Special Characters**
+   - Detects the presence of special characters in text columns.
+
+8. **Inconsistent Capitalization**
+   - Identifies inconsistent use of uppercase, lowercase, or title case in text columns.
+
+9. **Possible Data Truncation**
+   - Checks for values that are close to the maximum observed length in a column, which might indicate truncation.
+
+10. **High Frequency Values**
+    - Identifies values that appear with unusually high frequency (>90%) in a column.
+
+11. **Suspicious Date Range**
+    - Checks for dates outside a reasonable range (e.g., before 1900 or far in the future).
+
+12. **Large Numeric Range**
+    - Detects numeric columns with an unusually large range of values.
+
+13. **Very Short Strings**
+    - Identifies strings that are unusually short (less than 2 characters).
+
+14. **Very Long Strings**
+    - Identifies strings that are unusually long (more than 255 characters).
+
+15. **Invalid Email Format**
+    - Checks if email addresses conform to a standard format.
+
+16. **Non-unique Values**
+    - Identifies columns with non-unique values where uniqueness might be expected.
+
+17. **Invalid Foreign Keys**
+    - Checks for foreign key violations in the database.
+
+18. **Date Inconsistency**
+    - Verifies logical relationships between date columns (e.g., start date before end date).
+
+19. **Logical Relationship Violations**
+    - Checks for violations of expected relationships between columns (e.g., a total column should equal the sum of its parts).
+
+20. **Pattern Mismatch**
+    - Verifies if values in certain columns match expected patterns (e.g., phone numbers, zip codes, URLs).
 
 ## Troubleshooting
 
