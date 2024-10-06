@@ -125,6 +125,9 @@ class Settings:
         # Additional Settings
         self.save_results_to_txt: bool = False
 
+         # Data Quality Settings
+        self.enable_ai_interpretation: bool = False  # New setting
+
 
     def load_settings(self):
         if os.path.exists(self.config_file):

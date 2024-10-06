@@ -701,6 +701,10 @@ class ERAGGUI:
         summarization_frame = self.create_labelframe(columns[2], "Summarization Settings", 2)
         dataset_frame = self.create_labelframe(columns[2], "Dataset Generation Settings", 3)
 
+        # Data Quality Settings
+        data_quality_frame = self.create_labelframe(columns[2], "Data Quality Settings", 4)
+        self.create_checkbox(data_quality_frame, "Enable AI Interpretation", "enable_ai_interpretation", 0, 0)
+
         api_frame = self.create_labelframe(columns[3], "API Settings", 0)
         question_gen_frame = self.create_labelframe(columns[3], "Question Generation Settings", 1)
         talk2url_frame = self.create_labelframe(columns[3], "Talk2URL Settings", 2)
@@ -2381,7 +2385,10 @@ class ERAGGUI:
             # Create EragAPI instance
             erag_api = create_erag_api(api_type, model)
             
-            dq_checker = DataQualityChecker(erag_api, db_path)
+            # Use the setting from GUI
+            enable_ai_interpretation = self.enable_ai_interpretation_var.get()
+            
+            dq_checker = DataQualityChecker(erag_api, db_path, enable_ai_interpretation)
             
             # Apply settings to DataQualityChecker
             settings.apply_settings()
@@ -2392,6 +2399,7 @@ class ERAGGUI:
             output_folder = os.path.join(os.path.dirname(db_path), "data_quality_output")
             messagebox.showinfo("Info", f"Data Quality Check started on {os.path.basename(db_path)}.\n\n"
                                         f"Results will be saved in:\n{output_folder}\n\n"
+                                        f"AI Interpretation: {'Enabled' if enable_ai_interpretation else 'Disabled'}\n\n"
                                         "Check the console for progress updates.")
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred while starting the Data Quality Check: {str(e)}")

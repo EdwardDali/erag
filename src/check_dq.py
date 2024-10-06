@@ -11,7 +11,7 @@ from src.look_and_feel import error, success, warning, info, highlight
 from src.api_model import EragAPI
 
 class DataQualityChecker:
-    def __init__(self, erag_api, db_path):
+    def __init__(self, erag_api, db_path, enable_ai_interpretation=False):
         self.erag_api = erag_api
         self.db_path = db_path
         self.output_folder = os.path.join(os.path.dirname(db_path), "data_quality_output")
@@ -19,7 +19,7 @@ class DataQualityChecker:
         self.marked_db_path = None
         self.marked_conn = None
         self.marked_cursor = None
-        self.total_checks = 20  # Updated number of checks
+        self.total_checks = 20
         self.current_check = 0
         self.column_name_changes = {}
         self.schema = self.fetch_schema()
@@ -31,6 +31,7 @@ class DataQualityChecker:
             'Invalid Email Format', 'Non-unique Value', 'Invalid Foreign Key',
             'Date Inconsistency', 'Logical Relationship Violation', 'Pattern Mismatch'
         ]
+        self.enable_ai_interpretation = enable_ai_interpretation
 
     def sanitize_column_name(self, column_name):
         sanitized_name = re.sub(r'[^a-zA-Z0-9_]', '_', column_name)
@@ -615,6 +616,10 @@ class DataQualityChecker:
             print(success(f"No data quality issues found in {table_name}."))
 
     def generate_ai_interpretation(self, table_name, errors):
+        if not self.enable_ai_interpretation:
+            print(info(f"AI interpretation skipped for {table_name} as it is disabled in settings."))
+            return
+
         prompt = f"""
         Analyze the following data quality issues found in the table '{table_name}':
 
