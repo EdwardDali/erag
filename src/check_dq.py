@@ -5,6 +5,7 @@ import shutil
 import re
 from datetime import datetime
 import numpy as np
+import pandas as pd
 from src.settings import settings
 from src.look_and_feel import error, success, warning, info, highlight
 from src.api_model import EragAPI
@@ -18,7 +19,7 @@ class DataQualityChecker:
         self.marked_db_path = None
         self.marked_conn = None
         self.marked_cursor = None
-        self.total_checks = 17  # Updated number of checks
+        self.total_checks = 20  # Updated number of checks
         self.current_check = 0
         self.column_name_changes = {}
         self.schema = self.fetch_schema()
@@ -28,7 +29,7 @@ class DataQualityChecker:
             'Possible Data Truncation', 'High Frequency Value', 'Suspicious Date Range',
             'Large Numeric Range', 'Very Short String', 'Very Long String',
             'Invalid Email Format', 'Non-unique Value', 'Invalid Foreign Key',
-            'Date Inconsistency'
+            'Date Inconsistency', 'Logical Relationship Violation', 'Pattern Mismatch'
         ]
 
     def sanitize_column_name(self, column_name):
@@ -517,6 +518,91 @@ class DataQualityChecker:
                         self.mark_error(table_name, col1['name'], row[0], 'Date Inconsistency')
                         self.mark_error(table_name, col2['name'], row[0], 'Date Inconsistency')
 
+    def detect_column_types(self, df):
+        """Detect column types and categorize them."""
+        column_info = {
+            "dates": [],
+            "numerics": [],
+            "categoricals": []
+        }
+        
+        for col in df.columns:
+            if pd.api.types.is_datetime64_any_dtype(df[col]):
+                column_info["dates"].append(col)
+            elif pd.api.types.is_numeric_dtype(df[col]):
+                column_info["numerics"].append(col)
+            elif pd.api.types.is_string_dtype(df[col]) or pd.api.types.is_categorical_dtype(df[col]):
+                column_info["categoricals"].append(col)
+        
+        return column_info
+
+    def check_logical_relationships(self, table_name, columns, original_cursor, errors):
+        df = pd.read_sql_query(f"SELECT * FROM {table_name}", original_cursor.connection)
+        column_types = self.detect_column_types(df)
+        
+        # Check date relationships
+        for i in range(len(column_types["dates"])):
+            for j in range(i+1, len(column_types["dates"])):
+                col1, col2 = column_types["dates"][i], column_types["dates"][j]
+                invalid = df[df[col1] > df[col2]]
+                if not invalid.empty:
+                    errors.append({
+                        "table": table_name,
+                        "column": f"{col1}, {col2}",
+                        "error_type": "Logical Relationship Violation",
+                        "count": len(invalid),
+                        "details": f"{col1} is after {col2}"
+                    })
+                    for _, row in invalid.iterrows():
+                        self.mark_error(table_name, col1, row.name, 'Logical Relationship Violation')
+                        self.mark_error(table_name, col2, row.name, 'Logical Relationship Violation')
+
+        # Check numeric relationships (example: total columns)
+        for col in column_types["numerics"]:
+            if 'total' in col.lower():
+                potential_parts = [c for c in column_types["numerics"] if c != col and c in col.lower()]
+                if potential_parts:
+                    calculated_total = df[potential_parts].sum(axis=1)
+                    invalid = df[df[col] != calculated_total]
+                    if not invalid.empty:
+                        errors.append({
+                            "table": table_name,
+                            "column": f"{col}, {', '.join(potential_parts)}",
+                            "error_type": "Logical Relationship Violation",
+                            "count": len(invalid),
+                            "details": f"{col} does not equal sum of {', '.join(potential_parts)}"
+                        })
+                        for _, row in invalid.iterrows():
+                            self.mark_error(table_name, col, row.name, 'Logical Relationship Violation')
+
+    def check_pattern_matching(self, table_name, columns, original_cursor, errors):
+        for column in columns:
+            if column['type'].lower() == 'text':
+                # Example patterns (can be extended)
+                patterns = {
+                    'email': r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
+                    'phone': r'^\+?1?\d{9,15}$',
+                    'zipcode': r'^\d{5}(-\d{4})?$',
+                    'url': r'^(http|https)://[a-zA-Z0-9\-\.]+\.[a-zA-Z]{2,3}(/\S*)?$'
+                }
+                
+                for pattern_name, regex in patterns.items():
+                    if pattern_name in column['name'].lower():
+                        query = f"SELECT rowid, {column['name']} FROM {table_name} WHERE {column['name']} IS NOT NULL AND {column['name']} NOT REGEXP ?;"
+                        original_cursor.execute(query, (regex,))
+                        invalid_rows = original_cursor.fetchall()
+                        
+                        if invalid_rows:
+                            errors.append({
+                                "table": table_name,
+                                "column": column['name'],
+                                "error_type": "Pattern Mismatch",
+                                "count": len(invalid_rows),
+                                "details": f"Does not match {pattern_name} pattern"
+                            })
+                            for row in invalid_rows:
+                                self.mark_error(table_name, column['name'], row[0], 'Pattern Mismatch')
+
     def save_errors_to_csv(self, table_name, errors):
         if errors:
             output_file = os.path.join(self.output_folder, f"{table_name}_data_quality_errors.csv")
@@ -624,7 +710,9 @@ class DataQualityChecker:
             self.check_email_format,
             self.check_unique_constraints,
             self.check_foreign_key_integrity,
-            self.check_data_consistency
+            self.check_data_consistency,
+            self.check_logical_relationships,
+            self.check_pattern_matching
         ]
 
         for method in check_methods:
