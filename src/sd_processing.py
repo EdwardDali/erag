@@ -17,6 +17,12 @@ def sanitize_table_name(name):
         name = '_' + name
     return name
 
+def convert_timestamp_columns(df):
+    for column in df.columns:
+        if pd.api.types.is_datetime64_any_dtype(df[column]):
+            df[column] = df[column].astype(str)
+    return df
+
 def process_structured_data(file_path):
     try:
         # Read the file
@@ -51,6 +57,9 @@ def process_structured_data(file_path):
 
         if combined_df.empty:
             raise ValueError("No valid data found in the file.")
+
+        # Convert Timestamp columns to strings
+        combined_df = convert_timestamp_columns(combined_df)
 
         # Create SQLite database
         db_path = os.path.join(settings.output_folder, 'structured_data.db')
