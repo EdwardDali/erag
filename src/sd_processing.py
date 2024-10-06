@@ -1,9 +1,11 @@
 # Standard library imports
 import os
 import re
+import sys
 
 # Third-party imports
 import pandas as pd
+import numpy as np
 import sqlite3
 
 # Local imports
@@ -17,10 +19,23 @@ def sanitize_table_name(name):
         name = '_' + name
     return name
 
-def convert_timestamp_columns(df):
+def convert_datatypes(df):
     for column in df.columns:
+        # Convert timestamps to strings
         if pd.api.types.is_datetime64_any_dtype(df[column]):
             df[column] = df[column].astype(str)
+        # Convert any remaining objects to strings
+        elif df[column].dtype == 'object':
+            df[column] = df[column].astype(str)
+        # Convert float64 to float32 to avoid precision issues
+        elif df[column].dtype == 'float64':
+            df[column] = df[column].astype('float32')
+        # Convert int64 to int32 if possible, otherwise to float32
+        elif df[column].dtype == 'int64':
+            if df[column].min() > np.iinfo(np.int32).min and df[column].max() < np.iinfo(np.int32).max:
+                df[column] = df[column].astype('int32')
+            else:
+                df[column] = df[column].astype('float32')
     return df
 
 def process_structured_data(file_path):
@@ -28,7 +43,7 @@ def process_structured_data(file_path):
         # Read the file
         if file_path.endswith('.csv'):
             df = pd.read_csv(file_path)
-            combined_df = df
+            combined_df = convert_datatypes(df)  # Apply conversion immediately
             print("Processing CSV file.")
         elif file_path.endswith('.xlsx'):
             xlsx = pd.ExcelFile(file_path)
@@ -38,6 +53,7 @@ def process_structured_data(file_path):
 
             for sheet_name in xlsx.sheet_names:
                 df = pd.read_excel(xlsx, sheet_name)
+                df = convert_datatypes(df)  # Apply conversion to each sheet
                 if first_sheet:
                     combined_df = df
                     first_sheet_header = list(df.columns)
@@ -58,8 +74,10 @@ def process_structured_data(file_path):
         if combined_df.empty:
             raise ValueError("No valid data found in the file.")
 
-        # Convert Timestamp columns to strings
-        combined_df = convert_timestamp_columns(combined_df)
+        # Print column types for debugging
+        print("Column types after conversion:")
+        for column, dtype in combined_df.dtypes.items():
+            print(f"{column}: {dtype}")
 
         # Create SQLite database
         db_path = os.path.join(settings.output_folder, 'structured_data.db')
@@ -78,4 +96,6 @@ def process_structured_data(file_path):
         return True
     except Exception as e:
         print(f"Error processing structured data: {str(e)}")
+        print("Exception details:")
+        print(sys.exc_info())
         return False
