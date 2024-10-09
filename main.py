@@ -631,6 +631,11 @@ class ERAGGUI:
         text_analysis_button.pack(side="left", padx=5, pady=5)
         ToolTip(text_analysis_button, "Perform text analysis on an uploaded document")
 
+        # Add the new TxtRev button
+        txt_rev_button = tk.Button(rag_frame, text="TxtRev", command=self.run_txt_rev)
+        txt_rev_button.pack(side="left", padx=5, pady=5)
+        ToolTip(txt_rev_button, "Review the logical consistency of a text document using LLM")
+
         rag_textbook_button = tk.Button(rag_frame, text="Rag Textbook", command=self.run_rag_textbook)
         rag_textbook_button.pack(side="left", padx=5, pady=5)
         ToolTip(rag_textbook_button, "Generate a textbook using RAG for each chapter and sub-chapter")
@@ -2414,6 +2419,62 @@ class ERAGGUI:
                                         "marked data, and AI interpretations.")
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred during the Data Quality Check: {str(e)}")
+
+    def run_txt_rev(self):
+        try:
+            file_path = filedialog.askopenfilename(
+                title="Select a document for logical consistency review",
+                filetypes=[("Text files", "*.txt"), ("PDF files", "*.pdf"), ("All files", "*.*")]
+            )
+            if not file_path:
+                messagebox.showwarning("Warning", "No file selected.")
+                return
+
+            api_type = self.api_type_var.get()
+            model = self.model_var.get()
+            embedding_class = self.embedding_class_var.get()
+            embedding_model = self.embedding_model_var.get()
+
+            # Check API keys before proceeding
+            self.check_api_keys()
+
+            # Create EragAPI instance
+            erag_api = create_erag_api(api_type, model, embedding_class, embedding_model)
+
+            # Apply settings before running the text review
+            self.apply_settings()
+
+            # Run the text review in a separate thread
+            threading.Thread(
+                target=self._txt_rev_thread,
+                args=(file_path, erag_api),
+                daemon=True
+            ).start()
+
+            messagebox.showinfo(
+                "Info",
+                f"Logical consistency review started for {os.path.basename(file_path)}. "
+                f"Check the console for progress updates."
+            )
+        except Exception as e:
+            error_message = f"An error occurred while starting the logical consistency review process: {str(e)}"
+            print(error(error_message))
+            messagebox.showerror("Error", error_message)
+
+    def _txt_rev_thread(self, file_path, erag_api):
+        try:
+            from src.txt_rev import run_txt_rev
+            result = run_txt_rev(file_path, erag_api)
+            print(result)
+            messagebox.showinfo(
+                "Success",
+                "Logical consistency review completed successfully. "
+                "Check the output folder for the PDF report."
+            )
+        except Exception as e:
+            error_message = f"An error occurred during logical consistency review: {str(e)}"
+            print(error(error_message))
+            messagebox.showerror("Error", error_message)
 
     def create_server_tab(self):
         # Enable/Disable on start
