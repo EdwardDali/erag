@@ -8,7 +8,7 @@ from src.look_and_feel import success, info, warning, error
 from src.print_pdf import PDFReportGenerator
 
 class LLMLogicalConsistencyReviewer:
-    def __init__(self, erag_api, max_tokens=3000):
+    def __init__(self, erag_api, max_tokens=3000, output_folder=None):
         self.erag_api = erag_api
         self.conversation_history = []
         self.step_budget = 20
@@ -22,6 +22,13 @@ class LLMLogicalConsistencyReviewer:
         self.chunk_summaries = []
         self.cross_chunk_issues = defaultdict(list)
         self.key_area_reviews = {}
+        self.output_folder = output_folder
+        self.text_file_path = os.path.join(output_folder, "logical_consistency_review.txt") if output_folder else None
+
+    def update_text_file(self, content):
+        if self.text_file_path:
+            with open(self.text_file_path, 'a', encoding='utf-8') as f:
+                f.write(content + "\n\n")
 
     def query_llm(self, prompt):
         self.conversation_history.append({"role": "user", "content": prompt})
@@ -69,6 +76,9 @@ class LLMLogicalConsistencyReviewer:
             self.chunk_summaries.append(summary)
         else:
             self.chunk_summaries.append("Summary not available")
+        
+        # Update text file
+        self.update_text_file(f"Chunk {chunk_number} Review:\n{response}")
         
         return response
 
@@ -127,6 +137,9 @@ class LLMLogicalConsistencyReviewer:
                     'suggestion': suggestion
                 })
 
+        # Update text file
+        self.update_text_file(f"Cross-chunk Analysis:\n{response}")
+
         return response
 
     def review_area(self, area):
@@ -155,6 +168,10 @@ class LLMLogicalConsistencyReviewer:
         response = self.query_llm(prompt)
         self.step_budget -= 1
         self.key_area_reviews[area] = response
+        
+        # Update text file
+        self.update_text_file(f"{area} Review:\n{response}")
+        
         return response
 
     def synthesize_review(self):
@@ -175,7 +192,12 @@ class LLMLogicalConsistencyReviewer:
 
         Present your synthesis within <answer> tags. After providing your summary, reflect on the overall review process and assign a final consistency and coherence score between 0.0 and 1.0 for the entire document.
         """
-        return self.query_llm(prompt)
+        response = self.query_llm(prompt)
+        
+        # Update text file
+        self.update_text_file(f"Overall Review Synthesis:\n{response}")
+        
+        return response
 
     def run_review(self, embeddings, content):
         print(f"Document split into {len(embeddings)} chunks.")
@@ -211,7 +233,7 @@ def run_txt_rev(embeddings_file_path, erag_api):
         embeddings, content = load_embeddings(embeddings_file_path)
         
         print(info("Starting logical consistency review..."))
-        reviewer = LLMLogicalConsistencyReviewer(erag_api)
+        reviewer = LLMLogicalConsistencyReviewer(erag_api, output_folder=output_folder)
         overall_review = reviewer.run_review(embeddings, content)
         
         # Prepare results for PDF report
@@ -251,7 +273,9 @@ def run_txt_rev(embeddings_file_path, erag_api):
         else:
             print(error("Failed to generate PDF report"))
         
-        return success(f"Logical consistency review completed. PDF report saved at: {pdf_file}")
+        print(success(f"Text file updated with review progress: {reviewer.text_file_path}"))
+        
+        return success(f"Logical consistency review completed. PDF report saved at: {pdf_file}, Text file saved at: {reviewer.text_file_path}")
     except Exception as e:
         return error(f"An error occurred during the logical consistency review: {str(e)}")
 
