@@ -19,7 +19,11 @@ def sanitize_table_name(name):
         name = '_' + name
     return name
 
+def sanitize_column_name(name):
+    return re.sub(r'\W+', '_', str(name).strip().lower())
+
 def convert_datatypes(df):
+    df.columns = [sanitize_column_name(col) for col in df.columns]
     for column in df.columns:
         # Convert timestamps to strings
         if pd.api.types.is_datetime64_any_dtype(df[column]):
@@ -56,10 +60,10 @@ def process_structured_data(file_path):
                 df = convert_datatypes(df)  # Apply conversion to each sheet
                 if first_sheet:
                     combined_df = df
-                    first_sheet_header = list(df.columns)
+                    first_sheet_header = [sanitize_column_name(col) for col in df.columns]
                     first_sheet = False
                     print(f"Processing sheet: {sheet_name}")
-                elif list(df.columns) == first_sheet_header:
+                elif [sanitize_column_name(col) for col in df.columns] == first_sheet_header:
                     combined_df = pd.concat([combined_df, df], ignore_index=True)
                     print(f"Processing sheet: {sheet_name}")
                 else:
@@ -87,10 +91,20 @@ def process_structured_data(file_path):
         original_table_name = os.path.splitext(os.path.basename(file_path))[0]
         sanitized_table_name = sanitize_table_name(original_table_name)
 
-        # Save data to SQLite
-        combined_df.to_sql(sanitized_table_name, conn, if_exists='replace', index=False)
+        # Ensure column names are sanitized before saving to SQL
+        combined_df.columns = [sanitize_column_name(col) for col in combined_df.columns]
 
-        conn.close()
+        # Save data to SQLite
+        try:
+            combined_df.to_sql(sanitized_table_name, conn, if_exists='replace', index=False)
+        except sqlite3.OperationalError as e:
+            if "syntax error" in str(e).lower():
+                print("Error: Invalid column names. Please check for special characters in your headers.")
+            else:
+                print(f"SQLite error: {e}")
+            return False
+        finally:
+            conn.close()
         
         print(f"Data has been processed and saved as '{sanitized_table_name}' in the database.")
         return True
