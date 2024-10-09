@@ -1,16 +1,11 @@
 import os
 import textwrap
-from nltk.tokenize import sent_tokenize
-import nltk
-import re
 from collections import defaultdict
 from tqdm import tqdm
-from PyPDF2 import PdfReader
+import torch
 from src.settings import settings
 from src.look_and_feel import success, info, warning, error
 from src.print_pdf import PDFReportGenerator
-
-nltk.download('punkt', quiet=True)
 
 class LLMLogicalConsistencyReviewer:
     def __init__(self, erag_api, max_tokens=3000):
@@ -34,24 +29,7 @@ class LLMLogicalConsistencyReviewer:
         self.conversation_history.append({"role": "assistant", "content": response})
         return response
 
-    def chunk_report(self, report):
-        sentences = sent_tokenize(report)
-        chunks = []
-        current_chunk = ""
-        
-        for sentence in sentences:
-            if len(current_chunk) + len(sentence) < self.max_tokens:
-                current_chunk += sentence + " "
-            else:
-                chunks.append(current_chunk.strip())
-                current_chunk = sentence + " "
-        
-        if current_chunk:
-            chunks.append(current_chunk.strip())
-        
-        return chunks
-
-    def review_chunk(self, chunk, chunk_number, total_chunks):
+    def review_chunk(self, chunk_embedding, chunk_content, chunk_number, total_chunks):
         prompt = f"""
         You are reviewing part {chunk_number} of {total_chunks} of a document. Focus on the logical consistency and coherence within this chunk, but also consider how it might relate to the overall document.
 
@@ -71,7 +49,7 @@ class LLMLogicalConsistencyReviewer:
 
         Here's the chunk to review:
 
-        {chunk}
+        {chunk_content}
 
         Provide your analysis in a structured format. Identify specific issues related to logical consistency and coherence, explain why they're problematic, and suggest improvements. After your analysis, provide a reflection on your review of this chunk and assign a consistency score between 0.0 and 1.0.
 
@@ -140,13 +118,7 @@ class LLMLogicalConsistencyReviewer:
             chunks_text = issue[chunks_start:chunks_end].strip()
             suggestion = issue[suggestion_start:suggestion_end].strip()
 
-            # Improved chunk number parsing
-            chunks = []
-            for chunk in re.findall(r'\d+', chunks_text):
-                try:
-                    chunks.append(int(chunk))
-                except ValueError:
-                    print(warning(f"Invalid chunk number: {chunk}"))
+            chunks = [int(chunk) for chunk in chunks_text.split(',') if chunk.strip().isdigit()]
 
             for chunk in chunks:
                 self.cross_chunk_issues[chunk].append({
@@ -185,7 +157,6 @@ class LLMLogicalConsistencyReviewer:
         self.key_area_reviews[area] = response
         return response
 
-
     def synthesize_review(self):
         prompt = """
         Now that we've reviewed all chunks, performed cross-chunk analysis, and examined all key areas, let's synthesize our findings for the entire document.
@@ -206,14 +177,13 @@ class LLMLogicalConsistencyReviewer:
         """
         return self.query_llm(prompt)
 
-    def run_review(self, document_content):
-        chunks = self.chunk_report(document_content)
-        print(f"Document split into {len(chunks)} chunks.")
+    def run_review(self, embeddings, content):
+        print(f"Document split into {len(embeddings)} chunks.")
 
         print("Reviewing chunks...")
-        for i, chunk in enumerate(chunks, 1):
-            print(f"\nReviewing chunk {i}/{len(chunks)}...")
-            self.review_chunk(chunk, i, len(chunks))
+        for i, (embedding, chunk_content) in enumerate(zip(embeddings, content), 1):
+            print(f"\nReviewing chunk {i}/{len(embeddings)}...")
+            self.review_chunk(embedding, chunk_content, i, len(embeddings))
 
         print("\nPerforming cross-chunk analysis...")
         self.cross_chunk_analysis()
@@ -228,70 +198,62 @@ class LLMLogicalConsistencyReviewer:
         print("\nSynthesizing review...")
         return self.synthesize_review()
 
+def load_embeddings(file_path):
+    data = torch.load(file_path)
+    return data['embeddings'], data['content']
 
-def read_file_content(file_path):
-    _, file_extension = os.path.splitext(file_path)
-    if file_extension.lower() == '.pdf':
-        return read_pdf(file_path)
-    else:  # Assume it's a text file
-        with open(file_path, 'r', encoding='utf-8') as file:
-            return file.read()
-
-def read_pdf(file_path):
-    reader = PdfReader(file_path)
-    text = ""
-    for page in reader.pages:
-        text += page.extract_text() + "\n"
-    return text
-
-def run_txt_rev(file_path, erag_api):
-    content = read_file_content(file_path)
-    
-    output_folder = os.path.join(settings.output_folder, "txt_rev_output")
-    os.makedirs(output_folder, exist_ok=True)
-    
-    print(info("Starting logical consistency review..."))
-    reviewer = LLMLogicalConsistencyReviewer(erag_api)
-    overall_review = reviewer.run_review(content)
-    
-    # Prepare results for PDF report
-    pdf_generator = PDFReportGenerator(output_folder, erag_api.model, os.path.basename(file_path))
-    pdf_content = []
-    
-    # Chunk Reviews
-    for i, review in enumerate(reviewer.chunk_reviews, 1):
-        pdf_content.append((f"Chunk {i} Review", [], review))
-    
-    # Cross-chunk issues
-    cross_chunk_issues = []
-    for chunk, issues in reviewer.cross_chunk_issues.items():
-        for issue in issues:
-            cross_chunk_issues.append(f"Chunks {', '.join(map(str, issue['related_chunks']))}: {issue['description']}\nSuggestion: {issue['suggestion']}")
-    pdf_content.append(("Cross-chunk Issues", [], "\n\n".join(cross_chunk_issues)))
-    
-    # Key Areas Review
-    for area in reviewer.key_areas:
-        if area in reviewer.key_area_reviews:
-            pdf_content.append((f"{area} Review", [], reviewer.key_area_reviews[area]))
-    
-    # Overall Review
-    pdf_content.append(("Overall Review", [], overall_review))
-    
-    # Generate the PDF report
-    pdf_file = pdf_generator.create_enhanced_pdf_report(
-        [],  # No specific findings for this review
-        pdf_content,
-        [],  # No additional image data
-        filename="logical_consistency_review",
-        report_title=f"Logical Consistency Review for {os.path.basename(file_path)}"
-    )
-    
-    if pdf_file:
-        print(success(f"PDF report generated successfully: {pdf_file}"))
-    else:
-        print(error("Failed to generate PDF report"))
-    
-    return success(f"Logical consistency review completed. PDF report saved at: {pdf_file}")
+def run_txt_rev(embeddings_file_path, erag_api):
+    try:
+        output_folder = os.path.join(settings.output_folder, "txt_rev_output")
+        os.makedirs(output_folder, exist_ok=True)
+        
+        print(info("Loading embeddings and content..."))
+        embeddings, content = load_embeddings(embeddings_file_path)
+        
+        print(info("Starting logical consistency review..."))
+        reviewer = LLMLogicalConsistencyReviewer(erag_api)
+        overall_review = reviewer.run_review(embeddings, content)
+        
+        # Prepare results for PDF report
+        pdf_generator = PDFReportGenerator(output_folder, erag_api.model, os.path.basename(embeddings_file_path))
+        pdf_content = []
+        
+        # Chunk Reviews
+        for i, review in enumerate(reviewer.chunk_reviews, 1):
+            pdf_content.append((f"Chunk {i} Review", [], review))
+        
+        # Cross-chunk issues
+        cross_chunk_issues = []
+        for chunk, issues in reviewer.cross_chunk_issues.items():
+            for issue in issues:
+                cross_chunk_issues.append(f"Chunks {', '.join(map(str, issue['related_chunks']))}: {issue['description']}\nSuggestion: {issue['suggestion']}")
+        pdf_content.append(("Cross-chunk Issues", [], "\n\n".join(cross_chunk_issues)))
+        
+        # Key Areas Review
+        for area in reviewer.key_areas:
+            if area in reviewer.key_area_reviews:
+                pdf_content.append((f"{area} Review", [], reviewer.key_area_reviews[area]))
+        
+        # Overall Review
+        pdf_content.append(("Overall Review", [], overall_review))
+        
+        # Generate the PDF report
+        pdf_file = pdf_generator.create_enhanced_pdf_report(
+            [],  # No specific findings for this review
+            pdf_content,
+            [],  # No additional image data
+            filename="logical_consistency_review",
+            report_title=f"Logical Consistency Review for {os.path.basename(embeddings_file_path)}"
+        )
+        
+        if pdf_file:
+            print(success(f"PDF report generated successfully: {pdf_file}"))
+        else:
+            print(error("Failed to generate PDF report"))
+        
+        return success(f"Logical consistency review completed. PDF report saved at: {pdf_file}")
+    except Exception as e:
+        return error(f"An error occurred during the logical consistency review: {str(e)}")
 
 if __name__ == "__main__":
     print(warning("This module is not meant to be run directly. Import and use run_txt_rev function in your main script."))
